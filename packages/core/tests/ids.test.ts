@@ -2,6 +2,7 @@ import { expectTypeOf, test } from "vitest";
 
 import type {
   AssertionId,
+  CorrectionId,
   EventId,
   PhaseId,
   ProjectId,
@@ -16,11 +17,12 @@ type Ids = {
   task: TaskId;
   session: SessionId;
   assertion: AssertionId;
+  correction: CorrectionId;
   source: SourceId;
   event: EventId;
 };
 
-// All 42 directed pairs must reject assignment, not just differ in name.
+// All 56 directed pairs must reject assignment, not just differ in name.
 type CrossIdAssignments = {
   [From in keyof Ids]: {
     [To in Exclude<keyof Ids, From>]: Ids[From] extends Ids[To] ? true : false;

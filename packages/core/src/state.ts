@@ -1,4 +1,5 @@
 import type { Assertion } from "./domain/assertion.js";
+import type { CorrectionRecord } from "./domain/correction.js";
 import type { NormalizedEvent } from "./domain/normalized-event.js";
 import type { Phase } from "./domain/phase.js";
 import type { Project } from "./domain/project.js";
@@ -13,6 +14,7 @@ export interface CoreState {
   readonly sessions: readonly Session[];
   readonly assertions: readonly Assertion[];
   readonly resolvedConclusions: readonly ResolvedConclusion[];
+  readonly corrections: readonly CorrectionRecord[];
   // Accepted events also serve as the minimal replay ledger. No redundant
   // index or runtime-only collection is needed at this in-process stage.
   readonly acceptedEvents: readonly NormalizedEvent[];
@@ -28,6 +30,7 @@ export function createCoreState(initial: Partial<CoreState> = {}): CoreState {
     sessions: initial.sessions ?? [],
     assertions: initial.assertions ?? [],
     resolvedConclusions: initial.resolvedConclusions ?? [],
+    corrections: initial.corrections ?? [],
     acceptedEvents: initial.acceptedEvents ?? [],
   };
 }

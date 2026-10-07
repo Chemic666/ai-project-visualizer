@@ -11,5 +11,6 @@ export type PhaseId = BrandedId<"PhaseId">;
 export type TaskId = BrandedId<"TaskId">;
 export type SessionId = BrandedId<"SessionId">;
 export type AssertionId = BrandedId<"AssertionId">;
+export type CorrectionId = BrandedId<"CorrectionId">;
 export type SourceId = BrandedId<"SourceId">;
 export type EventId = BrandedId<"EventId">;

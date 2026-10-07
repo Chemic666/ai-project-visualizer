@@ -1,5 +1,6 @@
 export type {
   AssertionId,
+  CorrectionId,
   EventId,
   PhaseId,
   ProjectId,
@@ -44,6 +45,13 @@ export type {
   SourceEventIdentity,
   TaskStatusReport,
 } from "./domain/normalized-event.js";
+export type {
+  CorrectionLifecycle,
+  CorrectionRecord,
+  CorrectionScope,
+} from "./domain/correction.js";
+export type { TimelineReference } from "./domain/timeline-reference.js";
+export type { InterpretationState } from "./domain/interpretation-state.js";
 export type { CoreState } from "./state.js";
 export { createCoreState } from "./state.js";
 export type {

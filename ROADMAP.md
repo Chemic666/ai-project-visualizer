@@ -23,7 +23,7 @@ Roadmap 的目标不是尽快堆满功能，而是逐步建立一个可靠的：
 
 契约：Project / Phase / Task / Session、source-aware normalized event、结论级 assertion/provenance/confidence、source reference、correction scope/reference、Timeline 引用。实现最小进程内事件应用和状态查询，不提前实现后续 Plan/Progress/Correction/Timeline Engine。
 
-组件验收：不需要 Codex、VS Code、真实数据库、网络、LLM，受控事件能创建层级、保留独立来源、显示未知/歧义而不猜测完成，幂等消费并产生基本状态。具体 engine 计算/纠正生效政策按 Phase 3–9 实现。未来真实 Agent/UI 场景标 Pending，不以 fixture 测试称其通过。
+组件验收：不需要 Codex、VS Code、真实数据库、网络、LLM；controlled fixture / trusted initial CoreState 建立 Project → Phase → Task hierarchy，normalized events 在已有 hierarchy 上执行 minimal event application。plan.detected / plan.updated 在 Phase 1 只安全保存，不进行 plan→hierarchy reconciliation；该行为由 Phase 3 Plan Engine 实现（D-040）。保留独立来源、显示未知/歧义而不猜测完成，幂等消费并产生基本状态。具体 engine 计算/纠正生效政策按 Phase 3–9 实现。未来真实 Agent/UI 场景标 Pending，不以 fixture 测试称其通过。
 
 进入前：审核修订契约/发布范围，验证选定工具链实际版本，明确 neutral identity/event fixture；Codex Spike 仍独立跟踪，不能向 Core 泄漏专有协议。
 

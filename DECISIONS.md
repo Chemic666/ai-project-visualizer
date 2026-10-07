@@ -1503,6 +1503,36 @@ TECH_STACK §2/§24 以此为当前基线。此决定和发布版本/支持范�
 
 typescript-eslint 正式版明确支持 TypeScript 7 后，可以重新评估；核对 compiler/package identity、确切版本及编译、Lint、测试、打包兼容性，再通过新 Decision 记录升级。不得仅凭预发布支持或忽略版本告警自动迁移。
 
+# D-040 — Phase 1 Fixture Hierarchy and Phase 3 Plan Reconciliation Boundary
+
+**Status:** Accepted
+
+**Accepted:** 2026-10-07，用户在 Phase 1G 明确批准规格边界修正
+
+**Clarifies:** ROADMAP Phase 1 组件验收、ARCHITECTURE §5、§9–10 与 Phase 3 Plan Engine 的职责边界
+
+## Context
+
+Phase 1 验收原文“受控事件能创建层级”可能被理解为必须由 plan.detected / plan.updated 自动建立 Project / Phase / Task，但 plan reconciliation、stable identity matching 及新增/删除/变化处理属于 Phase 3。
+
+## Decision
+
+Phase 1 由 controlled fixture / trusted initial CoreState 建立 Project → Phase → Task hierarchy，normalized events 在已有 hierarchy 上执行 minimal event application。plan.detected / plan.updated 在 Phase 1 仅安全保存，不进行 plan→hierarchy reconciliation，不新增 bootstrap production event 绕过阶段边界。
+
+Phase 3 正式实现 plan input → Project / Phase / Task reconciliation；不改变其既有职责。
+
+## Why
+
+组件验收必须与架构和实现顺序一致，不能为满足一句验收文字提前实现 Plan Engine。
+
+## Consequences
+
+ROADMAP Phase 1 仅修正 hierarchy acceptance wording。Correction scope/reference、Timeline reference 与 interpretation-state 的受控 fixture 不代表相关 Engine 已实现。Phase 1 是否完成仍须外部 Closure Review；本决定不宣称技术验收通过，也不改变 Codex observation 的 Inconclusive / Technical Verification Pending 状态或 Phase 7 生产集成门槛。
+
+## Revisit When
+
+Phase 3 reconciliation 的正式契约/实验证据揭示初始化或阶段边界不足时，以新决策记录调整。
+
 # 7. 哪些事情暂时不要写成 Accepted
 
 有些事情我们还没有真正验证，不应该假装已经拍板。
