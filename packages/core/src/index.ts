@@ -44,3 +44,19 @@ export type {
   SourceEventIdentity,
   TaskStatusReport,
 } from "./domain/normalized-event.js";
+export type { CoreState } from "./state.js";
+export { createCoreState } from "./state.js";
+export type {
+  EventApplicationResult,
+  EventRejectionReason,
+} from "./apply-event.js";
+export { applyNormalizedEvent } from "./apply-event.js";
+export {
+  getAssertion,
+  getAssertionsForTarget,
+  getPhase,
+  getProject,
+  getSession,
+  getTask,
+  hasProcessedEvent,
+} from "./queries.js";

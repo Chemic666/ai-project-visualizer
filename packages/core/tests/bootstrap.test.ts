@@ -22,7 +22,7 @@ vi.mock("node:child_process", () => {
   throw new Error("Core must not start host processes");
 });
 
-test("imports only pure data without host, storage or network initialization", async () => {
+test("imports Core without host, storage or network initialization", async () => {
   const fetch = vi.fn(() => {
     throw new Error("Core must not access the network during import");
   });
@@ -36,6 +36,15 @@ test("imports only pure data without host, storage or network initialization", a
       "PLAN_CERTAINTIES",
       "PROVENANCES",
       "WORK_STATUSES",
+      "applyNormalizedEvent",
+      "createCoreState",
+      "getAssertion",
+      "getAssertionsForTarget",
+      "getPhase",
+      "getProject",
+      "getSession",
+      "getTask",
+      "hasProcessedEvent",
     ]);
     expect(fetch).not.toHaveBeenCalled();
   } finally {
