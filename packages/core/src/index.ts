@@ -35,3 +35,12 @@ export type {
   ResolvedConclusion,
   ResolutionMetadata,
 } from "./domain/resolved-conclusion.js";
+export type {
+  NormalizedEvent,
+  NormalizedEventType,
+  PlanInput,
+  PlanStepInput,
+  SessionEventInput,
+  SourceEventIdentity,
+  TaskStatusReport,
+} from "./domain/normalized-event.js";
