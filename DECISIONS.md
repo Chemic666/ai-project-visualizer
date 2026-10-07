@@ -1259,7 +1259,9 @@ Plan 有没有变化
 
 > 2026-10-07 后续澄清：接受的是选型方向；版本可用性、工具兼容性和实际 Extension Host runtime 尚未验证，见 TECH_STACK §2/§11。
 
-**Status:** Accepted
+**Status:** Superseded
+
+**Superseded by:** D-039。仅替代主语言版本；其余技术栈选型由 D-039 延续。以下原决策正文保留为历史记录，其中 TypeScript 7.x 不再是当前实现要求。
 
 ## Decision
 
@@ -1472,6 +1474,34 @@ Plugin/app-server 获取已有用户 Session/计划的能力缺少可复现实�
 ## Revisit When
 
 正式接口研究及实验证据足以支持接入选择，或揭示现有产品体验不可达时。
+
+# D-039 — TypeScript 6.0.3 Initial Baseline for Ecosystem Compatibility
+
+**Status:** Accepted
+
+**Accepted:** 2026-10-07，用户明确批准 Phase 1 启动前技术栈文档修订
+
+**Supersedes:** D-032 的主语言版本选择；延续其余选型及后续已批准的架构/阶段约束
+
+## Context
+
+用户提供的启动前版本核对结果：`typescript-eslint 8.71.1` / `@typescript-eslint/parser 8.71.1` 的 TypeScript 支持范围为 `>=4.8.4 <6.1.0`。TypeScript 7.0.2 不在该范围内；TypeScript 6 当前可用版本为 6.0.3。[typescript-eslint 官方支持范围](https://typescript-eslint.io/users/dependency-versions/)亦确认该范围（2026-10-07 查阅）。
+
+## Decision
+
+Phase 1 初始实现使用 `typescript 6.0.3`，TypeScript ESLint 工具链基线为 `typescript-eslint 8.71.1` / `@typescript-eslint/parser 8.71.1`。D-032 的 TypeScript 7.x 选择保留为历史，不再约束当前实现；Node.js 24 LTS、pnpm Monorepo、Vitest、SQLite、VS Code Surface、tsc + esbuild 等其余选型继续有效，仍受各自验证门槛约束。
+
+## Why
+
+6.0.3 位于已核对的正式支持范围内；当前 typescript-eslint 正式工具链尚不支持 TypeScript 7。这是生态兼容性选择，不代表永久拒绝 TypeScript 7。
+
+## Consequences
+
+TECH_STACK §2/§24 以此为当前基线。此决定和发布版本/支持范围核对不代表安装、编译、Lint、测试或 Extension Host 兼容性验证通过；其他工具的确切版本与组合验证仍按原门槛执行。本次只修订文档，不安装依赖、初始化 Monorepo 或开始 Phase 1。
+
+## Revisit When
+
+typescript-eslint 正式版明确支持 TypeScript 7 后，可以重新评估；核对 compiler/package identity、确切版本及编译、Lint、测试、打包兼容性，再通过新 Decision 记录升级。不得仅凭预发布支持或忽略版本告警自动迁移。
 
 # 7. 哪些事情暂时不要写成 Accepted
 

@@ -20,7 +20,7 @@
 
 | 层            | 技术选择                                | 作用                                    |
 | ------------- | --------------------------------------- | --------------------------------------- |
-| 主语言        | **TypeScript 7.x**                      | Core、Adapter、CLI、VS Code Extension   |
+| 主语言        | **TypeScript 6.0.3**                    | Core、Adapter、CLI、VS Code Extension   |
 | Runtime       | **Node.js 24 LTS**                      | 本地运行环境                            |
 | 包管理器      | **pnpm 12.x**                           | Workspace / Monorepo                    |
 | 仓库形式      | **pnpm Monorepo**                       | 管理多个独立模块                        |
@@ -31,15 +31,29 @@
 | 复杂 UI       | **Webview 按需使用**                    | Overview、Timeline 等                   |
 | 类型检查      | **TypeScript Compiler (`tsc`)** | 编译期类型检查                          |
 | Bundle        | **esbuild**                             | VS Code Extension 等产物打包            |
-| Lint          | **ESLint**                              | 静态代码检查                            |
+| Lint          | **ESLint + typescript-eslint 8.71.1**    | 静态代码检查；parser 版本见 §2.1         |
 | Format        | **Prettier**                            | 统一格式                                |
 | 第一 Agent    | **Codex**                               | 首个正式适配对象                        |
 | 核心架构      | **Core + Adapter + Surface**            | 保持 Agent 与 UI 解耦                   |
 | 开源方向      | **Open-source developer tool**          | 后续面向开发者社区发布                  |
 
-D-032 保留上述已批准选型目标；本仓库尚无 manifests/lockfile，不宣称 TypeScript 7.x、pnpm 12.x 的当前稳定可用性或兼容性已验证。Phase 1 初始化前须依据官方发布文档验证 compiler/package identity、确切版本及 Vitest/esbuild/ESLint 兼容性，记录证据后再锁版本；不可用时新增明确决策，不静默降级。
+D-039 将当前初始实现基线明确为 TypeScript 6.0.3；D-032 的 TypeScript 7.x 选择仅作为历史保留，其余已批准选型继续有效。本仓库尚无 manifests/lockfile；已核对的发布版本与支持范围见 §2.1，不能据此宣称完整工具链运行验证通过。Phase 1 初始化前仍须确认其余工具的 compiler/package identity、确切版本及 Vitest/esbuild/ESLint 组合兼容性，记录证据后再锁版本；选型需要改变时新增明确决策。
 
-Node.js 24 是开发运行环境目标，不保证 VS Code Extension Host 使用相同 Node/ABI；目标宿主须单独验证。本轮不执行研究或安装依赖。
+Node.js 24 是开发运行环境目标，不保证 VS Code Extension Host 使用相同 Node/ABI；目标宿主须单独验证。本次不安装依赖或执行运行验证。
+
+## 2.1 Phase 1 启动前版本核对记录
+
+2026-10-07：记录用户提供的已验证发布版本/支持范围结果。本次修订另查阅了 [typescript-eslint 官方依赖支持范围](https://typescript-eslint.io/users/dependency-versions/)，未安装或运行这些依赖。
+
+| 工具 | 已核对版本 | 核对结论 |
+| --- | --- | --- |
+| `typescript` | **6.0.3** | TypeScript 6 当前可用版本；位于 `>=4.8.4 <6.1.0`，采用为初始实现基线 |
+| `typescript-eslint` | **8.71.1** | 当前正式工具链的 TypeScript 支持范围为 `>=4.8.4 <6.1.0` |
+| `@typescript-eslint/parser` | **8.71.1** | 同一 TypeScript 支持范围，与上项保持版本一致 |
+
+启动前核对中的 TypeScript 7.0.2 不在该范围内，因此当前不采用。版本/声明范围核对已完成；安装后的 typecheck、Lint、Vitest、esbuild 与宿主运行验证仍 **Technical Verification Pending**。本记录不宣称 ESLint、pnpm、Vitest、esbuild 或 Prettier 的确切版本及完整组合已验证。
+
+未来 typescript-eslint 正式版明确支持 TS7 后可以重新评估，并按 D-039 的 Revisit When 验证迁移组合、记录新决策。这是生态兼容性选择，不是永久拒绝 TypeScript 7。
 
 # 3. 为什么选择 TypeScript
 
@@ -882,7 +896,7 @@ Gemini CLI ─────┘
 
 ```
 Language
-TypeScript 7.x
+TypeScript 6.0.3 (D-039)
 
 Runtime
 Node.js 24 LTS
@@ -906,7 +920,8 @@ Build
 tsc + esbuild
 
 Lint
-ESLint
+ESLint + typescript-eslint 8.71.1
+@typescript-eslint/parser 8.71.1
 
 Formatting
 Prettier
