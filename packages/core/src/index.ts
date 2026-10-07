@@ -31,3 +31,7 @@ export type {
   AssertionTarget,
   TaskWeight,
 } from "./domain/assertion.js";
+export type {
+  ResolvedConclusion,
+  ResolutionMetadata,
+} from "./domain/resolved-conclusion.js";
