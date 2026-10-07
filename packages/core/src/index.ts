@@ -13,3 +13,21 @@ export type { Project } from "./domain/project.js";
 export type { Phase } from "./domain/phase.js";
 export type { Task } from "./domain/task.js";
 export type { Session } from "./domain/session.js";
+export { PROVENANCES } from "./domain/provenance.js";
+export type { Provenance } from "./domain/provenance.js";
+export type {
+  EvidenceReference,
+  SourceReference,
+} from "./domain/source-reference.js";
+export type {
+  AssertionInferenceMetadata,
+  AssociationHeuristicScore,
+  CurrentTaskAssociationInferenceMetadata,
+  InferenceHeuristicScore,
+  InferenceMetadata,
+} from "./domain/inference.js";
+export type {
+  Assertion,
+  AssertionTarget,
+  TaskWeight,
+} from "./domain/assertion.js";

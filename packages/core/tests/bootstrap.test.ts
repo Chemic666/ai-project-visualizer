@@ -34,6 +34,7 @@ test("imports only pure data without host, storage or network initialization", a
 
     expect(Object.keys(core).sort()).toEqual([
       "PLAN_CERTAINTIES",
+      "PROVENANCES",
       "WORK_STATUSES",
     ]);
     expect(fetch).not.toHaveBeenCalled();
