@@ -1,7 +1,43 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
-test("loads the Core module without domain or host initialization", async () => {
-  const core = await import("../src/index.js");
+vi.mock("node:fs", () => {
+  throw new Error("Core must not import host filesystem APIs");
+});
+vi.mock("node:fs/promises", () => {
+  throw new Error("Core must not import host filesystem APIs");
+});
+vi.mock("node:sqlite", () => {
+  throw new Error("Core must not import storage APIs");
+});
+vi.mock("node:net", () => {
+  throw new Error("Core must not import network APIs");
+});
+vi.mock("node:http", () => {
+  throw new Error("Core must not import network APIs");
+});
+vi.mock("node:https", () => {
+  throw new Error("Core must not import network APIs");
+});
+vi.mock("node:child_process", () => {
+  throw new Error("Core must not start host processes");
+});
 
-  expect(Object.keys(core)).toEqual([]);
+test("imports only pure data without host, storage or network initialization", async () => {
+  const fetch = vi.fn(() => {
+    throw new Error("Core must not access the network during import");
+  });
+  vi.stubGlobal("fetch", fetch);
+  vi.resetModules();
+
+  try {
+    const core = await import("../src/index.js");
+
+    expect(Object.keys(core).sort()).toEqual([
+      "PLAN_CERTAINTIES",
+      "WORK_STATUSES",
+    ]);
+    expect(fetch).not.toHaveBeenCalled();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });
