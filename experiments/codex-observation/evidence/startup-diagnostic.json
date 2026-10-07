@@ -1,0 +1,35 @@
+{
+  "probe": "standalone_startup_diagnostic",
+  "exit_code": 1,
+  "stdout_line_count": 0,
+  "stderr_classification": [
+    {
+      "line_number": 1,
+      "matched_fixed_labels": [
+        "permission_denied",
+        "arg0_warning",
+        "io_error"
+      ],
+      "starts_error": false
+    },
+    {
+      "line_number": 2,
+      "matched_fixed_labels": [
+        "permission_denied",
+        "arg0_warning",
+        "io_error"
+      ],
+      "starts_error": false
+    },
+    {
+      "line_number": 3,
+      "matched_fixed_labels": [
+        "state_database_error",
+        "startup_initialization_error",
+        "service_runtime_error"
+      ],
+      "starts_error": true
+    }
+  ],
+  "raw_output_saved": false
+}

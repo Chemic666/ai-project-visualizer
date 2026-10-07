@@ -4,7 +4,7 @@ Plan status: Specification Resolved — approved for documentation on 2026-10-07
 
 Capability status: **Unverified / Technical Verification Pending**.
 
-Execution status: **Not started**. This document contains no experiment result.
+Execution status: **Research and bounded experimental attempts completed on 2026-10-07 — Inconclusive**. Existing user-started Session observation remains unverified. See [execution results](codex-observation-feasibility-results.md) for evidence; this document remains the experiment plan.
 
 Related: D-038; Phase 0 Review B-06 / S-02 / S-03 / S-04 / S-06.
 
@@ -73,7 +73,7 @@ Deliver a research report containing:
 - Proposed minimal normalization into Core contracts, without importing protocol types or implementing a production package.
 - A conclusion, limitations, zero-config implications and any required user support-scope decision.
 
-No results/fixtures exist yet. Their future creation must not be described as completed by this plan.
+Execution results and sanitized startup/contract evidence now exist in [the report](codex-observation-feasibility-results.md). No actual existing-Session event fixture was captured; generated schema must not be presented as observed events.
 
 ## 7. Result and release gates
 
@@ -88,14 +88,14 @@ Passing a subset of probes is not a full Pass. Optional Activity gaps may remain
 
 ## 8. Evidence checklist
 
-- [ ] Research current formal interfaces and versions.
-- [ ] Distinguish attach/discovery from creation/control.
+- [x] Research current formal interfaces and versions (CLI verified; desktop/daemon/IDE versions still pending).
+- [x] Distinguish attach/discovery from creation/control.
 - [ ] Select and record one supported normal workflow.
 - [ ] Observe existing Session and project attribution.
 - [ ] Capture formal plan/revisions and task-attributable reports.
 - [ ] Test reconnect, duplicate/gap, no-plan and unreadable-source cases.
-- [ ] Record capability/latency/identity limitations and redacted fixtures.
+- [x] Record capability/latency/identity limitations and redacted evidence (startup failures and contracts only; no Session event fixture).
 - [ ] Review any restricted support scope with user.
 - [ ] Update B-06 technical state using actual evidence; never from this checklist alone.
 
-All items remain pending. Phase 1 has not begun.
+Remaining observation and support-scope gates remain pending. The execution task was explicitly authorized by the user after this plan's approval; it does not extend authorization into Phase 1. B-06 remains Technical Verification Pending; Inconclusive is not a capability PASS. Phase 1 has not begun.

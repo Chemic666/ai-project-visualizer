@@ -1,0 +1,12 @@
+{
+  "syntax": "pass",
+  "read_rpc_allowlist": "pass",
+  "synthetic_privacy_check": "pass_not_session_fixture",
+  "schema_hashes": "11/11 match",
+  "generated_schema_count": 314,
+  "generated_schema_bytes": 3540819,
+  "json_parse": "pass",
+  "attempt_audit": "initialize_only_no_threads",
+  "text_whitespace": "pass",
+  "codex_capability_verdict": "inconclusive"
+}

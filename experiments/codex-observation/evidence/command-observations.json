@@ -1,0 +1,43 @@
+{
+  "evidence_kind": "sanitized_command_and_policy_observations",
+  "date": "2026-10-07",
+  "records": [
+    {
+      "operation": "codex app-server daemon version",
+      "outcome": "socket_access_denied",
+      "os_error": 10013,
+      "daemon_version_observed": false
+    },
+    {
+      "operation": "same version query with sandbox escalation requested",
+      "outcome": "rejected_before_execution",
+      "reason": "granular approval policy sandbox_approval=false",
+      "user_declined": false
+    },
+    {
+      "operation": "Get-AppxPackage -Name *Codex*",
+      "outcome": "access_denied",
+      "app_version_observed": false
+    },
+    {
+      "operation": "codex app-server generate-json-schema",
+      "outcome": "exit_0",
+      "schema_is_runtime_observation": false,
+      "arg0_permission_warnings": true
+    },
+    {
+      "operation": "standalone stdio read probe",
+      "outcome": "startup_exit_1_before_initialize_response",
+      "evidence_file": "standalone-read.json"
+    },
+    {
+      "operation": "same startup diagnostic (two bounded repetitions)",
+      "outcome": "exit_1_stdout_empty",
+      "evidence_files": [
+        "startup-diagnostic.json",
+        "startup-error-classification.json"
+      ],
+      "root_cause": "state-database/runtime initialization failure reported; precise cause not established"
+    }
+  ]
+}

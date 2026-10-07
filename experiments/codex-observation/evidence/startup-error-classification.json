@@ -1,0 +1,11 @@
+{
+  "probe": "standalone_startup_error_classification",
+  "exit_code": 1,
+  "stdout_line_count": 0,
+  "matched_fixed_phrases": [
+    "failed to initialize",
+    "os error 5"
+  ],
+  "numeric_database_codes": [],
+  "raw_output_saved": false
+}

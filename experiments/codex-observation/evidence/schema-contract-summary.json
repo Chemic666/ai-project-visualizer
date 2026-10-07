@@ -1,0 +1,315 @@
+{
+  "evidence_kind": "generated_contract_not_observed_events",
+  "cli_version": "0.160.0",
+  "generation_command": "codex app-server generate-json-schema --out <experiment-schema-dir> (without --experimental)",
+  "generated_file_count": 314,
+  "source_sha256": {
+    "ClientRequest.json": "1c7fec8758deb95ffe967060130e8d1ddb7a0a5a437ee9b64086dddbed8f5831",
+    "ServerNotification.json": "d3479ecf59ca421a8b052d3d15e8196d23d297a0bd85ae5a270a34ddd9c865c9",
+    "v2/ThreadListParams.json": "bf5abcb5363c177f8d6b60e6193c76ad8807d6452b67a73ee2f1d77dfe427ac9",
+    "v2/ThreadReadParams.json": "dfe040c6ac71d30795b8be3f3ff232e66f362a37f883b491e5d1ea367f470db4",
+    "v2/ThreadReadResponse.json": "3a0aaf9cff80796d07130b85723ca825f9203796d15c878f452083cf9f9a6f0a",
+    "v2/ThreadListResponse.json": "bb5721fb42f3b95b4b66ba5a114665e58b221eef5308a9e20890dda26b3894fb",
+    "v2/ThreadLoadedListResponse.json": "1ea02c4710083e552b2a3a89b931b9049d5bf05b7db46278b8352cf9fd80cd52",
+    "v2/TurnPlanUpdatedNotification.json": "2522f743be0a1e9666dec5ad4f18d8ecba3c4f16e66d510b1491d4117d1dd0ba",
+    "v2/ThreadStatusChangedNotification.json": "26f3c60c1b73f7fa2d31c74429cdc36f8746c76c33e3d314b3fb61d3661f05f6",
+    "v2/ThreadTurnsListParams.json": "2a8b93d7d4437cc25e16a1dde16d8db3c338d39e16c5eece2a56e943a21577d7",
+    "v2/ThreadItemsListParams.json": "d5cf9784413f1d1abba756e04e48b273a9d12ab2c5675442e91b6a4ee55e19f0"
+  },
+  "request_methods_present": {
+    "initialize": true,
+    "thread/list": true,
+    "thread/read": true,
+    "thread/loaded/list": true,
+    "thread/turns/list": true,
+    "thread/items/list": true,
+    "thread/start": true,
+    "thread/resume": true,
+    "thread/fork": true,
+    "thread/subscribe": false
+  },
+  "request_methods_containing_subscribe": [
+    "thread/unsubscribe"
+  ],
+  "notification_methods_present": {
+    "turn/plan/updated": true,
+    "thread/status/changed": true,
+    "turn/completed": true,
+    "item/completed": true
+  },
+  "parameter_fields": {
+    "v2/ThreadListParams.json": [
+      "archived",
+      "cursor",
+      "cwd",
+      "limit",
+      "modelProviders",
+      "originators",
+      "searchTerm",
+      "sectionId",
+      "sortDirection",
+      "sortKey",
+      "sourceKinds",
+      "useStateDbOnly"
+    ],
+    "v2/ThreadReadParams.json": [
+      "includeTurns",
+      "threadId"
+    ],
+    "v2/ThreadTurnsListParams.json": [
+      "cursor",
+      "itemsView",
+      "limit",
+      "sortDirection",
+      "threadId"
+    ],
+    "v2/ThreadItemsListParams.json": [
+      "cursor",
+      "limit",
+      "sortDirection",
+      "threadId",
+      "turnId"
+    ]
+  },
+  "thread_fields": [
+    "agentNickname",
+    "agentRole",
+    "cliVersion",
+    "createdAt",
+    "cwd",
+    "ephemeral",
+    "forkedFromId",
+    "gitInfo",
+    "historyMode",
+    "id",
+    "model",
+    "modelProvider",
+    "name",
+    "originator",
+    "parentThreadId",
+    "path",
+    "preview",
+    "projectId",
+    "reasoningEffort",
+    "recencyAt",
+    "section",
+    "sectionEnteredAt",
+    "sessionId",
+    "source",
+    "status",
+    "threadSource",
+    "turns",
+    "updatedAt"
+  ],
+  "thread_required_fields": [
+    "cliVersion",
+    "createdAt",
+    "cwd",
+    "ephemeral",
+    "id",
+    "modelProvider",
+    "preview",
+    "projectId",
+    "sessionId",
+    "source",
+    "status",
+    "turns",
+    "updatedAt"
+  ],
+  "turn_fields": [
+    "completedAt",
+    "durationMs",
+    "error",
+    "id",
+    "items",
+    "itemsView",
+    "startedAt",
+    "status"
+  ],
+  "thread_item_variants": {
+    "userMessage": [
+      "clientId",
+      "content",
+      "id",
+      "type"
+    ],
+    "hookPrompt": [
+      "fragments",
+      "id",
+      "type"
+    ],
+    "agentMessage": [
+      "delivery",
+      "id",
+      "memoryCitation",
+      "phase",
+      "questions",
+      "text",
+      "type"
+    ],
+    "functionCallOutput": [
+      "id",
+      "name",
+      "namespace",
+      "output",
+      "type"
+    ],
+    "plan": [
+      "id",
+      "text",
+      "type"
+    ],
+    "reasoning": [
+      "content",
+      "id",
+      "summary",
+      "type"
+    ],
+    "commandExecution": [
+      "aggregatedOutput",
+      "command",
+      "commandActions",
+      "cwd",
+      "durationMs",
+      "exitCode",
+      "id",
+      "pluginId",
+      "processId",
+      "scriptPath",
+      "source",
+      "status",
+      "type"
+    ],
+    "fileChange": [
+      "changes",
+      "id",
+      "status",
+      "type"
+    ],
+    "mcpToolCall": [
+      "appContext",
+      "arguments",
+      "durationMs",
+      "error",
+      "id",
+      "mcpAppResourceUri",
+      "mcpAppUi",
+      "pluginId",
+      "readOnlyHint",
+      "result",
+      "server",
+      "status",
+      "tool",
+      "type"
+    ],
+    "dynamicToolCall": [
+      "arguments",
+      "contentItems",
+      "durationMs",
+      "id",
+      "namespace",
+      "status",
+      "success",
+      "tool",
+      "type"
+    ],
+    "collabAgentToolCall": [
+      "agentsStates",
+      "id",
+      "model",
+      "prompt",
+      "reasoningEffort",
+      "receiverThreadIds",
+      "senderThreadId",
+      "status",
+      "tool",
+      "type"
+    ],
+    "subAgentActivity": [
+      "agentPath",
+      "agentThreadId",
+      "id",
+      "kind",
+      "type"
+    ],
+    "webSearch": [
+      "action",
+      "id",
+      "query",
+      "results",
+      "type"
+    ],
+    "imageView": [
+      "id",
+      "path",
+      "type"
+    ],
+    "sleep": [
+      "durationMs",
+      "id",
+      "type"
+    ],
+    "imageGeneration": [
+      "failure",
+      "id",
+      "result",
+      "revisedPrompt",
+      "savedPath",
+      "status",
+      "transparentBackground",
+      "type"
+    ],
+    "enteredReviewMode": [
+      "id",
+      "review",
+      "type"
+    ],
+    "exitedReviewMode": [
+      "id",
+      "review",
+      "type"
+    ],
+    "contextCompaction": [
+      "id",
+      "type"
+    ]
+  },
+  "plan_notification_fields": [
+    "explanation",
+    "plan",
+    "threadId",
+    "turnId"
+  ],
+  "plan_notification_required_fields": [
+    "plan",
+    "threadId",
+    "turnId"
+  ],
+  "plan_step_fields": [
+    "status",
+    "step"
+  ],
+  "plan_step_required_fields": [
+    "status",
+    "step"
+  ],
+  "plan_step_statuses": [
+    "pending",
+    "inProgress",
+    "completed"
+  ],
+  "thread_status_variants": [
+    [
+      "notLoaded"
+    ],
+    [
+      "idle"
+    ],
+    [
+      "systemError"
+    ],
+    [
+      "active"
+    ]
+  ]
+}

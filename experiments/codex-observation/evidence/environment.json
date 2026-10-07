@@ -1,0 +1,21 @@
+{
+  "observed_at_utc": "2026-10-07T05:25:01.240818+00:00",
+  "os": "Windows",
+  "os_version": "10.0.26200",
+  "architecture": "AMD64",
+  "python": "3.12.7",
+  "node": "v24.21.0",
+  "installed_cli": "codex-cli 0.160.0",
+  "node_version_exit_code": 0,
+  "cli_version_exit_code": 0,
+  "npm_package": "@openai/codex",
+  "npm_package_version": "0.160.0",
+  "desktop_app_version": "not_verified_access_denied",
+  "ide_extension_version": "not_verified",
+  "existing_daemon_version": "not_verified_socket_access_denied",
+  "execution_boundary": "managed workspace-write shell; network restricted; sandbox escalation disabled",
+  "dependency_installations": 0,
+  "observer_created_development_threads": 0,
+  "hooks_installed_or_trusted": false,
+  "raw_sessions_or_config_copied": false
+}

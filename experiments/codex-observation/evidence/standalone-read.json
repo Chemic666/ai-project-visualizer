@@ -1,0 +1,23 @@
+{
+  "probe": "standalone_stdio_history",
+  "requests": [
+    {
+      "method": "initialize",
+      "parameter_keys": [
+        "clientInfo"
+      ],
+      "outcome": "process_eof",
+      "response_latency_ms": 250.0
+    }
+  ],
+  "notifications": {},
+  "projects": [],
+  "created_threads": 0,
+  "control_requests": 0,
+  "outcome": "initialization_unavailable",
+  "process_exit_code": 1,
+  "stderr_fixed_label_counts": {
+    "permission_denied": 2,
+    "redacted_error": 1
+  }
+}
