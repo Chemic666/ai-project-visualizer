@@ -235,6 +235,8 @@ Visualizer 可以：
 
 # D-002 — North Star: Where Is the Project Now?
 
+> 2026-10-07 后续澄清：v0.1 首页范围由 D-034 限定；数值估算留到 Phase 13。
+
 **Status:** Accepted
 
 ## Decision
@@ -533,6 +535,8 @@ Subtask
 
 # D-010 — Weighted Progress
 
+> 2026-10-07 后续澄清：完成计数和权重边界见 D-035；无来源权重默认算法仍待 Phase 4 前决策。
+
 **Status:** Accepted
 
 ## Decision
@@ -576,6 +580,8 @@ AI Initial Estimate
 但用户可以调整。
 
 # D-011 — Confirmed Progress and Estimated Progress Are Different
+
+> 2026-10-07 后续澄清：分离原则继续 Accepted；v0.1 数值估算时机由 D-034 明确。
 
 **Status:** Accepted
 
@@ -701,6 +707,8 @@ ProgressExplanation
 
 # D-014 — Provenance Is First-class
 
+> 2026-10-07 后续澄清：结论级来源契约见 D-036。
+
 **Status:** Accepted
 
 ## Decision
@@ -735,6 +743,8 @@ Tests actually passed
 不是一回事。
 
 # D-015 — User Can Correct Visualizer
+
+> 2026-10-07 后续澄清：优先级和有效范围由 D-037 补充。
 
 **Status:** Accepted
 
@@ -771,6 +781,8 @@ User Correction：
 - 可以影响后续推断。
 
 # D-016 — Agent-reported Completion Is Not Verification
+
+> 2026-10-07 后续澄清：COMPLETED/VERIFIED 的进度纳入条件见 D-035。
 
 **Status:** Accepted
 
@@ -1022,6 +1034,8 @@ AI Project Visualizer 定位为：
 
 # D-024 — Zero-config First
 
+> 2026-10-07 后续澄清：被动观察尚未验证；门槛见 D-038。
+
 **Status:** Accepted
 
 ## Decision
@@ -1243,6 +1257,8 @@ Plan 有没有变化
 
 # D-032 — Technology Stack
 
+> 2026-10-07 后续澄清：接受的是选型方向；版本可用性、工具兼容性和实际 Extension Host runtime 尚未验证，见 TECH_STACK §2/§11。
+
 **Status:** Accepted
 
 ## Decision
@@ -1307,6 +1323,156 @@ Complex ORM
 
 “以后也许会用”不是增加技术复杂度的充分理由。
 
+# D-034 — v0.1 Scope: Association Confidence, No Numeric Task Estimate
+
+**Status:** Accepted
+
+**Accepted:** 2026-10-07，用户批准 Phase 0 Specification Remediation
+
+**Clarifies:** D-002、D-011、D-031；不废弃 Confirmed/Estimated 分离原则
+
+## Context
+
+Acceptance 将数值估算列为 v0.1 P0，但 Roadmap 在 Phase 13 才安排该能力（B-01）。
+
+## Decision
+
+v0.1 包含 Current Task、Current Task Confidence、Provenance、Confirmed Project Progress、Why progress、计划变化、Timeline、纠正（含 Task Weight 编辑）和恢复。v0.1 不实现 Estimated Task Progress 数值功能，也不展示占位百分比；数值估算仍在 Phase 13。
+
+## Why
+
+优先打通可信观察循环，避免以未验证估算制造精度。Confidence 指关联判断，不是完成比例。
+
+## Consequences
+
+Scenario 12 拆为 v0.1 非混合约束和 Phase 13 双数字验收；数值估算不能阻塞 Phase 4/v0.1。D-011 的原则始终适用。未来 UI 示例必须标明版本。
+
+## Revisit When
+
+真实用户反馈和 Phase 13 可解释估算验证支持调整时，通过新决策记录。
+
+# D-035 — Completion Eligibility and Mandatory Trust Gates
+
+**Status:** Accepted
+
+**Accepted:** 2026-10-07，用户明确批准
+
+**Clarifies:** D-010、D-013、D-014、D-016、D-019、D-025、D-027
+
+## Context
+
+Confirmed 进度的完成依据不明确，Acceptance P1 列表弱化基础真实性/隐私约束（B-02、S-07）。
+
+## Decision
+
+当前计划中 Confirmed Tasks 的有效权重构成分母。COMPLETED / VERIFIED 均可计入分子，但必须各自保留可靠且明确归属任务的完成依据。COMPLETED 的 Agent Reported 完成声明不是 VERIFIED；没有可靠完成依据的自动推断不得进入分子，不论 confidence 多高。
+
+Confirmed 表示正式计划上的有依据完成记录，不保证独立验证。Why 面板展示完成依据及来源，不能将传输层“观察到声明”包装成独立验证。
+
+隐私、Provenance、状态真实性、推断不确定性、Idea/Tentative 排除、无计划不造进度、默认不污染 Repo、Semantic OFF 下核心可用、持久保留人工纠正均为 v0.1 硬性发布条件。
+
+## Why
+
+发布优先级不能削弱已经接受的信任原则。
+
+## Consequences
+
+Task Weight 编辑保留为 v0.1 必须功能。Phase weight 为任务权重汇总，不作第二次加权。未知正式权重/空分母显示 unavailable；UI 一位小数，去掉 .0，计算不预先舍入。权重来源、人工调整和改变原因可追溯；无来源权重的初始化算法在 Phase 4 前单独批准/验证，不以必开 LLM 或永久全 1 偷偷代替。
+
+## Revisit When
+
+改变完成计数、权重政策或信任门槛时，需要明确的新决策和相应验收。
+
+# D-036 — Inward Dependencies and Conclusion-level Provenance
+
+**Status:** Accepted
+
+**Accepted:** 2026-10-07，用户批准技术修正
+
+**Clarifies:** D-006–D-008、D-014、D-026、D-033
+
+## Context
+
+Core 图中 Storage 与独立 Storage package 混用，单一 Task.provenance 无法表达多种结论（B-03、B-04）。
+
+## Decision
+
+Core 定义领域行为及实际需要的数据/持久化契约，不依赖 Codex、vscode、SQLite driver、Storage 实现或 LLM。Adapter/Storage 依赖 Core。Host 提供 repo 外存储位置，组合依赖和管理生命周期；Surface 展示和提交纠正。
+
+Status、certainty、weight、current-task association、current-phase derivation、progress explanation 分别保留来源断言和当前解释。元数据包含目标字段、来源、时间、event/revision/依据引用；推断包含对应 Confidence。原始断言不被当前解释覆盖。Phase 1 保留多源断言表达能力，不提前实现完整多源解析或 conflict UI。
+
+## Why
+
+保持 Agent/IDE/数据库解耦，同时保留用户能纠正的判断依据。
+
+## Consequences
+
+事件按类型校验、保留身份/顺序/因果引用并幂等消费；专有 raw payload 留在 Adapter。内部 Project/Task/Session 身份不等同于路径、Workspace 或 thread ID。未知归属不得猜测合并。只按当前阶段建包，不引入通用 Provider 框架。
+
+## Revisit When
+
+实际边界出现第二种实现或契约不足时，以证据和新决策调整。
+
+# D-037 — Field-scoped User Correction Precedence and Lifetime
+
+**Status:** Accepted
+
+**Accepted:** 2026-10-07，用户明确批准
+
+**Clarifies:** D-015、D-017、D-026
+
+## Context
+
+原规格定义即时纠正，但缺少优先级、失效和恢复政策（B-05）。
+
+## Decision
+
+人工纠正优先于普通自动推断。普通文件活动、新 Turn、时间流逝或重启不得直接覆盖人工纠正。保留原断言，追加带目标/范围/生效时间/替代引用的纠正。失效须记录时间、依据事件、原因及规则。
+
+Current Task 纠正限定指定 Project/Session 当前工作上下文：后续人工纠正、同 Session 可明确识别任务且较新的源选择、Session 明确结束或目标被完整计划明确移除，才可失效/替代。无法可靠判断新旧时保留纠正并暴露冲突。断连不等于结束；显示最后确认/当前未知。
+
+历史关联纠正限定 event 或明确集合，后续人工纠正才能替代。Weight 纠正限定稳定 taskId 当前计划成员；新 Agent 估计不覆盖人工值，人工再次调整或明确退出计划才结束，重入不静默复活旧值。
+
+## Why
+
+防止推断立即撤销人工判断，同时避免无限期陈旧关联。
+
+## Consequences
+
+有效范围/失效/替代记录须持久恢复；Timeline 展示修正解释但不删除原观察。关联纠正不改写状态来源或升级 verification。政策按字段判断，不设全局“人工覆盖所有客观事实”的排序。
+
+## Revisit When
+
+真实单 Session 使用揭示失效边界问题时，先调整契约/验收再实现。
+
+# D-038 — Passive Codex Observation Is a Separate Unverified Gate
+
+**Status:** Accepted
+
+**Accepted:** 2026-10-07，用户批准验证方案编制
+
+**Clarifies:** D-001、D-006、D-024；接受的是门槛，非接入可行性
+
+## Context
+
+Plugin/app-server 获取已有用户 Session/计划的能力缺少可复现实验证据（B-06、S-02）。
+
+## Decision
+
+被动观察能力保持 **Unverified / Technical Verification Pending**。依照 [独立 Spike 方案](docs/spikes/codex-observation-feasibility.md) 先做正式接口研究，再验证用户正常启动的会话。尽早安排，目标是在 Phase 1 实现前取得早期证据；Phase 7 的生产集成开始前必须通过对应支持范围门槛。
+
+## Why
+
+不能以创建自有 Thread 的实验声称观察原工作流，也不能因技术困难暗中变为 Orchestrator。
+
+## Consequences
+
+独立 Core 可用 neutral fixtures 准备，但本轮不开始 Phase 1。Spike 计划不等于实验授权或通过；限制/失败回到用户决策，不自动引入 wrapper/task board/控制链路。受限通过涉及 Surface/version 支持范围时须审核，不概括为全 Codex 支持。具体协议、driver、toolchain 可用性等必须标为待验证。
+
+## Revisit When
+
+正式接口研究及实验证据足以支持接入选择，或揭示现有产品体验不可达时。
+
 # 7. 哪些事情暂时不要写成 Accepted
 
 有些事情我们还没有真正验证，不应该假装已经拍板。
@@ -1317,11 +1483,7 @@ Complex ORM
 具体 SQLite Driver
 ```
 
-应该暂时保持：
-
-```
-Pending
-```
+决策状态使用 Proposed（§5）；技术验证状态另记 Technical Verification Pending。Accepted 表示决策被批准，不表示技术实验通过。
 
 还有：
 

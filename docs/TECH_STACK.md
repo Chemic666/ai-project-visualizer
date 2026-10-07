@@ -29,7 +29,7 @@
 | SQLite Driver | **暂不锁定**                            | 后续通过 Spike 确认                     |
 | IDE 界面      | **VS Code Extension API**               | 第一主要 UI                             |
 | 复杂 UI       | **Webview 按需使用**                    | Overview、Timeline 等                   |
-| 类型检查      | **TypeScript Compiler (**`**tsc**`**)** | 编译期类型检查                          |
+| 类型检查      | **TypeScript Compiler (`tsc`)** | 编译期类型检查                          |
 | Bundle        | **esbuild**                             | VS Code Extension 等产物打包            |
 | Lint          | **ESLint**                              | 静态代码检查                            |
 | Format        | **Prettier**                            | 统一格式                                |
@@ -37,9 +37,9 @@
 | 核心架构      | **Core + Adapter + Surface**            | 保持 Agent 与 UI 解耦                   |
 | 开源方向      | **Open-source developer tool**          | 后续面向开发者社区发布                  |
 
-截至当前，项目采用 Node.js 24 LTS 与 TypeScript 7.x 稳定版本。具体 TypeScript patch 版本由项目的 package.json 与 pnpm-lock.yaml 锁定，不在架构文档中固定。
+D-032 保留上述已批准选型目标；本仓库尚无 manifests/lockfile，不宣称 TypeScript 7.x、pnpm 12.x 的当前稳定可用性或兼容性已验证。Phase 1 初始化前须依据官方发布文档验证 compiler/package identity、确切版本及 Vitest/esbuild/ESLint 兼容性，记录证据后再锁版本；不可用时新增明确决策，不静默降级。
 
-pnpm 当前已经进入 12.x 主线，适合作为 Monorepo 包管理器。
+Node.js 24 是开发运行环境目标，不保证 VS Code Extension Host 使用相同 Node/ABI；目标宿主须单独验证。本轮不执行研究或安装依赖。
 
 # 3. 为什么选择 TypeScript
 
@@ -154,53 +154,11 @@ UI
 
 # 5. 推荐仓库结构
 
-第一阶段建议：
+Phase 0 维持文档仓库，竞争文档实际路径为 `docs/COMPETITIVE.md`。经授权开始 Phase 1 时只建立 workspace 必要配置和 `packages/core/`（src/tests）。不预建其他 packages。
 
-```
-ai-project-visualizer/
-│
-├─ apps/
-│  ├─ vscode-extension/
-│  └─ cli/                    # 后续阶段
-│
-├─ packages/
-│  ├─ core/
-│  ├─ codex-adapter/
-│  └─ storage/
-│
-├─ experiments/
-│  └─ codex-app-server/
-│
-├─ docs/
-│
-├─ PRODUCT.md
-├─ ARCHITECTURE.md
-├─ ROADMAP.md
-├─ AGENTS.md
-├─ DECISIONS.md
-├─ COMPETITIVE.md
-│
-├─ package.json
-├─ pnpm-workspace.yaml
-└─ tsconfig.base.json
-```
+Phase 2 才建立 storage；Phase 7 才建立已验证接入路径的 codex-adapter；Phase 10 才建立 vscode-extension；CLI Phase 19。独立 Spike 经授权才建立 disposable experiments；方案在 docs/spikes/，不是生产模块。
 
-第一阶段只建立真正需要的模块。
-
-暂时不要为了“未来可能需要”提前建立大量空包。
-
-例如：
-
-```
-semantic/
-verification/
-analytics/
-cloud/
-team/
-shared/
-```
-
-等真正出现明确需求后再拆。
+不提前创建 semantic、shared、verification、analytics、cloud 或 provider registries。Monorepo 已决定，但本轮不初始化。
 
 # 6. Core 是整个项目的中心
 
@@ -221,7 +179,7 @@ Plan
 Plan Change
 
 Confirmed Progress
-Estimated Progress
+Estimated Progress（Phase 13；非 v0.1/Phase 1）
 
 Timeline
 
@@ -235,50 +193,21 @@ Core 是整个产品最重要的部分。
 
 ## 6.1 Core 的硬性要求
 
-Core **不能知道 Codex 是什么**。
+Core 不导入 Codex protocol、vscode、SQLite driver 或 Storage 实现；不要求 LLM、联网或实际数据库。
 
-Core **不能知道 VS Code 是什么**。
+Core 只消费 source-aware normalized events 和 user corrections，保留关键结论独立 assertion/provenance/confidence（ARCHITECTURE §5–10）。Agent 身份是来源元数据而不是专有协议类型。未来 estimated 数值在 Phase 13，不能阻塞 Phase 1。
 
-Core **不能直接依赖 SQLite**。
-
-理想结构：
-
-```
-Codex
-    ↓
-Codex Adapter
-    ↓
-Normalized Event
-    ↓
-Project Core
-```
-
-Core 看到的应该是：
-
-```
-session.started
-plan.updated
-task.started
-task.completed
-progress.changed
-```
-
-而不是：
-
-```
-thread/start
-turn/completed
-item/...
-```
+实际持久化在 storage package，依赖 Core 所需契约；host 组合 Core/Adapter/Storage，并提供 repo 外 app storage 位置。依赖图见 §21。
 
 ## 6.2 Core 应可以独立测试
 
 例如：
 
 ```
+// 示意：其余 envelope/source 字段在 fixture 中按 ARCHITECTURE §9 提供
 engine.apply({
-  type: "task.completed",
-  taskId: "task-auth"
+  type: "task.status_reported",
+  payload: { taskId: "task-auth", status: "completed", completionReportRef: "fixture-report" }
 });
 ```
 
@@ -298,6 +227,8 @@ expect(project.confirmedProgress).toBe(...);
 这说明 Core 的边界是健康的。
 
 # 7. Codex Adapter 的职责
+
+以下转换是概念示例，当前 Unverified：thread/start 能否表示外部 Session、能否获取既有 Session 的 Plan 须按 D-038 Spike 验证；不能据示例宣称实现。
 
 目录：
 
@@ -383,47 +314,11 @@ else if OpenCode ...
 
 # 8. Storage 的职责
 
-目录：
+Storage 实现持久化、事务、迁移和恢复读取；编译依赖 Storage → Core。Core 计算状态/进度/解释，不能反向依赖 Storage/SQLite。
 
-```
-packages/storage/
-```
+保留来源断言、plan revisions、纠正及失效历史、versioned snapshots 和处理 cursor；current state/Timeline 为派生解释，不能只有最终数字。关联更新需要原子持久化和幂等恢复；Phase 2 定义最小 schema 与 crash/restart 验证，不提前实现全部未来表或 ORM。
 
-用于保存：
-
-```
-Project
-
-Phase
-
-Task
-
-Session
-
-Plan Snapshot
-
-Plan Change
-
-Timeline Event
-
-Progress History
-
-User Correction
-
-Source Reference
-```
-
-Storage 不负责业务判断。
-
-例如：
-
-> 为什么项目现在是 61%？
-
-这是 Core 的事情。
-
-Storage 只是负责：
-
-> 把 61% 及其状态持久化。
+Host 提供存储位置和生命周期；Storage 不读取 vscode Workspace API、不实施业务推断。具体 driver/宿主 packaging 和同项目多窗口写入策略仍 Technical Verification Pending。
 
 # 9. 为什么选择 SQLite
 
@@ -447,51 +342,15 @@ Project
 - 不需要 Docker；
 - 可以保存大量历史数据；
 - 查询 Timeline 方便；
-- Windows / macOS / Linux 都能使用。
+- Windows / macOS / Linux 是目标，实际支持矩阵仍待 driver/host Spike 验证。
 
 SQLite 很适合。
 
 # 10. SQLite 不保存完整用户源代码
 
-这是一个重要边界。
+默认不持久化完整源码、未筛选 raw edit/command output、私有 prompt/messages。仅保存 allowlist 下的必要归一化元数据、Plan Snapshot、状态/权重/完成依据的最小记录、Evidence/Source references 和纠正历史。
 
-数据库可以保存：
-
-```
-Task ID
-
-Task Name
-
-File Reference
-
-Timestamp
-
-Progress
-
-Plan Snapshot
-
-Event Type
-
-Evidence Reference
-```
-
-但不应该默认保存：
-
-```
-整个 Java 文件内容
-整个项目源码
-用户完整 Repository
-```
-
-Visualizer 是：
-
-> **项目状态观察工具。**
-
-不是：
-
-> **代码云备份系统。**
-
-这也符合 Privacy-first 原则。
+“normalized”不表示 payload 无敏感内容；需在边界筛选/脱敏。原始传输内容作必要瞬时解析，不默认日志/数据库保存。具体 bounded retention/删除期限在 Phase 2/真实采集前决定并验证，当前不承诺默认 7 天或无限保存。来源与纠正的最小解释依据须保留。
 
 # 11. 为什么暂时不锁 SQLite Driver
 
@@ -538,7 +397,9 @@ Extension Host
 SQLite Driver Spike
 ```
 
-实际验证后再确定。
+实际验证后再确定。当前 Technical Verification Pending。测试必须在实际 Extension Host/VSIX 下运行，不能以开发 Node.js 24 的成功替代宿主兼容性。
+
+验证矩阵须记录 VS Code 版本、宿主 Node/ABI、OS/architecture、bundle format、driver 和安装/restart 结果。当前 Windows/macOS/Linux、x64/ARM64 是目标候选，尚未确立完整支持；Remote SSH/WSL/container/web host 范围待明确决策，不从 local-first 自动推导。
 
 # 12. pnpm 的作用
 
@@ -603,7 +464,7 @@ VS Code Extension
 
 # 14. VS Code 第一阶段 UI
 
-第一阶段大致：
+这里指 Phase 10/11 UI，不是 Phase 1 Core。v0.1 核心为 Overview/Plan/Timeline/Correction/Why/必要 Settings；Activity 为 advanced/P1：
 
 ```
 AI Project Visualizer
@@ -611,7 +472,7 @@ AI Project Visualizer
 ├─ Overview
 ├─ Plan
 ├─ Timeline
-└─ Activity
+└─ Activity (advanced/P1)
 ```
 
 ## 14.1 Overview
@@ -629,9 +490,7 @@ Current Phase
 
 Current Task
 
-Estimated Task Progress
-
-Confidence
+Current Task Confidence / Provenance
 
 Recent Plan Change
 ```
@@ -641,14 +500,14 @@ Recent Plan Change
 适合使用 VS Code TreeView：
 
 ```
-✓ Phase 1 · Foundation
+◐ Phase 1 · Foundation
 │
-├─ ✓ Core Model
-└─ ✓ Storage
+├─ ◐ Core Model
+└─ ◐ Storage
 
 ▶ Phase 2 · Authentication
 │
-├─ ✓ Login
+├─ ◐ Login
 ├─ ▶ JWT
 └─ ○ Refresh Token
 
@@ -674,6 +533,8 @@ User Correction
 而不是简单复制 Codex 原始日志。
 
 ## 14.4 Activity
+
+v0.1 advanced/P1，实际事件能力待 Spike 验证；不是 Phase 10 发布最低 UI 条件。
 
 作为高级视图显示：
 
@@ -739,7 +600,7 @@ Task Weight
 
 Confirmed Progress
 
-Estimated Progress
+Estimated Progress（Phase 13；非 v0.1/Phase 1）
 
 Progress Regression
 
@@ -955,71 +816,22 @@ Kafka / RabbitMQ
 
 # 21. 依赖方向
 
-这是以后开发必须遵守的重要关系。
-
-推荐：
-
-```
-              ┌─────────────┐
-              │    Core     │
-              └──────▲──────┘
-                     │
-          ┌──────────┼──────────┐
-          │                     │
-   Codex Adapter            Storage
-          ▲                     ▲
-          │                     │
-          └──────────┬──────────┘
-                     │
-              VS Code Extension
+```text
+codex-adapter → core
+storage → core
+host → core / codex-adapter / storage
+surface → host 或 core 的公开契约
 ```
 
-更准确地说：
-
-```
-core
-↑
-├─ codex-adapter
-├─ storage
-└─ vscode-extension
-```
-
-Core 位于依赖图最里面。
-
-Core 不允许反向依赖：
-
-```
-vscode
-codex
-sqlite
-```
+这是编译依赖；数据流中的 Core ↔ persistence contract ↔ Storage 不表示 Core import Storage。Host 可以位于 Extension 的组合入口，不需要额外 package。vscode 只负责宿主/展示 API；领域状态与纠正政策在 Core。
 
 # 22. 第一阶段 package 数量控制
 
-正式启动时优先只有：
-
-```
-packages/
-├─ core/
-├─ codex-adapter/
-└─ storage/
-
-apps/
-└─ vscode-extension/
-```
-
-CLI 可以稍后再建。
-
-这样第一版不会形成：
-
-```
-12 个 packages
-每个只有 2 个文件
-```
-
-这种假模块化。
+Phase 1 仅 core；Storage、Adapter、Extension 随 Phase 2、7、10 建立，参见 §5。未来扩展点先记录意图，不创建空 provider/shared packages。本次不初始化任何包。
 
 # 23. 最终架构图
+
+以下是目标数据流而非编译依赖；图中的 Codex 接入当前 Unverified，Core → Local Storage 通过契约和 Host 组合。
 
 ```
                     Codex
@@ -1063,6 +875,8 @@ Gemini CLI ─────┘
 ```
 
 # 24. 技术选型最终结论
+
+“已锁定”表示方向已接受，不代表 major 版本可用性/驱动/发布目标验证通过；初始化门槛见 §2，runtime/driver 门槛见 §11。
 
 ## 已锁定
 
@@ -1137,6 +951,8 @@ Verification Provider
 
 # 26. 第二步完成后的状态
 
+以下是历史规格准备状态，非技术验收结果；Phase 0 remediation 后的启动门槛以 ROADMAP Phase 0/1 与 PHASE_0_REVIEW 的追加记录为准。
+
 完成这一阶段后，我们已经明确：
 
 ```
@@ -1174,7 +990,7 @@ Codex-first, not Codex-only
 
 Semantic Analysis 默认关闭
 
-Confirmed Progress ≠ Estimated Progress
+Confirmed Progress ≠ Estimated Progress（始终分离；数值估算 Phase 13）
 
 Progress 可以倒退
 

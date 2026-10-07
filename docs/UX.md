@@ -1,3 +1,5 @@
+> 本轮规格修订（2026-10-07）按 D-034–D-038。v0.1 与 Future 标记具有范围含义；所有 mockup 是要求，不是技术/UX 验证结果。
+
 # 第四步：UX 低保真原型设计
 
 ## 1. 这一阶段要解决什么
@@ -59,9 +61,9 @@ Visualizer 捕获项目状态
 1. 项目整体进度多少？
 2. 当前在哪个 Phase？
 3. 当前正在处理哪个 Task？
-4. 当前 Task 大概做到多少？
+4. 当前 Task 判断有多可靠？（数值完成估算留至 Phase 13）
 5. 最近有没有重大 Plan 变化？
-6. 有没有值得注意的异常？
+6. 最近有哪些意义事件？（Attention Signals 后置）
 
 而不是优先展示：
 
@@ -76,7 +78,7 @@ Raw JSON
 
 # 3. 产品的一级导航
 
-第一版建议只有四个主要区域：
+v0.1 核心导航为 Overview / Plan / Timeline；Activity 为 advanced/P1，存在能力时才开放。以下展示包括可选项：
 
 ```
 AI Project Visualizer
@@ -87,7 +89,7 @@ AI Project Visualizer
 └─ Activity
 ```
 
-再加两个辅助入口：
+辅助 Settings 属于 v0.1；Project/Session Selector 为后续设计，第一版只展示已可靠归属的当前项目。以下导航是长期结构：
 
 ```
 Settings
@@ -110,248 +112,71 @@ AI Project Visualizer
 
 # 4. Overview —— 最重要的页面
 
-Overview 是整个产品的核心。
+v0.1 示例（不是已实现界面）：
 
-它回答：
-
-> **这个项目现在到底做到哪里了？**
-
-第一版低保真：
-
+```text
+AI PROJECT VISUALIZER
+my-project                 Codex: observed Session state
+Confirmed Project Progress: 64%    [Why 64%?]
+Current Phase: Authentication
+Likely Current Task: JWT Authorization
+Current Task Confidence: 65% — association rule score
+Source: Visualizer Inferred       [Correct]
+Recent Plan Change: + Refresh Token (3), + Token Revocation (2)
+Progress: 71.1% → 64% — Plan expanded
+Recent Timeline: meaningful changes / completion reports / corrections
 ```
-┌────────────────────────────────────┐
-│ AI PROJECT VISUALIZER              │
-│                                    │
-│ my-project                         │
-│ Codex ● Active                     │
-├────────────────────────────────────┤
-│ CONFIRMED PROGRESS                 │
-│                                    │
-│ █████████████░░░░░░  64%           │
-│                                    │
-│ Why 64%?                           │
-├────────────────────────────────────┤
-│ CURRENT                            │
-│                                    │
-│ Phase 4 · Authentication           │
-│                                    │
-│ ▶ JWT Authorization                │
-│                                    │
-│ Estimated Task Progress            │
-│ ~47%                               │
-│                                    │
-│ Confidence 91%                     │
-│ Source: Visualizer Inferred        │
-├────────────────────────────────────┤
-│ RECENT CHANGE                      │
-│                                    │
-│ Plan expanded                      │
-│ + Refresh Token                    │
-│ + Token Revocation                 │
-│                                    │
-│ 68% → 64%                          │
-│                                    │
-│ 8 minutes ago                      │
-├────────────────────────────────────┤
-│ RECENT TIMELINE                    │
-│                                    │
-│ 18:42 Plan changed                 │
-│ 18:43 Progress changed             │
-│ 18:51 Task activity detected       │
-│                                    │
-│ View Timeline →                    │
-└────────────────────────────────────┘
-```
+
+例中 completed weight=32、total 45→50。v0.1 不显示 Estimated Task Progress 数字或占位。Confidence 不表示任务已完成多少。若为人工选择则显示 User Confirmed，不伪造算法 100%。未知/歧义/断连按 §24–28 呈现。
 
 # 5. Overview 信息优先级
 
-严格按这个顺序：
+v0.1 顺序：Confirmed Project Progress + Why；Current Phase / Current Task；关联 Confidence / Provenance / Correct；Recent Plan Change / Progress Change；3–5 条意义 Timeline。
 
-## 第一层
-
-```
-Confirmed Project Progress
-```
-
-最大、最醒目。
-
-因为这是用户最关心的。
-
-## 第二层
-
-```
-Current Phase
-Current Task
-```
-
-让用户知道：
-
-> 现在在哪里。
-
-## 第三层
-
-```
-Estimated Task Progress
-Confidence
-```
-
-让用户知道：
-
-> 当前大任务大概做到哪里。
-
-但必须明确这是：
-
-```
-Estimated
-```
-
-不能看起来和 Confirmed Progress 一样确定。
-
-## 第四层
-
-```
-Recent Plan Change
-```
-
-尤其当进度发生倒退时非常重要。
-
-## 第五层
-
-```
-Recent Timeline
-```
-
-只显示 3～5 条重要事件。
-
-不要把 Overview 做成日志页面。
+没有正式计划/权重则显示 unavailable 原因，不用 0% 或伪造进度。任务部分完成数值属于 Phase 13，不属于这一版的信息层级。五秒理解是人工验收目标，并非当前已通过的测试或数据传输时延承诺。
 
 # 6. Confirmed 与 Estimated 的视觉区分
 
-这是必须解决的 UX 问题。
+D-034：v0.1 不实现 Estimated Task Progress 数值；必须保证关联 Confidence/普通活动/部分完成推断不进入正式进度分子。
 
-不能这样：
+下列为 Phase 13 独立展示示例，非 Acceptance Scenario 13 的计划扩张计算。
 
-```
-Project 64%
-
-Task 47%
-```
-
-用户很容易认为两个数字可信度一样。
-
-应该明确：
-
-```
-Confirmed Progress
-64%
-```
-
-和：
-
-```
-Estimated Current Task
-~47%
-```
-
-Estimated 前面甚至可以保留：
-
-```
-~
-```
-
-强调：
-
-> 大约。
-
-并显示：
-
-```
-Confidence: 72%
-```
+Phase 13 后续 UI 才会显示 Confirmed Project Progress 64% 与 Estimated Current Task ~47% 两个独立数字，并分别标注 estimate confidence、来源及解释。association Confidence 是第三个独立概念，不能复用为 estimate confidence。
 
 # 7. Why X%?
 
-用户点击：
+v0.1 点击 Why 64% 显示：
 
-```
-Why 64%?
-```
-
-打开解释面板。
-
-低保真：
-
-```
-┌────────────────────────────────────┐
-│ WHY 64%?                           │
-├────────────────────────────────────┤
-│ Confirmed Work                     │
-│                                    │
-│ Completed Weight     32            │
-│ Total Weight         50            │
-│                                    │
-│ 32 / 50 = 64%                      │
-├────────────────────────────────────┤
-│ COMPLETED                          │
-│                                    │
-│ ✓ Project Foundation       8       │
-│ ✓ Database                 6       │
-│ ✓ User Module             10       │
-│ ✓ Login                    8       │
-├────────────────────────────────────┤
-│ CURRENT                            │
-│                                    │
-│ ▶ Authentication           8       │
-│   Not included until completed     │
-├────────────────────────────────────┤
-│ RECENT CHANGE                      │
-│                                    │
-│ Previous progress: 68%             │
-│ Current progress: 64%              │
-│                                    │
-│ Reason: Plan expanded              │
-│                                    │
-│ + Refresh Token          weight 3  │
-│ + Token Revocation       weight 2  │
-└────────────────────────────────────┘
+```text
+Completed Weight: 32
+Total Confirmed Weight: 50
+32 / 50 = 64%
+Completed: ◐ Agent Reported COMPLETED / ✓ evidence-backed VERIFIED
+Remaining: task / weight / status source
+Recent Change: total weight 45 → 50
++ Refresh Token (3), + Token Revocation (2)
+Previous: 71.1%     Current: 64%     Reason: Plan expanded
 ```
 
-这里非常重要的一点：
-
-> 不只是告诉用户公式，还要告诉用户最近为什么发生变化。
+每条完成项展示其声明或验证依据/时间/来源；不能将 Agent Reported 包装成 Verified。当前 task 未完成不按部分量入分子；所有变化关联 plan/status/weight revision。v0.1 不需要数值 task estimate 或语义分析。
 
 # 8. Plan 页面
 
-Plan 页面回答：
+v0.1 展示 Project → Phase → Task：
 
-> **项目完整路线是什么？**
-
-低保真：
-
+```text
+◐ Phase 1 · Foundation (reported complete, verification unknown)
+  ◐ Repository setup
+  ◐ Core model
+▶ Phase 2 · Authentication
+  ◐ Login
+  ▶ JWT Authorization
+  ○ Refresh Token
+  ○ Token Revocation
+○ Phase 3 · Orders
 ```
-┌────────────────────────────────────┐
-│ PLAN                               │
-├────────────────────────────────────┤
-│ ✓ Phase 1 · Foundation             │
-│                                    │
-│   ✓ Repository setup               │
-│   ✓ Core model                     │
-│                                    │
-│ ✓ Phase 2 · Storage                │
-│                                    │
-│   ✓ SQLite foundation              │
-│   ✓ Persistence                    │
-│                                    │
-│ ▶ Phase 3 · Authentication         │
-│                                    │
-│   ✓ Login                          │
-│   ▶ JWT Authorization              │
-│   ○ Refresh Token                  │
-│   ○ Token Revocation               │
-│                                    │
-│ ○ Phase 4 · Orders                 │
-└────────────────────────────────────┘
-```
+
+✓ 只用于有独立验证依据的任务或适用任务全部 verified 的 Phase；不能仅凭 Agent 完成声明给绿色验证勾。
 
 # 9. Plan 状态符号
 
@@ -420,46 +245,13 @@ Idea      → 最弱、灰化
 
 # 11. 点击 Task 后看到什么
 
-点击：
+v0.1 Task Detail 显示 title、status 及其独立来源/完成依据、certainty 及 plan source/revision、weight 及其来源/人工调整历史、关联判断的 Confidence/依据、History、Edit Weight / Correct Association。
 
-```
-JWT Authorization
-```
-
-打开详情：
-
-```
-┌────────────────────────────────────┐
-│ JWT Authorization                  │
-├────────────────────────────────────┤
-│ Status                             │
-│ IN PROGRESS                        │
-│                                    │
-│ Weight                             │
-│ 8                                  │
-│ [Edit]                             │
-│                                    │
-│ Current Estimate                   │
-│ ~47%                               │
-│ Confidence 91%                     │
-│                                    │
-│ Source                             │
-│ Visualizer Inferred                │
-├────────────────────────────────────┤
-│ PLAN SOURCE                        │
-│ Codex Active Plan                  │
-├────────────────────────────────────┤
-│ HISTORY                            │
-│                                    │
-│ 18:31 Started                      │
-│ 18:42 Plan expanded                │
-│ 18:51 Current activity detected    │
-├────────────────────────────────────┤
-│ [Correct Task Association]         │
-└────────────────────────────────────┘
-```
+没有把所有字段共用为一个 Source。纠正关联后，status 仍可为 Agent Reported；v0.1 不显示 Current Estimate 数值。完整多来源 conflict UI 后置，但断言不能相互覆盖。
 
 # 12. 用户修改 Task Weight
+
+独立示例（对应 Acceptance Scenario 10，非 Scenario 13）；变化来自人工权重调整。
 
 用户应该可以：
 
@@ -474,14 +266,14 @@ Weight 8
 Weight 12
 ```
 
-修改后不能静默改变项目百分比。
+修改后不能静默改变项目百分比。本例 completed=32、total=50，未完成 Authentication weight 8→12 后 total=54，所以 32/54=59.3%。
 
 应该产生：
 
 ```
 Progress changed
 
-64% → 59%
+64% → 59.3%
 
 Reason:
 Task weight corrected by user.
@@ -534,7 +326,7 @@ Select Actual Task
 Refresh Token
 ```
 
-之后：
+按 D-037/ARCHITECTURE §19 生效并持久保存；普通文件活动/新 Turn 不覆盖，明确失效必须记录依据。断连显示最后确认状态，不能直接撤销。之后：
 
 ```
 Current Task
@@ -581,7 +373,7 @@ Timeline 不是 Raw Log。
 │ 18:43                              │
 │ Progress changed                   │
 │                                    │
-│ 68% → 64%                          │
+│ 71.1% → 64%                        │
 │                                    │
 │ Reason: Plan expanded              │
 │                                    │
@@ -653,17 +445,20 @@ Source
 Codex
 
 Reason
-Session renewal requirements discovered.
+Agent Reported: Session renewal requirements discovered.
+（来源未提供时显示 Reason not provided，不生成事实化理由）
 
 Effect
 
 Project Progress
-68% → 64%
+71.1% → 64%
 ```
 
 这就是我们的重要差异化功能之一。
 
 # 17. Activity 页面
+
+v0.1 advanced/P1；以下为候选事件 fixture，不代表当前已取得全部 Codex signals。Test result 保留实际来源，不因命令名称或 Agent 总结自动 Verified。
 
 Activity 页面负责保留原来的 Codex Visualizer 精神，但不作为产品中心。
 
@@ -694,6 +489,8 @@ Activity 页面负责保留原来的 Codex Visualizer 精神，但不作为产�
 但它不是首页。
 
 # 18. Raw Activity 与 Meaningful Timeline 的区别
+
+只在有来源依据时生成相应意义事件；语义“continued fixing”若推断必须标来源/不确定性，不把低级日志自动解释为完成。
 
 例如 Codex：
 
@@ -839,6 +636,8 @@ Why?
 
 # 23. Attention Signals
 
+Phase 17 后续 UX，非 v0.1 必须项。
+
 不要使用夸张弹窗。
 
 比如：
@@ -875,7 +674,7 @@ No active AI coding session.
 
 Start working with Codex in this project.
 
-Visualizer will automatically detect:
+目标：在受支持且通过 Spike 的路径自动识别（当前 Unverified）：
 
 • project plan
 • current task
@@ -902,7 +701,7 @@ Waiting for:
 Plan / Tasks / Project structure
 ```
 
-不能凭空制造假的 Project Progress。
+不能凭空制造假的 Project Progress。来源暂时不可读取时显示 observation unavailable，不把“没有读到”当作“没有计划”。
 
 # 26. 低 Confidence
 
@@ -975,9 +774,11 @@ Codex ● Active
 ```
 ● Active
 ○ Idle
-✓ Finished
+○ Finished (Session ended, not task verified)
 ⚠ Disconnected
 ```
+
+Session state 必须来自实际可用 signal；断连不等于结束，最后确认的纠正/项目状态标 stale。映射尚待 Spike，不因 mockup 声称已实现。
 
 但不要让 Session 状态盖过 Project 状态。
 
@@ -1000,39 +801,9 @@ Project:
 
 # 30. Settings 页面
 
-第一版设置保持非常少。
+v0.1 保持必要设置很少：可控制 raw activity 展示（如已支持）；显示 repo 外本地存储位置。推断不确定性/来源披露是硬约束，不提供彻底隐藏它的开关。
 
-```
-GENERAL
-
-Show raw activity
-[ ON ]
-
-Semantic Analysis
-[ OFF ]
-
-Show confidence
-[ ON ]
-
-────────────────────
-
-STORAGE
-
-Local data
-Manage...
-
-Export Project State
-Export...
-
-────────────────────
-
-ADVANCED
-
-Raw event retention
-7 days
-```
-
-不要第一版出现几十个设置项。
+Semantic 未实现且 OFF，不给出可用 ON 控件；Export 属于 Phase 18；Raw retention 期限仍待 Phase 2/采集前决策，不显示“7 days”有效设置或尚未实现的管理功能。
 
 # 31. 默认首页不能出现什么
 
@@ -1127,7 +898,7 @@ User Confirmed
 先固定语义即可：
 
 ```
-✓ Verified / completed
+✓ Verified only (independent evidence)
 ▶ Active
 ○ Todo
 ◐ Agent completed, not verified
@@ -1172,56 +943,9 @@ User opens Visualizer
 
 # 36. 用户离开 10 分钟的 Magic Moment
 
-这是整个 UX 最重要的测试。
+独立示例（非 Scenario 13），与 Acceptance Scenario 30 一致：离开时 28/40=70%；期间 JWT weight 4 被 Agent 明确报告完成，32/40=80%；新增任务 weight 6+4 后 32/50=64%。回来 Overview 展示当前 Authentication/Refresh Token、来源/关联 Confidence、JWT Agent Reported COMPLETED（Verification Unknown）、新增计划和 70%→80%→64% 各自原因。
 
-假设：
-
-```
-18:30
-User leaves
-
-Codex continues working
-
-18:40
-User returns
-```
-
-用户打开：
-
-```
-AI PROJECT VISUALIZER
-
-Confirmed Progress
-64%
-
-Phase
-Authentication
-
-Current Task
-Refresh Token
-
-Estimated
-~46%
-
-────────────────────
-
-Since you last viewed
-
-Plan changed
-
-+ Refresh Token
-+ Token Revocation
-
-Progress
-68% → 64%
-
-Codex reports JWT task complete.
-
-Current task changed:
-JWT → Refresh Token
-```
-
-用户应该不用读 Chat。
+无需 Chat/Terminal/Diff，也无需数值任务估算。五秒理解必须真实 E2E + 人工验收；当前 Pending，不以 mockup 通过。高级 Since Last Viewed/LLM summary 后置。
 
 # 37. 可以增加 “Since you last viewed”
 
@@ -1261,33 +985,9 @@ Since you last viewed
 
 # 38. 首页建议最终结构
 
-低保真最终收敛为：
+v0.1：Project + observed Session state；Confirmed Progress / Why；Current Phase / Current Task；Current Task Confidence / Provenance / Correct；Recent Plan/Progress Change；Recent meaningful Timeline。
 
-```
-┌──────────────────────────────┐
-│ Project + Agent Status       │
-├──────────────────────────────┤
-│ Confirmed Progress           │
-│ Why?                         │
-├──────────────────────────────┤
-│ Current Phase                │
-│ Current Task                 │
-│ Estimated Task Progress      │
-│ Confidence / Provenance      │
-├──────────────────────────────┤
-│ Since You Last Viewed        │
-├──────────────────────────────┤
-│ Recent Plan Change           │
-├──────────────────────────────┤
-│ Attention Signals            │
-├──────────────────────────────┤
-│ Recent Timeline              │
-└──────────────────────────────┘
-```
-
-不是所有块永远出现。
-
-没有数据的块可以隐藏。
+未来：Estimated Task Progress（Phase 13）、高级 Since Last Viewed、Attention Signals、Semantic Summary。无数据块隐藏时必须保留必要的 unknown/no-plan/uncertainty 提示，不能制造已确定状态。
 
 # 39. v0.1 必须真正做出来的 UX
 
@@ -1301,8 +1001,11 @@ v0.1 最核心：
 Confirmed Progress
 Current Phase
 Current Task
-Confidence
+Current Task Confidence / Provenance
+Recent Plan/Progress Change
 ```
+
+v0.1 不显示 Estimated Task Progress 数值；Why/empty/uncertainty 是发布 baseline。
 
 ### Plan
 
@@ -1369,7 +1072,7 @@ Multi-session UI
 
 如何避免把 AI 推测伪装成事实？
 
-> Estimated + Confidence + Provenance。
+> v0.1：关联 Confidence + Provenance + 不确定性提示；Phase 13 再加入 Estimated 数字。
 
 ### 问题四
 
@@ -1474,7 +1177,7 @@ Conflict Resolution
 
 接下来就可以进入：
 
-# 第五步：v0.1 End-to-End Acceptance Scenarios
+# 第五步：v0.1 End-to-End Acceptance Scenarios（历史编制顺序）
 
 下一步不再讨论“界面应该有什么”。
 

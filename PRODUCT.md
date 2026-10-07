@@ -9,7 +9,7 @@ AI Project Visualizer 是一个面向 AI Coding Agent 的开源项目观察工�
 
 > **这个项目现在到底做到哪里了？**
 
-第一阶段主要支持 OpenAI Codex，但核心架构不得与 Codex 强绑定，应允许未来扩展至 Claude Code、OpenCode、Gemini CLI 等其他 AI Coding Agent。
+首个 Agent 目标是 OpenAI Codex（Phase 7 集成，当前能力 Unverified），但核心架构不得与 Codex 强绑定，应允许未来扩展至 Claude Code、OpenCode、Gemini CLI 等其他 AI Coding Agent。
 
 # 1. Product Vision
 
@@ -154,32 +154,32 @@ Visualizer 应尽可能：
 
 > **Why?**
 
-例如：
+与 Acceptance Scenario 13 相同的计划扩张示例：完成权重保持 32，总正式权重由 45 增至 50。
 
 ```
 Project Progress
-57%
+64%
 ```
 
 用户应能够查看：
 
 ```
-Why 57%?
+Why 64%?
 
-Phase 1      completed
-Phase 2      completed
-Phase 3      6 / 10 weighted units completed
-Phase 4      not started
+Completed Weight: 32
+Previous Total Confirmed Weight: 45
+Current Total Confirmed Weight: 50
 
 Plan expanded:
-+ Refresh token
-+ Token revocation
++ Refresh Token (weight 3)
++ Token Revocation (weight 2)
 
 Previous progress:
-63%
+32 / 45 = 71.1%
 
 Current:
-57%
+32 / 50 = 64%
+71.1% → 64%
 ```
 
 # 5. Target Users
@@ -203,7 +203,7 @@ Current:
 
 # 6. Core User Experience
 
-用户安装插件后，理想体验：
+目标体验（接入可行性仍待 D-038 Spike 验证，不是当前已实现行为）：
 
 ```
 Install
@@ -240,56 +240,20 @@ Install
 
 # 7. Primary UI
 
-用户打开 Visualizer 时，应在约 5 秒内理解项目当前状态。
+v0.1 Overview 应在约 5 秒内让用户理解当前状态（人工验收目标，尚未验证）：
 
-示例：
-
+```text
+Project: my-app
+Confirmed Project Progress: 64%   [Why 64%?]
+Current Phase: Authentication
+Likely Current Task: JWT Authorization
+Current Task Confidence: 65% (association rule score)
+Source: Visualizer Inferred
+Recent Plan Change: + Refresh Token (3), + Token Revocation (2)
+Progress: 71.1% → 64%   Reason: Plan expanded
 ```
-AI PROJECT VISUALIZER
 
-Project
-my-app
-
-Confirmed Progress
-█████████████░░░░░ 64%
-
-Current Phase
-Phase 4 · Authentication
-
-Current Task
-▶ JWT Authorization
-
-Estimated Task Progress
-~47%
-
-Confidence
-91%
-
-Recent
-────────────────────────────
-
-18:31  Task started
-18:36  Authentication implementation progressed
-18:42  Plan changed
-
-       + Refresh Token
-       + Token Revocation
-
-18:43  Progress changed
-       68% → 64%
-
-       Reason:
-       Plan expanded
-
-Plan
-────────────────────────────
-
-✓ Phase 1 · Foundation
-✓ Phase 2 · Database
-✓ Phase 3 · Users
-▶ Phase 4 · Authentication
-○ Phase 5 · Orders
-```
+此例 completed weight=32，扩张前 total=45，扩张后 total=50。Current Task Confidence 不是完成比例。v0.1 不显示 Estimated Task Progress 数字或占位；无依据则显示未知/暂无计划。Plan 中 ◐ 表示 Agent 报告完成，✓ 只表示有独立验证依据。
 
 # 8. Core Model
 
@@ -454,7 +418,8 @@ Changed
 + Token Revocation
 
 Reason
-Agent discovered session renewal was not covered.
+Agent Reported: session renewal was not covered.
+（来源未提供原因时保留缺失，不编造）
 
 Time
 18:42
@@ -464,117 +429,36 @@ Time
 
 # 13. Progress Model
 
-进度必须分成两层。
+Confirmed Project Progress = 当前 Confirmed Tasks 中有可靠完成依据的 COMPLETED / VERIFIED weight 总和 ÷ 当前 Confirmed Tasks 的有效 weight 总和。二者各保留完成声明/独立验证依据；普通自动推断没有可靠完成依据不能计入分子。Confirmed 表示正式计划上的完成记录，不保证所有工作已独立验证（D-035）。
 
-## 13.1 Confirmed Project Progress
+Phase weight 仅汇总任务权重，不作第二次乘数。无正式计划、零分母或正式任务权重缺失/无效时显示 unavailable 和原因，不能丢弃未知任务制造数字。进度变化保留前后值、公式、task/status/weight 来源及 plan revision。
 
-用于表示可靠、正式的项目整体进度。
+权重可来自明确来源估计并由用户调整；Core 不要求 LLM。无来源权重的确定性默认政策在 Phase 4 前另行批准/验证，不预设永久全 1。v0.1 必须允许编辑 Task Weight，并解释对进度的影响。
 
-根据：
-
-```
-Task completion
-+
-Task weight
-```
-
-计算。
-
-例如：
-
-```
-Task A weight 1
-Task B weight 5
-Task C weight 8
-```
-
-避免：
-
-```
-修改 README
-```
-
-和：
-
-```
-实现完整认证系统
-```
-
-在进度计算中权重相同。
-
-任务权重：
-
-```
-AI Initial Estimate
-        ↓
-User Adjustable
-```
+数值估算与正式进度永远分离；数值估算不属于 v0.1。
 
 # 14. Estimated Task Progress
 
-长时间 Task 不应导致整体 UI 看起来完全停滞。
+**Phase 13 后续功能；v0.1 不实现。** D-011 保留分离原则，D-034 明确发布时机。
 
-因此允许：
-
-```
-Current Task
-Authentication
-
-Estimated Completion
-~42%
-```
-
-但必须和 Confirmed Progress 明确区分。
-
-例如：
-
-```
-Confirmed Project Progress
-68%
-
-Estimated Current Task Progress
-~42%
-```
-
-绝不能把推测结果直接混入确定进度并制造虚假的精确数字。
+后续可以展示 Estimated Current Task ~42%（Phase 13 独立任务估算示例，非 Scenario 13 的计划扩张进度），但必须与 Confirmed Project Progress、association confidence 分开，单独记录 estimate confidence、来源和解释。不得混入正式进度。v0.1 长任务期间进度可暂时不变，当前任务、关联 Confidence 和最近意义事件仍可更新。
 
 # 15. Explainable Progress
 
-进度必须可以解释。
+v0.1 支持 Why X%：展示 Completed Weight / Total Confirmed Weight、完成和剩余任务、各任务状态/权重依据、近期变化及原因、plan revision。
 
-例如：
-
-```
-Why 68%?
-
-Completed:
-✓ Database
-✓ User module
-
-Authentication
-Weight: 8
-
-Agent-reported completed:
-3 / 5 major parts
-
-Remaining:
-- Controller integration
-- Tests
-
-Estimated current task:
-~42%
-```
+例如 32/50=64%，其中每条完成任务注明 Agent Reported COMPLETED 或独立证据支持的 VERIFIED。正在进行任务不按部分完成量进入分子；Agent 提及“3/5 parts”可作为来源声明，但不能偷偷算作整体部分完成百分比。
 
 # 16. Progress Regression
 
 项目进度允许倒退。
 
-例如：
+独立示例（非 Scenario 13）：完成权重为 18，总权重 25→31，新增三项任务各 weight 2。
 
 ```
 72%
 ↓
-58%
+58.1%
 ```
 
 原因：
@@ -586,15 +470,15 @@ Plan expanded
 UI 应展示：
 
 ```
-72% → 58%
+72% → 58.1%
 
 Plan expanded:
-+ Refresh Token
-+ Token Revocation
-+ Security tests
++ Refresh Token (weight 2)
++ Token Revocation (weight 2)
++ Security tests (weight 2)
 ```
 
-而不是偷偷把进度改成 58%。
+18/25=72%，18/31 显示为 58.1%；不能静默把进度改成 58.1%。
 
 # 17. Task Status
 
@@ -644,75 +528,17 @@ Expected files changed
 
 # 18. Provenance Model
 
-Visualizer 的每个关键结论应尽可能记录来源。
+重要结论必须分别记录 Observed / Agent Reported / Visualizer Inferred / User Confirmed 来源。Status、certainty、weight、Current Task association、Current Phase derivation 和进度解释拥有独立依据，不能用一个 Task.provenance 覆盖所有字段。
 
-建议至少支持：
-
-```
-Observed
-Agent Reported
-Visualizer Inferred
-User Confirmed
-```
-
-示例：
-
-```
-Current Task
-Order Authorization
-
-Source:
-Visualizer Inferred
-
-Confidence:
-65%
-```
-
-用户纠正后：
-
-```
-Current Task
-Order Authorization
-
-Source:
-User Confirmed
-```
+保留来源身份、event/revision、时间、依据引用；当前解释不覆盖原断言。推断附 association Confidence 和规则依据；人工纠正附 correction 引用，不冒充算法 100%。“观察到 Agent 声明完成”不是“实现已独立验证”。契约见 ARCHITECTURE §5–10。
 
 # 19. User Corrections
 
-用户必须能够纠正 Visualizer。
+v0.1 允许 Correct Current Task / Task Association / Task Weight。普通推断服从有效人工纠正；普通文件活动、新 Turn、重启和时间流逝不直接覆盖它。
 
-例如：
+有效范围及失效规则按 D-037 / ARCHITECTURE §19：Current Task 在指定 Session 当前工作上下文生效，只能由后续人工选择、可可靠识别的较新显式源任务选择、明确 Session 结束或目标被完整计划明确移除结束。历史关联限定具体 event 集合；权重限定同一稳定 task 当前计划成员。
 
-```
-Likely Task
-Task 3.2
-
-Confidence
-65%
-```
-
-用户：
-
-```
-Wrong
-→ Task 3.4
-```
-
-系统：
-
-```
-Corrected ✓
-```
-
-纠正应：
-
-- 修改当前状态；
-- 修正 Timeline；
-- 保存此次人工判断；
-- 为后续推断提供参考。
-
-Visualizer 不得假设自己的推断永远正确。
+失效须追加原因、规则、依据事件和时间记录；断连仅标最后确认/当前未知。保留原观察和判断，Timeline 展示带纠正说明的解释，不能删除历史。关联纠正不修改任务完成声明/verification 来源；重启保留有效纠正。
 
 # 20. Development Timeline
 
@@ -757,7 +583,7 @@ Plan changed
 
 17:43
 Progress
-68% → 64%
+71.1% → 64%
 
 Reason
 Plan expanded
@@ -771,31 +597,9 @@ Unknown
 
 # 21. Raw Event Retention
 
-底层仍然可以采集：
+底层观察为 inference/evidence 提供元数据，默认不持久化完整源码、raw command/edit 输出或私有 prompt/messages。归一化不自动意味着可安全保存；按字段 allowlist 保留最小来源/完成依据及长期意义事件。
 
-```
-Read
-Edit
-Search
-Command
-Test
-Turn
-Plan
-```
-
-但它们属于 Infrastructure。
-
-默认 UI 不应被这些细粒度事件占满。
-
-长期存储策略：
-
-```
-Raw events
-→ 短期保留 / 压缩
-
-Meaningful project events
-→ 长期保留
-```
+原始传输内容只作必要瞬时解析。具体 bounded retention/删除期限在 Phase 2/采集前决定并验证；当前不承诺全保留或默认 7 天，不提前建立通用 retention 框架。历史结论及纠正的最小依据不得因 raw 清理丢失。
 
 # 22. Live Activity
 
@@ -977,48 +781,13 @@ AgentAdapter
 
 # 29. Codex Plugin
 
-第一推荐入口：
-
-```
-Codex Plugin
-```
-
-负责：
-
-- 监听 Codex 生命周期；
-- 获取计划；
-- 捕获关键事件；
-- 识别当前 Session；
-- 向 Project Core 提供事件。
+Plugin 是接入候选，lifecycle/Session/plan/status/message 读取能力与订阅权限均 **Unverified**，不视为已经可用的推荐协议。依照 D-038 的独立 Spike 选择支持路径；不能强迫 Agent 更新 Visualizer 私有 Task System。
 
 # 30. Codex App-Server
 
-现有 app-server 协议实验不得废弃。
+app-server 也是接入候选，被动观察已有 CLI/IDE/app Session 的能力为 **Unverified / Technical Verification Pending**。旧文档提及 initialize/initialized/thread/start 实验，但本仓库没有附可复现材料；找到后保留版本和限制，不当作当前通过证据。
 
-它属于：
-
-```
-Research / Spike
-```
-
-未来可以成为：
-
-```
-codex-adapter/
-```
-
-的重要底层能力。
-
-已有：
-
-```
-initialize
-initialized
-thread/start
-...
-```
-
-等实验应保留。
+创建自有 Thread 不证明能观察原工作流。具体计划、Activity 粒度和恢复能力按 [独立 Spike](docs/spikes/codex-observation-feasibility.md) 验证；本轮仅制定方案，未执行。
 
 # 31. VS Code Extension
 
@@ -1031,7 +800,7 @@ VS Code Extension 是：
 整体关系：
 
 ```
-Codex Plugin
+Codex integration source (Unverified)
       ↓
 Agent Adapter
       ↓
@@ -1043,7 +812,7 @@ VS Code Extension
 即：
 
 ```
-Codex Plugin = integration
+Codex integration source (candidate) = integration
 Project Core = brain
 VS Code Extension = visual surface
 ```
@@ -1064,19 +833,9 @@ Other IDEs
 
 # 33. Storage
 
-默认：
+默认 repo 外 Local App Storage。Host 提供位置，Storage 负责持久化/事务/迁移并依赖 Core 契约，Core 不依赖数据库/插件 API。恢复必须保留来源、计划历史和纠正；不能只有最后一个状态数字。SQLite driver 和打包仍待验证。
 
-```
-Local Plugin Storage
-```
-
-不得自动污染用户 repository。
-
-例如不要默认创建：
-
-```
-.ai-project/
-```
+不得默认创建 .ai-project/；Export 在 Phase 18，经用户主动操作。
 
 # 34. Portable Project State
 
@@ -1149,7 +908,7 @@ License 后续单独决定。
 
 # 37. v1 Core Features
 
-v1 必须优先完成以下五项：
+以下是 v1 目标；其中数值任务估算在 Phase 13，不能当作 v0.1 必须项：
 
 ## A. Automatic Codex Plan Capture
 
@@ -1220,7 +979,7 @@ Event normalization
 Local project state
 Plan source tracking
 Basic confidence model
-Raw event storage
+Minimal normalized observation/evidence storage（不默认保存 raw transport payload）
 Timeline generation
 ```
 
@@ -1272,65 +1031,11 @@ Full semantic analysis by default
 
 # 41. The Magic Moment
 
-AI Project Visualizer 最重要的体验不是花哨动画。
+v0.1：用户离开十分钟，Codex 按正常流程工作；回来后约 5 秒理解 Project 状态、Current Phase/Task、关联 Confidence/Provenance、最近完成声明、计划扩张及进度原因，不必翻 Chat/Terminal/Diff。
 
-而应该是：
+独立示例（非 Scenario 13），对应 Acceptance Scenario 30：28/40=70%；JWT weight 4 获可靠 Agent 完成声明后 32/40=80%；新增 Confirmed weight 10 后 32/50=64%。分别记录 70% → 80% → 64% 及原因，不能把全部变化归为单一扩张。
 
-用户离开电脑十分钟。
-
-Codex 持续开发。
-
-用户回来。
-
-打开 Visualizer。
-
-看到：
-
-```
-Project
-████████████░░░░ 64%
-
-Phase 4 · Authentication
-
-Current
-JWT Authorization
-
-Estimated
-~47%
-
-过去 8 分钟
-
-• Authentication task progressed
-
-• Codex expanded the plan:
-  + Refresh Token
-  + Token Revocation
-
-• Project progress changed:
-  68% → 64%
-
-Reason:
-Plan expanded.
-
-• Codex is still working.
-
-Current Task Confidence:
-91%
-```
-
-用户不需要：
-
-- 翻 Chat；
-- 看几十个 Tool Call；
-- 检查 Git Diff；
-- 阅读全部 Terminal；
-- 问 Codex“你刚才做了什么”。
-
-几秒钟就知道：
-
-> **项目现在发生了什么。**
-
-这就是 AI Project Visualizer 的 Magic Moment。
+不依赖数值任务估算、LLM summary 或高级 Since Last Viewed。真实观察与人工 UX 验收尚未执行。
 
 # 42. Brand Direction
 

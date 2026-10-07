@@ -36,6 +36,10 @@ Do not skip phases without an explicit reason.
 
 Consult `DECISIONS.md` before changing an accepted architectural or product decision.
 
+## Documentation conflicts
+
+已批准的规范发生冲突时，停止相关实现，报告冲突文档、具体要求及影响，并等待用户决定。不得静默覆盖、选择性忽略或自行改写已批准规范。
+
 ## UX
 
 Consult `docs/UX.md` when changing user-facing behavior.
