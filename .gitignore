@@ -13,3 +13,6 @@ Thumbs.db
 
 .vscode-test/
 *.vsix
+
+# Generated Codex protocol schemas
+experiments/codex-observation/schema-*/
