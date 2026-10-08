@@ -1,0 +1,429 @@
+{
+  "artifactKind": "allowlisted_public_derivative_not_original_receipt",
+  "preparedAt": "2026-10-08T11:40:14Z",
+  "preparationSource": "read_only_local_evidence_review_no_host_or_driver_probe_execution",
+  "originalsModified": false,
+  "independentHostVerification": false,
+  "decision": {
+    "preferredProposal": "better-sqlite3@13.0.3",
+    "status": "Proposed",
+    "decisionAccepted": false,
+    "compatibilityVerification": "complete_with_limitations",
+    "productionStorageVerified": false
+  },
+  "bindings": {
+    "acceptanceId": "f5583c13-ba28-4ff2-8b51-76db2c96f391",
+    "exitObservationId": "b2084492-3737-422f-9b4e-64a06ca4aafd",
+    "readAttemptId": "750c8a0f-112f-441e-994a-fcfd47461298",
+    "auditId": "82eeaa9a-112e-4b2e-aa29-4cb68be3f2dc"
+  },
+  "originalAudit": {
+    "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-summary-82eeaa9a-112e-4b2e-aa29-4cb68be3f2dc.json",
+    "sha256": "f278bfc4d691a63d3fd2cbad1770c11d87a3d48212101e0a4b87961d29b54579",
+    "createdAt": "2026-10-08T11:12:07.977Z",
+    "source": "ordinary_node_receipt_audit_not_host_execution",
+    "status": "PASS WITH LIMITATION",
+    "userReportedExitCode": 0,
+    "decisionAccepted": false
+  },
+  "environment": {
+    "platform": "win32",
+    "architecture": "x64",
+    "hostScope": "local_desktop",
+    "remoteName": null,
+    "vscode": "1.140.0",
+    "hostNode": "v24.21.0",
+    "electron": "43.7.3",
+    "hostModules": "148",
+    "hostNapi": "10",
+    "developmentNode": "v24.21.0",
+    "developmentModules": "137",
+    "developmentNapi": "10",
+    "driver": "better-sqlite3@13.0.3",
+    "sqliteVersions": {
+      "node:sqlite": "3.53.4",
+      "better-sqlite3": "3.53.4"
+    },
+    "packaging": "disposable_CommonJS_win32_x64_VSIX"
+  },
+  "stages": {
+    "W1": "PASS",
+    "W2": "PASS",
+    "A_baseline": "PASS",
+    "A_install": "PASS",
+    "BC_installedHost": "PASS",
+    "D_writer": "PASS",
+    "E_exit": "PASS WITH LIMITATION",
+    "F_reader": "PASS WITH LIMITATION",
+    "F_persistenceBindings": "PASS WITH LIMITATION",
+    "G_audit": "PASS WITH LIMITATION",
+    "automaticWholeInstanceExit": "NOT TESTED"
+  },
+  "drivers": [
+    {
+      "candidate": "node:sqlite",
+      "developmentNode": "PASS",
+      "developmentExtensionHost": "PASS",
+      "installedOperations": "PASS",
+      "restartAcceptance": "PASS WITH LIMITATION"
+    },
+    {
+      "candidate": "better-sqlite3",
+      "developmentNode": "PASS",
+      "developmentExtensionHost": "PASS",
+      "installedOperations": "PASS",
+      "restartAcceptance": "PASS WITH LIMITATION"
+    }
+  ],
+  "artifacts": {
+    "vsix": {
+      "localReference": "artifacts/apv-sqlite-driver-spike-win32-x64.vsix",
+      "sha256": "58d3ba8ec1d41aa5e351de3e2dd6d8351a61c6142ca33c31fe60bffaf78b0089"
+    },
+    "native": {
+      "archiveReference": "extension/node_modules/better-sqlite3/prebuilds/win32-x64.node",
+      "sha256": "e21e5efd71fba66578e95b62554d9028064a80dafd7221bf8a8ef155de8d240a"
+    }
+  },
+  "historicalAttempts": [
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-exit.json",
+      "status": "NOT TESTED",
+      "reason": "Independent PID observation collector failed; no retroactive PASS"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-read.json",
+      "status": "FAIL",
+      "harness": "FAIL",
+      "driverPersistence": "NOT TESTED",
+      "reason": "Snapshot reference path representation mismatch; separate successful read attempt retained"
+    }
+  ],
+  "limitations": [
+    "Known-process exit observations plus manual test-window closure; automatic whole-instance lifecycle proof remains NOT TESTED",
+    "Lock probe used two connections in one process; no performance, multi-process contention or crash-recovery claim",
+    "Successful restoration covers synthetic GUID records in distinct installed Hosts, not production APV state/schema/migrations/atomic recovery",
+    "Linux/macOS/Windows ARM64, other runtime versions, remote/WSL/container/web Hosts remain unverified",
+    "Private originals and ignored artifact/runtime inputs are required for independent audit recomputation; public digest summary alone is not proof"
+  ],
+  "redaction": {
+    "method": "Explicit allowlisted facts and repo-relative filename/hash inventories; no generic copy of raw payloads",
+    "omitted": [
+      "Absolute local paths and user profile locations",
+      "Real PIDs, process creation identities, parent/child maps and command lines",
+      "Profile/runtime configuration, databases, environment dumps, stdout/stderr and raw errors"
+    ],
+    "preserved": [
+      "Synthetic acceptance identities, actual version tuple, stage/Driver outcomes, limitations, original receipt/input SHA-256 and historical selection roles"
+    ],
+    "originals": "Local only, immutable; references below are custody locators, not public download links"
+  },
+  "localOriginalReceipts": [
+    {
+      "localReference": "evidence/command-observations.json",
+      "sha256": "358b4b45a7d3adecb821851330634d54803665915a8a2a1518dc6b946e00fb0f"
+    },
+    {
+      "localReference": "evidence/development-host-probe.json",
+      "sha256": "e31cb176682971ba7f5847164cab68dc3002852e2058b297549189bf4c564b5f"
+    },
+    {
+      "localReference": "evidence/development-launch-probe.json",
+      "sha256": "8499b070b51a4a8390b67531904dd3ddba28b64fc200bd08e6ebc7a07c9d6d8d"
+    },
+    {
+      "localReference": "evidence/development-node.json",
+      "sha256": "11c89052af7a4fb78464dc18895063f2004e46e4a0cd9a2ea9fd0ebeb8014326"
+    },
+    {
+      "localReference": "evidence/installed-launch-probe.json",
+      "sha256": "20712687ed451427b9f535736878cadb7ab9b4677ae4e1a46ed03b839f380a85"
+    },
+    {
+      "localReference": "evidence/installed-launch-read.json",
+      "sha256": "21e73c9d95d183dd172b5276bb1289bfcf0d1a14024828394e50fc8030d92f59"
+    },
+    {
+      "localReference": "evidence/installed-launch-write.json",
+      "sha256": "1c34e8693ce5112b064459b4b534a8fad662dbaa5024ccd3de50d949e8b7ea55"
+    },
+    {
+      "localReference": "evidence/native-stage.json",
+      "sha256": "4b329db43db375f04501f3bb6f46b864972a50c232f7d1c1586fcf455da0e537"
+    },
+    {
+      "localReference": "evidence/packaging-blocker-fix.json",
+      "sha256": "a25e2a8a4c49bba91e30fa6bacb380b01532956d3831eb9a6ea6c1060158972d"
+    },
+    {
+      "localReference": "evidence/validation.json",
+      "sha256": "0d8c75ee5c4919b5ee1afa3f4213ffa5a5f5714094aa288eb6e84134acf16c04"
+    },
+    {
+      "localReference": "evidence/vsix-inventory.json",
+      "sha256": "4c099aa87f785001359e24045b028235b427bf2c0aaa7e34741a1442cad24a61"
+    },
+    {
+      "localReference": "evidence/w2w3-acceptance-review.json",
+      "sha256": "ea8604d60ceddf279b9b12918817cfbc3f6629bf6750a7eea60cf753969581da"
+    },
+    {
+      "localReference": "evidence/w3-blocker-remediation.json",
+      "sha256": "d3309864ab58cc6882ae26d37125c49984556e4aef8b1dcc6a3fdebe7a535bd2"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-baseline.json",
+      "sha256": "79a4797f78e124b47565fa9fea0d0eaf80e8f9e4ae2387dcbca58a1d913308de"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-exit-b2084492-3737-422f-9b4e-64a06ca4aafd.json",
+      "sha256": "faaa7d2f61af1d034c7b3f989d902502166be1a5f0e32b7f934c0b0f8dfbdf72"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-exit.json",
+      "sha256": "3fec7f9c21b9fe528b8cf32f91294c66b0e2143f3c9f6651ae3319a1557006c5"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-install.json",
+      "sha256": "ce5198e24d23b7efb2a1e251bb68b3ffa1cceb0914bb946eeb76d57f9a9cccec"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-probe.json",
+      "sha256": "73810318c986c1689b1329ef4c4d46abc87150f195fe4c137bfc3b67b1f7076b"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-read-750c8a0f-112f-441e-994a-fcfd47461298.json",
+      "sha256": "1454c5bf18e593e6d3d287ccd260913732a39bae3ad7f950c5aef65ecacc54e1"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-read.json",
+      "sha256": "071b91fc42d5c231758d52efdf59e57cee561f262e55b21c3fa992a636645c17"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-summary-82eeaa9a-112e-4b2e-aa29-4cb68be3f2dc.json",
+      "sha256": "f278bfc4d691a63d3fd2cbad1770c11d87a3d48212101e0a4b87961d29b54579"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-write.json",
+      "sha256": "77b58eaefdd253a6182ea3149e7ab47800cc155ec7c43070d31742613027046f"
+    }
+  ],
+  "originalAuditInputInventory": [
+    {
+      "localReference": "evidence/command-observations.json",
+      "sha256": "358b4b45a7d3adecb821851330634d54803665915a8a2a1518dc6b946e00fb0f",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "evidence/development-host-probe.json",
+      "sha256": "e31cb176682971ba7f5847164cab68dc3002852e2058b297549189bf4c564b5f",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "evidence/development-launch-probe.json",
+      "sha256": "8499b070b51a4a8390b67531904dd3ddba28b64fc200bd08e6ebc7a07c9d6d8d",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": "PASS WITH LIMITATION"
+    },
+    {
+      "localReference": "evidence/development-node.json",
+      "sha256": "11c89052af7a4fb78464dc18895063f2004e46e4a0cd9a2ea9fd0ebeb8014326",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "evidence/installed-launch-probe.json",
+      "sha256": "20712687ed451427b9f535736878cadb7ab9b4677ae4e1a46ed03b839f380a85",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": "NOT TESTED"
+    },
+    {
+      "localReference": "evidence/installed-launch-read.json",
+      "sha256": "21e73c9d95d183dd172b5276bb1289bfcf0d1a14024828394e50fc8030d92f59",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": "NOT TESTED"
+    },
+    {
+      "localReference": "evidence/installed-launch-write.json",
+      "sha256": "1c34e8693ce5112b064459b4b534a8fad662dbaa5024ccd3de50d949e8b7ea55",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": "NOT TESTED"
+    },
+    {
+      "localReference": "evidence/native-stage.json",
+      "sha256": "4b329db43db375f04501f3bb6f46b864972a50c232f7d1c1586fcf455da0e537",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "evidence/packaging-blocker-fix.json",
+      "sha256": "a25e2a8a4c49bba91e30fa6bacb380b01532956d3831eb9a6ea6c1060158972d",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": "PASS"
+    },
+    {
+      "localReference": "evidence/validation.json",
+      "sha256": "0d8c75ee5c4919b5ee1afa3f4213ffa5a5f5714094aa288eb6e84134acf16c04",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "evidence/vsix-inventory.json",
+      "sha256": "4c099aa87f785001359e24045b028235b427bf2c0aaa7e34741a1442cad24a61",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": "PASS"
+    },
+    {
+      "localReference": "evidence/w2w3-acceptance-review.json",
+      "sha256": "ea8604d60ceddf279b9b12918817cfbc3f6629bf6750a7eea60cf753969581da",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "evidence/w3-blocker-remediation.json",
+      "sha256": "d3309864ab58cc6882ae26d37125c49984556e4aef8b1dcc6a3fdebe7a535bd2",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-baseline.json",
+      "sha256": "79a4797f78e124b47565fa9fea0d0eaf80e8f9e4ae2387dcbca58a1d913308de",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-exit-b2084492-3737-422f-9b4e-64a06ca4aafd.json",
+      "sha256": "faaa7d2f61af1d034c7b3f989d902502166be1a5f0e32b7f934c0b0f8dfbdf72",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": "PASS WITH LIMITATION"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-exit.json",
+      "sha256": "3fec7f9c21b9fe528b8cf32f91294c66b0e2143f3c9f6651ae3319a1557006c5",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": "NOT TESTED"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-install.json",
+      "sha256": "ce5198e24d23b7efb2a1e251bb68b3ffa1cceb0914bb946eeb76d57f9a9cccec",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": "PASS"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-probe.json",
+      "sha256": "73810318c986c1689b1329ef4c4d46abc87150f195fe4c137bfc3b67b1f7076b",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": "PASS"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-read-750c8a0f-112f-441e-994a-fcfd47461298.json",
+      "sha256": "1454c5bf18e593e6d3d287ccd260913732a39bae3ad7f950c5aef65ecacc54e1",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": "PASS WITH LIMITATION"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-read.json",
+      "sha256": "071b91fc42d5c231758d52efdf59e57cee561f262e55b21c3fa992a636645c17",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": "FAIL"
+    },
+    {
+      "localReference": "evidence/w3-f5583c13-ba28-4ff2-8b51-76db2c96f391-write.json",
+      "sha256": "77b58eaefdd253a6182ea3149e7ab47800cc155ec7c43070d31742613027046f",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": "PASS"
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/exit-b2084492-3737-422f-9b4e-64a06ca4aafd-snapshot.json",
+      "sha256": "bd0cd12992654501316a9bf31c383e409448d5d064b20f1fe99dace658060cac",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/exit-snapshot.json",
+      "sha256": "23800fd86ec29f2ef02f703be34efd1cec1ac3b1e7699103e05ef0a4222057a7",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/probe-host-ack.json",
+      "sha256": "eb3eba56ca21f2b214271a4d2452c4fef4c7c3b2b424adc9cb806ca2f23cdaa0",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/probe-host-start.json",
+      "sha256": "7af8c94ce1a3b85163deacb349d3d9cf6fc35016b7b6ad8f311aa3c9e944fe20",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/probe-lifecycle.json",
+      "sha256": "cbc21e3288f845c95041787c5cb584f2328fd476682755a84c7cd8f05b6a732c",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/read-750c8a0f-112f-441e-994a-fcfd47461298-host-ack.json",
+      "sha256": "38b41d20250128116f57a0521f9c7290bef6f469bad519be18e8613833e12946",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/read-750c8a0f-112f-441e-994a-fcfd47461298-host-start.json",
+      "sha256": "fc70dc44702aa9edeb570a798310543e838e7d3e4c056f3f0bff2c18ef83e8e0",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/read-750c8a0f-112f-441e-994a-fcfd47461298-lifecycle.json",
+      "sha256": "a5e0de2179b6ac31ce7e4f749727afb962d0ee2e9ddb5b0fee6986b0213dd26e",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/read-host-ack.json",
+      "sha256": "25386b362b19d7d40bb8ba5eb863a1a621991c0425af8d3b2fe02ad1ae959e4c",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/read-host-start.json",
+      "sha256": "d14c800cb29e0afe5391161cfc5cf858162b9ce1353133fb1841c3460cc54515",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/read-lifecycle.json",
+      "sha256": "b2d49c852a3aff43b3858ef34b432e4fe653b6999dd14dab3bf71919f6d39368",
+      "selectionRole": "historical_nonselected",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/session.json",
+      "sha256": "51740b43c0170aab1493c5a8baaa988a85ea3b1e6734f25ff6c1a44f4ef70999",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/write-host-ack.json",
+      "sha256": "49d0ff531974ddb6ecace49caed45f888c3dda97ce0cbe2d4fe38a6a8c340adf",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/write-host-start.json",
+      "sha256": "eb02b756668959d2c2a10da3264d5fa1b41c9bc88d9b83ba9f5b8d2b5f522ee7",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": null
+    },
+    {
+      "localReference": "_runtime/w3-cmd-f5583c13-ba28-4ff2-8b51-76db2c96f391/write-lifecycle.json",
+      "sha256": "0dffbea90559f3471679990395810bad30c6fafcf5b349cbfdb2712bc24d098e",
+      "selectionRole": "selected_evidence",
+      "reportedStatus": null
+    }
+  ]
+}

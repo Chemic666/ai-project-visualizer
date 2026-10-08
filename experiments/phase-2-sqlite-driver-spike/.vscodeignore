@@ -1,0 +1,14 @@
+evidence/**
+public-evidence/**
+_runtime/**
+artifacts/**
+.gitignore
+.vscodeignore
+run-node.cjs
+host-runner.cjs
+stage-vsix.cjs
+run-host.ps1
+audit-vsix.ps1
+host-harness/**
+pnpm-lock.yaml
+node_modules/.pnpm/**

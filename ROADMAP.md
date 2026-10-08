@@ -57,7 +57,9 @@ SQLite
 重新启动
 ```
 
-Project State 可以恢复。Driver/runtime/VSIX Spike、最小来源/纠正/快照/cursor 原子恢复和 privacy/retention 政策在本阶段选型前完成；只持久化现有契约，后续增量扩展。当前均 Technical Verification Pending。
+Project State 可以恢复。Driver/runtime/VSIX Spike、最小来源/纠正/快照/cursor 原子恢复和 privacy/retention 政策在本阶段选型前完成；只持久化现有契约，后续增量扩展。
+
+2026-10-08 状态更新：用户认定 Phase 2.2 disposable Driver/runtime/VSIX 的已定义 Windows x64 W1/W2/W3 兼容性验证技术完成，正式审计为 **PASS WITH LIMITATION**；认可 better-sqlite3 13.0.3 为唯一首选提案，D-041 继续 **Proposed**，生产选型尚未 Accepted。原子恢复、privacy/retention 及生产 Project State 恢复仍 Technical Verification Pending，原有选型前门槛未豁免。其他平台/宿主及完整自动退出、崩溃恢复未获支持声明。见 [Phase 2.2 关闭准备](docs/spikes/phase-2.2-closure.md)与[Git 里程碑清单](docs/spikes/phase-2.2-checkpoint.md)；当前仅准备兼容性里程碑，不关闭整个 Phase 2，不启动生产实现或 Phase 3。
 
 # Phase 3 — Plan Engine
 

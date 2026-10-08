@@ -1,0 +1,38 @@
+{
+  "name": "apv-sqlite-driver-spike",
+  "displayName": "APV Disposable SQLite Driver Spike",
+  "description": "Disposable compatibility experiment; not a production APV extension.",
+  "publisher": "apv-disposable-spike",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "main": "./extension.cjs",
+  "engines": {
+    "node": ">=22",
+    "vscode": "^1.100.0"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onCommand:apvSqliteSpike.run"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "apvSqliteSpike.run",
+        "title": "APV Disposable Spike: Run SQLite Probe"
+      }
+    ]
+  },
+  "scripts": {
+    "probe:node": "node run-node.cjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "13.0.3"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "4.0.0"
+  }
+}

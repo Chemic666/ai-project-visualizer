@@ -1,0 +1,11 @@
+{
+  "name": "apv-sqlite-installed-test-harness",
+  "publisher": "apv-disposable-spike",
+  "version": "0.0.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "main": "./index.cjs",
+  "activationEvents": []
+}

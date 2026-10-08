@@ -1,0 +1,8 @@
+_runtime/
+artifacts/
+node_modules/
+*.vsix
+
+# Immutable local acceptance receipts contain machine/process state.
+# Publish only the separately reviewed public-evidence allowlist summary.
+/evidence/

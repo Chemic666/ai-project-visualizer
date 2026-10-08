@@ -1533,6 +1533,44 @@ ROADMAP Phase 1 仅修正 hierarchy acceptance wording。Correction scope/refere
 
 Phase 3 reconciliation 的正式契约/实验证据揭示初始化或阶段边界不足时，以新决策记录调整。
 
+# D-041 — Prefer better-sqlite3 for Initial Local Storage
+
+**Status:** Proposed
+
+**Proposed:** 2026-10-08，Phase 2.2 Driver Decision & Closure review
+
+**Closure Review:** 2026-10-08，用户认可 better-sqlite3@13.0.3 为唯一首选提案，认定 Phase 2.2 Compatibility Spike 技术验证完成，保留 PASS WITH LIMITATION。D-041 继续 Proposed，生产选型尚未 Accepted，ROADMAP 前置门槛不降低。当前仅准备 Git 里程碑，见 [提交范围与证据保管清单](docs/spikes/phase-2.2-checkpoint.md)。
+
+## Context
+
+两个候选均通过已定义的 Windows x64 W1/W2/W3 测试。正式 Audit `82eeaa9a-112e-4b2e-aa29-4cb68be3f2dc` 为 **PASS WITH LIMITATION**，`decisionAccepted: false`；它支持兼容性判断，不代表选型批准、跨平台支持或生产恢复验收。
+
+Node 24 LTS 与 `node:sqlite` 的成熟度不同；实际测试版本 v24.21.0 的模块仍为 Stability 1.2 / Release Candidate，不能因内置而视为 Stable。依据为 [Node v24.21.0 SQLite 文档](https://github.com/nodejs/node/blob/v24.21.0/doc/api/sqlite.md)。
+
+## Decision
+
+唯一首选提案为 **better-sqlite3 13.0.3**，待用户审核后才能改为 Accepted。保持 SQLite、Local-first、Storage → Core 依赖方向和 Host 组合职责；Core 不导入 Driver。当前不增加 ORM、双 Driver 自动 fallback 或 provider framework，不安装生产依赖。
+
+初始验证基线限定为 Windows x64、本地桌面 VS Code 1.140.0、Extension Host Node v24.21.0 / Electron 43.7.3 / modules 148 / N-API 10；开发 Node v24.21.0 / modules 137 / N-API 10。Driver 精确为 13.0.3，本次两个候选报告 SQLite 3.53.4。其他组合必须取得各自证据后才能列为支持。此基线是已测组合，不是可推导所有更高版本兼容的最低 semver 范围。
+
+## Why
+
+在当前两者兼容性证据相当时，优先可独立锁定的 Driver API 与明确的同步事务封装，减少生产持久化对宿主 RC API 及其升级节奏的依赖。better-sqlite3 的事务包装提供正常返回提交、异常回滚及嵌套 savepoint；这不证明 APV 的快照/cursor 原子恢复已经实现。[官方 API](https://github.com/WiseLibs/better-sqlite3/blob/v13.0.3/docs/api.md)
+
+v13 使用 N-API，预构建资源随包分发；已测 Windows 同一 binary 在开发 Node 与 Electron Host 均可加载。不能套用“每次 V8 ABI 改变都必须重建”的假设，也不能把 N-API 承诺扩展成任意 OS/运行时保证。[v13 发布说明](https://github.com/WiseLibs/better-sqlite3/releases/tag/v13.0.0)
+
+## Consequences
+
+接受第三方依赖、v13 原生实现变化、SQLite/Driver 安全更新、各 OS/架构 binary 与 VSIX 资源审计的维护成本。同步数据库操作可能阻塞 Host，需后续约束事务长度并实测；本 Spike 不提供性能保证。无法匹配受支持平台资源时不能把要求用户本地编译当作已验证的分发方式。
+
+W3 的完整测试窗口退出包含人工确认和采样进程证据；自动完整生命周期覆盖为 NOT TESTED，重启结论继续 PASS WITH LIMITATION。多进程竞争、崩溃/断电恢复、生产 schema/migrations、snapshot/cursor 原子恢复、privacy/retention 和其他平台仍待验证。
+
+本提案不豁免 ROADMAP Phase 2 的“选型前完成原子恢复和 privacy/retention 政策”要求。兼容性子 Spike 已具备有限关闭证据，正式选型批准仍须满足该门槛，或由用户明确批准并记录门槛顺序调整；不能静默以本提案改写旧规范。详见 [Phase 2.2 关闭准备](docs/spikes/phase-2.2-closure.md)。
+
+## Revisit When
+
+实际目标 Host 的 `node:sqlite` 达到 Stable 且复验通过；better-sqlite3 的安全/维护情况或 native 发布成本显著改变；目标 VS Code/Node/Electron、Driver/SQLite、OS/架构/libc、bundle/VSIX 路径变化；或真实原子恢复、错误处理、性能测试暴露不适配。重新评估须保留历史并新增 Decision，不能自动切换 Driver。
+
 # 7. 哪些事情暂时不要写成 Accepted
 
 有些事情我们还没有真正验证，不应该假装已经拍板。

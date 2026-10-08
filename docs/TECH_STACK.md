@@ -26,7 +26,7 @@
 | 仓库形式      | **pnpm Monorepo**                       | 管理多个独立模块                        |
 | 单元测试      | **Vitest**                              | Core、Adapter、Storage 测试             |
 | 本地数据库    | **SQLite**                              | 保存项目状态、Timeline、Plan History 等 |
-| SQLite Driver | **暂不锁定**                            | 后续通过 Spike 确认                     |
+| SQLite Driver | **首选提案：better-sqlite3 13.0.3**      | D-041 Proposed；尚未批准锁定             |
 | IDE 界面      | **VS Code Extension API**               | 第一主要 UI                             |
 | 复杂 UI       | **Webview 按需使用**                    | Overview、Timeline 等                   |
 | 类型检查      | **TypeScript Compiler (`tsc`)** | 编译期类型检查                          |
@@ -332,7 +332,7 @@ Storage 实现持久化、事务、迁移和恢复读取；编译依赖 Storage 
 
 保留来源断言、plan revisions、纠正及失效历史、versioned snapshots 和处理 cursor；current state/Timeline 为派生解释，不能只有最终数字。关联更新需要原子持久化和幂等恢复；Phase 2 定义最小 schema 与 crash/restart 验证，不提前实现全部未来表或 ORM。
 
-Host 提供存储位置和生命周期；Storage 不读取 vscode Workspace API、不实施业务推断。具体 driver/宿主 packaging 和同项目多窗口写入策略仍 Technical Verification Pending。
+Host 提供存储位置和生命周期；Storage 不读取 vscode Workspace API、不实施业务推断。Driver/宿主 disposable packaging 的已测范围见 §11；生产打包与同项目多窗口写入策略仍 Technical Verification Pending。
 
 # 9. 为什么选择 SQLite
 
@@ -366,54 +366,26 @@ SQLite 很适合。
 
 “normalized”不表示 payload 无敏感内容；需在边界筛选/脱敏。原始传输内容作必要瞬时解析，不默认日志/数据库保存。具体 bounded retention/删除期限在 Phase 2/真实采集前决定并验证，当前不承诺默认 7 天或无限保存。来源与纠正的最小解释依据须保留。
 
-# 11. 为什么暂时不锁 SQLite Driver
+# 11. SQLite Driver：已测范围与待批准提案
 
-SQLite 已经确定。
+SQLite 已确定；具体 Driver 尚未 Accepted。D-041 的唯一首选提案为 **better-sqlite3 13.0.3**。正式 Audit `82eeaa9a-112e-4b2e-aa29-4cb68be3f2dc` 为 **PASS WITH LIMITATION**，两者均已通过定义范围内的 W1 开发 Node、W2 开发 Extension Host、W3 Installed VSIX 与 GUID 重启恢复；不能继续把这些已测项目统称为未验证，也不能据此宣称生产 Storage 通过。
 
-但具体 Node Driver 暂时不锁。
+| 项目 | 实际验证基线 |
+| --- | --- |
+| OS / architecture / Host | Windows x64 / 本地桌面 Host，remoteName=null |
+| 开发 Node | v24.21.0 / modules 137 / N-API 10 |
+| VS Code / Electron / Host Node | 1.140.0 / 43.7.3 / v24.21.0 |
+| Host modules / N-API | 148 / 10 |
+| Driver / SQLite | better-sqlite3 13.0.3；两个候选 SQLite 均为 3.53.4 |
+| 已验证产物形式 | Disposable CommonJS extension/probe、win32-x64 VSIX/native prebuild |
 
-候选可能包括：
+正式选型和初始支持范围须按 D-041 审核。开发 Node 24 LTS 不能决定 Host 内嵌版本；本表不是所有更高版本自动兼容的 semver 下界，生产 ESM/bundling、支持的 VS Code engines 范围仍需独立验证。
 
-```
-better-sqlite3
+Node v24.21.0 的 `node:sqlite` 仍为 **Stability 1.2 / Release Candidate**；内置减少第三方 native 分发工作，但 API 和 SQLite 更新受宿主 Node 版本约束。better-sqlite3 可独立锁版本、提供同步事务封装，代价是维护 native 平台资源及 VSIX 审计。v13 已改用 N-API；不要将旧式按 V8 ABI 重建的规则机械套用，也不要据此跳过目标平台测试。[Node SQLite](https://github.com/nodejs/node/blob/v24.21.0/doc/api/sqlite.md)、[better-sqlite3 v13](https://github.com/WiseLibs/better-sqlite3/releases/tag/v13.0.0)
 
-node:sqlite
+重启接受了采样进程证据及人工关闭测试窗口的限制，仍为 PASS WITH LIMITATION；自动完整实例退出证明为 NOT TESTED。Linux/macOS、Windows ARM64、其他版本、Remote SSH/WSL/container/web、生产恢复/多进程竞争/崩溃测试仍 Technical Verification Pending。正式选型前的原子恢复和 privacy/retention 门槛仍按 ROADMAP 执行，不由兼容性报告免除。
 
-其他成熟实现
-```
-
-原因是 VS Code Extension 最终需要面对：
-
-```
-Windows
-macOS
-Linux
-
-x64
-ARM64
-
-VSIX Packaging
-Extension Host
-```
-
-部分 SQLite Driver 使用 native module。
-
-如果现在直接拍板，很可能后面才遇到：
-
-- VSIX 打包失败；
-- ARM64 问题；
-- Electron / Node ABI 问题；
-- GitHub Actions 多平台构建问题。
-
-因此后面专门做一个：
-
-```
-SQLite Driver Spike
-```
-
-实际验证后再确定。当前 Technical Verification Pending。测试必须在实际 Extension Host/VSIX 下运行，不能以开发 Node.js 24 的成功替代宿主兼容性。
-
-验证矩阵须记录 VS Code 版本、宿主 Node/ABI、OS/architecture、bundle format、driver 和安装/restart 结果。当前 Windows/macOS/Linux、x64/ARM64 是目标候选，尚未确立完整支持；Remote SSH/WSL/container/web host 范围待明确决策，不从 local-first 自动推导。
+Driver/SQLite 或宿主/平台/打包方案改变、node:sqlite 在实际 Host 达到 Stable、native 维护成本或安全风险变化时重新评估。完整比较、审计引用、证据保留和关闭条件见 [Phase 2.2 关闭准备](spikes/phase-2.2-closure.md)。
 
 # 12. pnpm 的作用
 
