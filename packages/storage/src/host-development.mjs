@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { validateNativePackage } from "./native-attestor.mjs";
 import path from "node:path";
 import os from "node:os";
 import { fork } from "node:child_process";
@@ -48,13 +49,14 @@ export function launchSyntheticHost(capability, options) {
         "projectId",
         "generation",
       ],
-      ["bootstrap", "holdAtAdmission"],
+      ["bootstrap", "holdAtAdmission", "nativePackage"],
     );
     demand(
       process.platform === "win32" &&
         process.arch === "x64" &&
         process.version === "v24.21.0",
     );
+    if (options.nativePackage) validateNativePackage(options.nativePackage);
     id(options.projectId);
     id(options.generation);
     demand(

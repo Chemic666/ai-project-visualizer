@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { createAttestor, stableIdentity } from "./native-attestor.mjs";
 import { inspectConnection } from "./connection-binding.mjs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -91,6 +92,12 @@ function receiptFromRow(row) {
   };
 }
 export function openSyntheticStore(capability, options = {}) {
+  const native = options.nativePackage
+    ? createAttestor(options.nativePackage)
+    : null;
+  const catalogVersion = native ? 2 : 1;
+  let nativeExpected,
+    nativeReports = {};
   let catalog,
     owner,
     project,
@@ -134,6 +141,18 @@ export function openSyntheticStore(capability, options = {}) {
     retired = false;
   function checkBinding() {
     inspectCapability(capability);
+    if (native && nativeExpected)
+      for (const [kind, db] of [
+        ["owner", owner],
+        ["project", project],
+      ])
+        if (db?.open)
+          nativeReports[kind] = native.inspect(
+            db,
+            paths[kind],
+            nativeExpected[kind],
+            kind === "project" && !!context,
+          );
     for (const key of ["catalog", "catalogAdmission", "owner", "project"])
       checkFile(paths[key], identities[key]);
     for (const [kind, db] of [
@@ -214,21 +233,22 @@ export function openSyntheticStore(capability, options = {}) {
     catalog = new options.Database(catalogPath, { fileMustExist: true });
     checkFile(catalogPath, catalogIdentity);
     reportedConnections.catalog = inspectConnection(catalog, catalogPath);
+    if (native) nativeReports.catalog = native.inspect(catalog, catalogPath);
     if (!newCatalog)
       demand(
         catalog.pragma("application_id", { simple: true }) === CATALOG_ID &&
-          catalog.pragma("user_version", { simple: true }) === 1,
+          catalog.pragma("user_version", { simple: true }) === catalogVersion,
         "unavailable",
       );
     configure(catalog, "DELETE");
     if (newCatalog) {
       catalog.exec(
-        `BEGIN IMMEDIATE; PRAGMA application_id=${CATALOG_ID}; PRAGMA user_version=1; CREATE TABLE bindings(project_id TEXT PRIMARY KEY,root_locator TEXT NOT NULL UNIQUE,store_key TEXT NOT NULL UNIQUE,generation TEXT NOT NULL,lifecycle TEXT NOT NULL CHECK(lifecycle IN ('creating','active')),owner_identity TEXT,project_identity TEXT) STRICT; COMMIT;`,
+        `BEGIN IMMEDIATE; PRAGMA application_id=${CATALOG_ID}; PRAGMA user_version=${catalogVersion}; CREATE TABLE bindings(project_id TEXT PRIMARY KEY,root_locator TEXT NOT NULL UNIQUE,store_key TEXT NOT NULL UNIQUE,generation TEXT NOT NULL,lifecycle TEXT NOT NULL CHECK(lifecycle IN ('creating','active')),owner_identity TEXT,project_identity TEXT) STRICT; COMMIT;`,
       );
     }
     demand(
       catalog.pragma("application_id", { simple: true }) === CATALOG_ID &&
-        catalog.pragma("user_version", { simple: true }) === 1,
+        catalog.pragma("user_version", { simple: true }) === catalogVersion,
       "unavailable",
     );
     if (newCatalog)
@@ -269,6 +289,22 @@ export function openSyntheticStore(capability, options = {}) {
     );
     demand(newBinding || binding.lifecycle === "active", "unavailable");
     catalog.exec("COMMIT");
+    if (native && !newBinding) {
+      const n = catalog
+        .prepare("SELECT * FROM native_bindings WHERE store_key=?")
+        .get(binding.store_key);
+      demand(n, "unavailable");
+      nativeExpected = {
+        catalog: JSON.parse(n.catalog_id),
+        owner: JSON.parse(n.owner_id),
+        project: JSON.parse(n.project_id),
+      };
+      nativeReports.catalog = native.inspect(
+        catalog,
+        catalogPath,
+        nativeExpected.catalog,
+      );
+    }
     const ownership = path.join(admitted.privateRoot, "ownership"),
       projects = path.join(admitted.privateRoot, "projects");
     if (newBinding) {
@@ -305,6 +341,26 @@ export function openSyntheticStore(capability, options = {}) {
         newBinding ? undefined : JSON.parse(binding.project_identity),
       ),
     };
+    if (native && newBinding) {
+      nativeExpected = {
+        catalog: stableIdentity(nativeReports.catalog.main),
+        owner: stableIdentity(native.expected(catalog, paths.owner)),
+        project: stableIdentity(native.expected(catalog, paths.project)),
+      };
+      catalog.exec("BEGIN IMMEDIATE");
+      catalog.exec(
+        "CREATE TABLE IF NOT EXISTS native_bindings(store_key TEXT PRIMARY KEY REFERENCES bindings(store_key),catalog_id TEXT NOT NULL,owner_id TEXT NOT NULL,project_id TEXT NOT NULL) STRICT",
+      );
+      catalog
+        .prepare("INSERT INTO native_bindings VALUES(?,?,?,?)")
+        .run(
+          binding.store_key,
+          encode(nativeExpected.catalog),
+          encode(nativeExpected.owner),
+          encode(nativeExpected.project),
+        );
+      catalog.exec("COMMIT");
+    }
     checkBinding();
     owner = new options.Database(paths.owner, { fileMustExist: true });
     checkFile(paths.owner, identities.owner);
@@ -313,6 +369,12 @@ export function openSyntheticStore(capability, options = {}) {
         owner.pragma("application_id", { simple: true }) === OWNER_ID &&
           owner.pragma("user_version", { simple: true }) === 1,
         "unavailable",
+      );
+    if (native)
+      nativeReports.owner = native.inspect(
+        owner,
+        paths.owner,
+        nativeExpected.owner,
       );
     configure(owner, "DELETE");
     if (newBinding)
@@ -350,6 +412,12 @@ export function openSyntheticStore(capability, options = {}) {
         project.pragma("application_id", { simple: true }) === APPLICATION_ID &&
           project.pragma("user_version", { simple: true }) === 1,
         "unavailable",
+      );
+    if (native)
+      nativeReports.project = native.inspect(
+        project,
+        paths.project,
+        nativeExpected.project,
       );
     configure(project, "WAL");
     note("configuration", {
@@ -782,7 +850,12 @@ export function openSyntheticStore(capability, options = {}) {
           file,
           metadata,
         })),
-        actualDriverHandleIdentity: "unavailable",
+        actualDriverHandleIdentity: native
+          ? "main-confirmed-only"
+          : "unavailable",
+        nativeAttestation: native
+          ? { expected: nativeExpected, reports: nativeReports }
+          : null,
         productionWriteEnabled: false,
       });
     },

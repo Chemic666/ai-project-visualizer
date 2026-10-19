@@ -5,6 +5,11 @@ import type {
 } from "../../core/src/index.js";
 import type { SyntheticCapability } from "./host-admission.mjs";
 export { admitSyntheticRoot } from "./host-admission.mjs";
+export interface NativePackage {
+  manifestPath: string;
+  buildId: string;
+  dllSha256: string;
+}
 export interface SqliteConnection {
   readonly name: string;
   readonly open: boolean;
@@ -16,6 +21,7 @@ export interface SqliteConnection {
     get(...values: unknown[]): unknown;
     all(...values: unknown[]): unknown[];
   };
+  loadExtension(filename: string, entryPoint: string): unknown;
   close(): unknown;
 }
 export interface WriterCapability {
@@ -69,7 +75,11 @@ export interface ResourceBinding {
   >;
   metadataIdentities: Record<string, unknown>;
   sidecars: Array<{ file: string; metadata: unknown }>;
-  actualDriverHandleIdentity: "unavailable";
+  actualDriverHandleIdentity: "unavailable" | "main-confirmed-only";
+  nativeAttestation: {
+    expected: Record<string, unknown>;
+    reports: Record<string, unknown>;
+  } | null;
   productionWriteEnabled: false;
 }
 export interface SyntheticStore {
@@ -105,6 +115,7 @@ export function openSyntheticStore(
     projectId: string;
     generation: string;
     bootstrap?: CoreState;
+    nativePackage?: NativePackage;
     limits?: {
       logicalBytes?: number;
       snapshotBytes?: number;

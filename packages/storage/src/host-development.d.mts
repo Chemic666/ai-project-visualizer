@@ -1,6 +1,7 @@
 import type { CoreState } from "../../core/src/index.js";
 import type { SyntheticCapability } from "./host-admission.mjs";
 import type {
+  NativePackage,
   SyntheticStore,
   WriterCapability,
   ResourceBinding,
@@ -65,6 +66,7 @@ export function launchSyntheticHost(
     projectId: string;
     generation: string;
     bootstrap?: CoreState;
+    nativePackage?: NativePackage;
     holdAtAdmission?: boolean;
   },
 ): SyntheticHost;

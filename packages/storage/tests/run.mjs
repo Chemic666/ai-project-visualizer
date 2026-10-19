@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { readNativePackage } from "../src/native-attestor.mjs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -13,12 +14,24 @@ if (args.length === 0) {
   );
 } else {
   if (
-    args.length !== 3 ||
-    !["--execute-synthetic", "--execute-host-synthetic"].includes(args[0]) ||
+    (args[0] === "--execute-b1-synthetic"
+      ? args.length !== 5 ||
+        args[3] !== "--native-manifest" ||
+        !path.isAbsolute(args[4])
+      : args.length !== 3) ||
+    ![
+      "--execute-synthetic",
+      "--execute-host-synthetic",
+      "--execute-b1-synthetic",
+    ].includes(args[0]) ||
     args[1] !== "--driver-root" ||
     !path.isAbsolute(args[2])
   )
     throw new Error("INVALID_TEST_ARGUMENTS");
+  const nativePackage =
+    args[0] === "--execute-b1-synthetic"
+      ? readNativePackage(args[4])
+      : undefined;
   const driverRoot = fs.realpathSync.native(args[2]);
   const driver = JSON.parse(
     fs.readFileSync(path.join(driverRoot, "package.json"), "utf8"),
@@ -64,16 +77,19 @@ if (args.length === 0) {
     "--test",
     path.join(
       repo,
-      args[0] === "--execute-host-synthetic"
-        ? "packages/storage/tests/host-integration.test.mjs"
-        : "packages/storage/tests/integration.test.mjs",
+      args[0] === "--execute-b1-synthetic"
+        ? "packages/storage/tests/native-identity.test.mjs"
+        : args[0] === "--execute-host-synthetic"
+          ? "packages/storage/tests/host-integration.test.mjs"
+          : "packages/storage/tests/integration.test.mjs",
     ),
   ];
-  const sources = ["src", "tests"].flatMap((dir) =>
+  const sources = ["src", "tests", "native"].flatMap((dir) =>
     inventory(path.join(repo, "packages/storage", dir)),
   );
   const driverBinary = path.join(driverRoot, "prebuilds/win32-x64.node");
   const spec = {
+    ...(nativePackage ? { nativePackage } : {}),
     runId,
     evidence,
     corePath,

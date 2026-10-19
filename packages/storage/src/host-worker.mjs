@@ -97,6 +97,7 @@ function open() {
       processorFingerprint: spec.processorFingerprint,
       projectId: spec.projectId,
       generation: spec.generation,
+      ...(spec.nativePackage ? { nativePackage: spec.nativePackage } : {}),
       ...(spec.bootstrap !== undefined ? { bootstrap: spec.bootstrap } : {}),
     });
     const binaries = Object.keys(loadRequire.cache).filter((file) =>

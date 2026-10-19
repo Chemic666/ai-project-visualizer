@@ -52,7 +52,7 @@ Actual first-slice results, independent SQL cuts and B1–B7 dispositions: [impl
 
 The child privately owns both Owner and Project connections. Await `admitted` for the actual pre-open barrier (`holdAtAdmission:true` is development-only), `activate()` to release that barrier, then `ready`. `read()` and `commit()` are bounded async calls; only one can be in flight. `close()` synchronously disables intake, drains the accepted operation and waits for Project-before-Owner closure plus actual child exit and channel/stdio completion. `status()` separates lifecycle phase from returned outcome; phase CLOSED never proves COMMIT outcome. No automatic replay, publish, ACK, restart or PID lease exists.
 
-Actual open connections report their main names via SQLite/Driver APIs. Those names and filesystem metadata are checked separately; `resourceBinding.actualDriverHandleIdentity` remains `unavailable`. No SQLite-owned Windows file-ID proof or live replacement safety is claimed. Existing synthetic catalogs lacking the new exclusive `catalog-admission.json` readiness proof are refused unchanged; there is no automatic import/recreation/migration. This marker is a startup admission check, not a business ownership lock.
+In the default metadata-only synthetic mode, open connections report main names via SQLite/Driver APIs; `resourceBinding.actualDriverHandleIdentity` is `unavailable`. The separately reviewed native mode below adds actual main/WAL handle evidence, while live replacement safety and production admission remain unproved. Existing synthetic catalogs lacking the new exclusive `catalog-admission.json` readiness proof are refused unchanged; there is no automatic import/recreation/migration. This marker is a startup admission check, not a business ownership lock.
 
 Run only on fresh synthetic data, with the existing approved installed Driver root:
 
@@ -62,3 +62,27 @@ node packages\storage\tests\run.mjs --execute-host-synthetic --driver-root "%APV
 ```
 
 No arguments remain disabled. Host requests are bounded to 8 MiB; initialization and full-state response envelopes to 256 MiB so the retained ledger is not accidentally limited by the 8 MiB Snapshot cache. Original 128 MiB logical authority policy still applies. Limits are not throughput, memory-availability or durability guarantees. Production Host, actual physical identity, release-failure handling, real COMMIT uncertainty and full O01/O02/S/P/M remain gated. No historical VFS Harness or fault DLL is invoked.
+
+## B1 native identity integration — synthetic only (2026-10-19)
+
+[Read-only attestor](native/apv_identity.c) uses the actual connection's SQLite API dispatch: `sqlite3_context_db_handle` → `sqlite3_file_control(main, SQLITE_FCNTL_WIN32_GET_HANDLE)` → Windows `GetFileInformationByHandleEx(FileIdInfo)`. It never closes or replaces a borrowed handle. `SQLITE_FCNTL_JOURNAL_POINTER` additionally exposes the live WAL file object; its own xFileControl yields the actual WAL handle. Expected path identity is separately measured and clearly labeled, not substituted for connection identity. No custom VFS, fault injection or Driver modification is used.
+
+`nativePackage` is an explicit synthetic Host/Store option. [Admission](src/native-attestor.mjs) requires an exclusive local NTFS TEMP build location, exact reviewed BuildId **fc7be262-e067-4658-9329-dce0dd36d858**, independently code-pinned DLL SHA256 **1e1dc8ebe575078928d7a7b84a1c9321dfc867f735135483b7146531e8be46db**, seven current build inputs, compiler/PE evidence and a fresh actual DLL hash before loading. A self-authored manifest or project-directory DLL cannot grant loading permission. No arbitrary extension-load API is exported. This is a reviewed local development artifact, not signed production distribution or protection against an attacker who can rewrite trusted application code.
+
+Native synthetic catalogs use schema **2** with persisted Catalog/Owner/Project native identities, alongside existing Project/root/StoreKey/generation binding. Every new Owner/Project connection is measured against that baseline before configuration; intake and final transaction checks re-attest main/WAL identity. Older metadata-only catalogs stay schema 1; neither automatic upgrade nor downgrade is supported. Unknown identity/API/load errors return unavailable without creating replacement authority. Production APIs stay unavailable even when passed native options.
+
+The build entry is disabled by default. To reproduce on separately approved source/toolchain, set `APV_CLANG` to the existing approved compiler and `APV_DRIVER_ROOT` to installed Driver 13.0.3, then run from Windows CMD:
+
+```cmd
+node packages\storage\native\build.mjs --build --compiler "%APV_CLANG%" --driver-root "%APV_DRIVER_ROOT%"
+```
+
+Every build creates a new TEMP BuildId and never approves itself. A new build's hash/identity must be reviewed and the code allowlist deliberately updated before loading. For the currently reviewed build, set `APV_NATIVE_MANIFEST` to its local `build.json` and run only on new synthetic data:
+
+```cmd
+node packages\storage\tests\run.mjs --execute-b1-synthetic --driver-root "%APV_DRIVER_ROOT%" --native-manifest "%APV_NATIVE_MANIFEST%"
+```
+
+Final bounded verification: **8/8**, RunId **528944d8-5687-4240-9630-93c9589e7270**; actual main/WAL identities, reopen, concurrency/fencing, conflicting catalog identity, hard links, unsupported memory API, sanitized load-API exception and unreviewed-package refusal. See [raw evidence index and limits](../../docs/storage/phase-2-first-slice.md#b1-native-handle-integration--2026-10-19). The load-API exception is controlled; real packaged Host/DLL load failures are not proven by it.
+
+**B1 remains BLOCKED for production:** SHM is path metadata only, not a SQLite-owned handle proof. Installation/profile-wide private namespace, ACL and artifact packaging/admission remain unverified. Metadata-to-open and final-check races, hidden loss and successful external replacement are not eliminated. No source ACK/publish/replay or real Codex Session is enabled. Full O01/O02 and S/P/M statuses do not change.
