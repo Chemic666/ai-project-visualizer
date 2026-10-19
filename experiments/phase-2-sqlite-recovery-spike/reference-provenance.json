@@ -1,0 +1,25 @@
+{
+  "reuse": "independent local copies; no historical Harness or evidence edited/executed",
+  "files": [
+    {
+      "copy": "checks.cjs",
+      "origin": "experiments/phase-2-sqlite-atomicity-spike/checks.cjs",
+      "sha256": "0768b3669a14dc7961b829ef5451cad96bfa0a5f17b0de6649253d07d1dda0ad"
+    },
+    {
+      "copy": "reference-db.cjs",
+      "origin": "experiments/phase-2-sqlite-atomicity-spike/db.cjs",
+      "sha256": "146fbbe3a6732305452d2484c9a1882e63b2f029105dae8ce45569aa37f7da94"
+    },
+    {
+      "copy": "reference-fixtures.ts",
+      "origin": "experiments/phase-2-sqlite-atomicity-spike/fixtures.ts",
+      "sha256": "b27c2ca7be23049de52ea6d73c9bd0a69104decf55ed9abdaca4bad67fa4be68"
+    },
+    {
+      "copy": "reference-oracle.cjs",
+      "origin": "experiments/phase-2-sqlite-atomicity-spike/oracle.cjs",
+      "sha256": "04df5665d2e48e6ad534f73bb6a56e3b81910c1b9f4fe1e67f2fe655b9852214"
+    }
+  ]
+}

@@ -1541,6 +1541,10 @@ Phase 3 reconciliation 的正式契约/实验证据揭示初始化或阶段边�
 
 **Closure Review:** 2026-10-08，用户认可 better-sqlite3@13.0.3 为唯一首选提案，认定 Phase 2.2 Compatibility Spike 技术验证完成，保留 PASS WITH LIMITATION。D-041 继续 Proposed，生产选型尚未 Accepted，ROADMAP 前置门槛不降低。当前仅准备 Git 里程碑，见 [提交范围与证据保管清单](docs/spikes/phase-2.2-checkpoint.md)。
 
+**Gate preparation:** 2026-10-08，用户已推送 Phase 2.2 checkpoint `f6d04ad261d2dd4a5d35cd30841697b515405e44`。当前 Phase 2.3 仅准备 [Storage 架构/门槛方案](docs/storage/phase-2.3-design.md)与 D-042–D-044 Proposed；设计/政策审核、故障与隐私验收、单 writer 边界仍未完成。D-041 状态不变，不以方案代替技术证据。
+
+**Architecture follow-up:** 2026-10-08，方向认可，生产 Storage 未获授权；D-041–D-044 继续 Proposed。已补充 Writer 方案比较、唯一推荐、字段分类及原有 25 项验收覆盖，全部新故障/所有权用例 NOT TESTED。尚不足以申请将 D-041 改为 Accepted。
+
 ## Context
 
 两个候选均通过已定义的 Windows x64 W1/W2/W3 测试。正式 Audit `82eeaa9a-112e-4b2e-aa29-4cb68be3f2dc` 为 **PASS WITH LIMITATION**，`decisionAccepted: false`；它支持兼容性判断，不代表选型批准、跨平台支持或生产恢复验收。
@@ -1570,6 +1574,111 @@ W3 的完整测试窗口退出包含人工确认和采样进程证据；自动�
 ## Revisit When
 
 实际目标 Host 的 `node:sqlite` 达到 Stable 且复验通过；better-sqlite3 的安全/维护情况或 native 发布成本显著改变；目标 VS Code/Node/Electron、Driver/SQLite、OS/架构/libc、bundle/VSIX 路径变化；或真实原子恢复、错误处理、性能测试暴露不适配。重新评估须保留历史并新增 Decision，不能自动切换 Driver。
+
+# D-042 — Atomic Project Store and Versioned Recovery Authority
+
+**Status:** Proposed
+
+**Proposed:** 2026-10-08，Phase 2.3 architecture preparation
+
+## Context
+
+Current Core accepts immutable plain-data events and uses acceptedEvents for internal/stable-source replay detection. A cursor can describe several events; correction/resolution are contracts rather than replayable engines. Phase 2 needs a durable boundary that preserves original claims and does not rely only on a current snapshot.
+
+## Decision
+
+Prefer a closed set of versioned Project/Phase/Task/Session images, immutable Assertions, Correction/Conclusion record versions, normalized accepted-event journal, validated snapshots and versioned source checkpoints. One project/generation's event/record/snapshot/checkpoint/head changes commit atomically in its SQLite transaction; Host publishes/ACKs only after confirmed commit. Use expected head/generation and operation identity to reject stale/conflicting writes and resolve lost acknowledgments.
+
+Retain the complete Core.acceptedEvents journal on restore. Only actual source_event identity is deduplicated by SourceId/eventId; cursor/no stable identity keeps the current at-least-once limitation. No exactly-once claim, synthetic source identity or automatic provenance upgrade. Snapshots are reconstructible caches; missing/corrupt authority is unavailable, not an empty successful Project.
+
+Keep DB/record/snapshot/Core processor/cursor versions separate; explicit transactional migration and consistent backup preserve IDs, provenance, history and resume cut. Unsupported versions or unknown commit outcome stop publication/retry until resolved. Initial one-active-writer policy needs an independently validated ownership mechanism; CAS is defensive consistency, not complete multi-window support.
+
+**Follow-up proposal:** uniquely prefer a separate stable SQLite ownership file with a lifetime BEGIN IMMEDIATE transaction, compared with a Windows named Mutex. One serialized execution thread owns the lock and project connections; normal exit disables/drains the writer before lock release, and takeover requires actual lock acquisition, verified recovery and a new persisted writerEpoch/ownerToken. Every project transaction validates generation/epoch/token/base. PID, time lease, JS Mutex and short data transactions are not ownership proof. Owner connection loss permanently disables that capability; no forced timeout takeover or live lock-file replacement. Detailed cost/lifetime caveats are in [design §6.1](docs/storage/phase-2.3-design.md).
+
+**Ownership pre-execution review:** conditional direction approval does not authorize implementation/execution. [Dedicated probe design](docs/spikes/sqlite-ownership-protocol.md) specifies lifecycle, store_meta epoch update, final live-Owner guards for domain/control COMMIT and OP01–OP10, all NOT TESTED. An old Writer holding the Project lock can commit at the old epoch after Owner loss unless its guard rejects/rolls back; the new owner cannot update epoch while blocked by that Project lock. Hidden lock loss/file replacement between guard and COMMIT is not solved by two-file fencing. Cooperative private lifecycle/stable-file failure scope requires explicit approval/evidence; no fixture waiver or universal safety claim. D-042 status remains Proposed.
+
+Distinguish stable sourceId/sourceEventId, opaque sourceCursor, contiguous project-generation ledgerSequence and snapshotWatermark; their scopes/coverage/locations are in §7. Snapshot generation is optional, but its body/vector/watermark commit together when generated. COMMIT precedes confirmed publication and external ACK; ACK is outside SQLite. A persisted matching operation resolves a retry before stale-base rejection; the stable operation digest excludes transient owner capability, without altering the original receipt. Future actual Plan/Correction/Timeline outputs join that commit only when their contracts exist; none is fabricated now.
+
+## Why
+
+This fits existing Core contracts and inward dependencies without a general event-sourcing framework or future Engine implementation. Readable authoritative records preserve correction/provenance history while atomic cuts prevent skipped events or state/cursor divergence.
+
+## Consequences
+
+Architecture/source identity and phase-timing discrepancies are explicitly reported in [Phase 2.3 design §2](docs/storage/phase-2.3-design.md), awaiting approval; this Proposed entry does not overwrite the original wording. The ownership recommendation is specified but **not approved or tested**; O01 remains a production BLOCKER. Lifetime lock/cross-file identity, stale fencing and recovery remain Technical Verification Pending. Candidate project SQLite mode is WAL/FULL with bounded contention; separate owner file is rollback/DELETE. Neither is a tested performance/durability guarantee.
+
+No production Storage/Core change, Driver acceptance or phase advance. [Acceptance protocol](docs/acceptance/phase-2-storage.md) is NOT TESTED; design review and technical proof are separate.
+
+## Revisit When
+
+Approved Core contracts require ledger compaction/new input kinds, actual fault/ownership evidence contradicts the proposed boundary, or storage/runtime/schema constraints change. Any change preserves historical decisions and revalidates affected gates.
+
+# D-043 — Local Storage Field Allowlist and Private Binding Boundary
+
+**Status:** Proposed
+
+**Proposed:** 2026-10-08，Phase 2.3 privacy preparation
+
+## Context
+
+Typed/normalized input can still contain secrets, opaque payloads or private metadata. Core's Project.locations and source references require explicit handling; Local-first does not automatically prove safe file placement or prevent logs from leaking input.
+
+## Decision
+
+Host supplies a validated repo-external private local app root; initial Windows proposal is LOCALAPPDATA/AIProjectVisualizer/v1. Private catalog binds canonical local root locators to independently allocated ProjectId/store keys/generations; business data is isolated per project/generation. Core and Storage remain independent from Agent/VS Code types.
+
+Use versioned closed field allowlists for current Core/event records, snapshots/backups and source locators; reject unknown/unsafe/oversized fields without persisting/logging their contents or advancing the source checkpoint. Necessary short plan/task titles and project root locators are sensitive local metadata, not source uploads. Do not save raw source/prompt/tool output/protocol/process/env payloads by default; no persistent raw diagnostics or cloud/LLM redaction dependency.
+
+Filesystem location/ownership checks and strict runtime/reference validation are required before writing, restore and deletion. Unknown project association/unsupported source locator format is unavailable, not guessed.
+
+**Follow-up proposal:** [field classification §9.1](docs/storage/phase-2.3-design.md) separates default admitted typed metadata, restricted/minimized titles/paths/source locators, bounded transient parsing/errors and default-prohibited secrets/raw retention. Safe filtering precedes Core admission, SQLite and **every** diagnostic/evidence sink, including failures; Storage repeats strict validation. NormalizedEvent is not presumed non-sensitive. No default persistent log; raw Error.message/stack, SQL bindings, command arguments and environment values are not forwarded. Redaction/extraction must happen before canonical acceptance, never mutate original Assertions during restore.
+
+## Why
+
+Enforces accepted privacy/local-first boundaries at serialization and Host location, including duplicate snapshot/backup surfaces. Namespaced references protect identity semantics but are not proof an opaque string is safe.
+
+## Consequences
+
+Allowlist, proposed byte limits and actual Windows placement/permissions require approval and [privacy acceptance](docs/acceptance/phase-2-storage.md). Same-user compromise/OS backups/forensic erasure are not promised away. No encryption/provider or new Surface settings are introduced. D-035 mandatory trust/privacy gates remain unchanged.
+
+## Revisit When
+
+New fields/sources/engine contracts or platforms require new minimal data, or real leak/placement tests expose gaps. Expand only by explicit schema/privacy review, never arbitrary metadata bags.
+
+# D-044 — Bounded History Admission and Generation-scoped Deletion
+
+**Status:** Proposed
+
+**Proposed:** 2026-10-08，Phase 2.3 retention/deletion preparation
+
+## Context
+
+Silent age-pruning of the current accepted-event ledger breaks dedup/replay, and losing original assertions/correction history breaks explanation. Whole-project deletion also spans DB, WAL/SHM, backups, Host caches and the binding catalog, which cannot be made atomic by a single project SQL transaction.
+
+## Decision
+
+Raw persistent retention stays zero by default. Keep minimal normalized/source/correction/commit/checkpoint history for a project generation until explicit deletion, with bounded admission rather than automatic history expiry. Proposed limits: 128 MiB logical durable records, current/previous snapshot caches <=8 MiB each, 512 MiB physical project high-water and 8 MiB logical catalog budget. These are approval/testing values, not measured capacity guarantees. At the limit, reject the whole commit/ACK, preserve existing state/cursor/ledger and report limited observation.
+
+Keep at most one consistent migration backup; after validated migration, proposed expiry is 7 days. Failed recovery preserves that one backup until explicit resolution and blocks another migration. No silent deletion of the only recovery copy.
+
+Explicit project-state deletion durably marks catalog pending, fences the old DB generation, closes known owned handles, removes verified APV-managed DB/WAL/SHM/backup/cache files and then records completion. Failures remain pending; no process termination or repo recursion. Preserve a disclosed minimal generation/binding revocation marker so old writers/automatic historical replay cannot recreate forgotten state. Explicit resume establishes a new baseline/generation. Logical deletion is not SSD/OS-backup secure erasure.
+
+**Follow-up proposal:** hold the stable Project owner lock throughout deletion/maintenance/resume; close project data handles before content removal and release ownership last. Remove owned rollback journals/temp/restore backups too. Retain only the disclosed root-binding digest/store-generation deletion marker and constant owner file, no hidden archive of the deleted project's source/assertion/correction audit history. Marker digests are linkable metadata, not anonymization. All numeric quotas/TTLs/deletion policies remain Proposed. No initial authoritative history compression: current full acceptedEvents/provenance/correction references must remain reproducible; a later Core/coverage-equivalence decision is required. Quota/SQLITE_FULL rejects or reconciles the **whole** bundle, never drops an event while advancing its cursor.
+
+## Why
+
+Protects existing provenance/correction/replay contracts while providing bounded accumulation and a conservative fail-closed path. Makes cross-file deletion interruption and residual revocation metadata visible instead of manufacturing deletion PASS.
+
+## Consequences
+
+Capacity-stop behavior, backup lifetime, minimal deletion marker and numeric limits require explicit user review. Detailed rules and real Windows tests are in [design §§9–11](docs/storage/phase-2.3-design.md) and [acceptance P05–P08](docs/acceptance/phase-2-storage.md). No retention framework, erase-all product feature or advanced settings are added; no existing evidence is deleted.
+
+D-041 remains Proposed until these policy/technical gates are satisfied and separately approved.
+
+## Revisit When
+
+Core gains a reviewed compact replay ledger, users request explicit different history/deletion behavior, or validated growth/filesystem tests require revised admission bounds. Revisit without losing reference closure or changing old verdicts.
+
 
 # 7. 哪些事情暂时不要写成 Accepted
 

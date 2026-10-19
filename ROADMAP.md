@@ -59,7 +59,15 @@ SQLite
 
 Project State 可以恢复。Driver/runtime/VSIX Spike、最小来源/纠正/快照/cursor 原子恢复和 privacy/retention 政策在本阶段选型前完成；只持久化现有契约，后续增量扩展。
 
-2026-10-08 状态更新：用户认定 Phase 2.2 disposable Driver/runtime/VSIX 的已定义 Windows x64 W1/W2/W3 兼容性验证技术完成，正式审计为 **PASS WITH LIMITATION**；认可 better-sqlite3 13.0.3 为唯一首选提案，D-041 继续 **Proposed**，生产选型尚未 Accepted。原子恢复、privacy/retention 及生产 Project State 恢复仍 Technical Verification Pending，原有选型前门槛未豁免。其他平台/宿主及完整自动退出、崩溃恢复未获支持声明。见 [Phase 2.2 关闭准备](docs/spikes/phase-2.2-closure.md)与[Git 里程碑清单](docs/spikes/phase-2.2-checkpoint.md)；当前仅准备兼容性里程碑，不关闭整个 Phase 2，不启动生产实现或 Phase 3。
+2026-10-08 状态更新：用户认定 Phase 2.2 disposable Driver/runtime/VSIX 的已定义 Windows x64 W1/W2/W3 兼容性验证技术完成，正式审计为 **PASS WITH LIMITATION**；认可 better-sqlite3 13.0.3 为唯一首选提案，D-041 继续 **Proposed**，生产选型尚未 Accepted。原子恢复、privacy/retention 及生产 Project State 恢复仍 Technical Verification Pending，原有选型前门槛未豁免。其他平台/宿主及完整自动退出、崩溃恢复未获支持声明。见 [Phase 2.2 关闭准备](docs/spikes/phase-2.2-closure.md)与[Git 里程碑清单](docs/spikes/phase-2.2-checkpoint.md)；兼容性里程碑已提交推送并归档，整个 Phase 2 尚未关闭，不启动生产实现或 Phase 3。
+
+## Phase 2.3 — Storage Architecture & Decision Gates（设计准备）
+
+Phase 2.2 Git checkpoint 已由用户推送：`f6d04ad261d2dd4a5d35cd30841697b515405e44`。当前仅准备 [Storage 架构方案](docs/storage/phase-2.3-design.md)、D-042–D-044 Proposed 与 [故障/隐私验收协议](docs/acceptance/phase-2-storage.md)，不实现生产 Storage。
+
+先审核 Event/领域记录/Snapshot/Cursor 原子边界、恢复和来源身份政策、单 writer 实施边界，以及 Allowlist/Retention/删除/迁移方案。再另行授权独立非生产故障验证和证据审核；全部相关门槛实际满足并明确批准后，才可将 D-041 转为 Accepted 并另行授权生产持久化实现。本轮故障测试均 NOT TESTED，不自动进入下一步，也不降低原子恢复/Privacy 门槛。
+
+架构预审方向认可，生产实现仍未授权，D-041–D-044 均 Proposed。follow-up 已比较 Writer 方案并唯一推荐独立 SQLite owner lock + fencing epoch，明确四种事件/位置标识和恢复矩阵，补强原 25 项验收与 O01 八个跨进程子用例。全部 NOT TESTED；可申请独立 disposable 验证，但须先审核问题/方案/测试预算并单独授权，不能直接运行或将推荐视为 Accepted。
 
 # Phase 3 — Plan Engine
 

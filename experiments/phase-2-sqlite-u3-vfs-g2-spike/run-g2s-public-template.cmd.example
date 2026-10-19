@@ -1,0 +1,80 @@
+@rem PUBLIC TEMPLATE - NEVER EXECUTED. Not the historical G2-S script.
+@rem Original script SHA256: 5e93c94cd538e7602ca3a7f0bc4136a3bf4f04d2d7e29f929ee6486a98617e50
+@rem Closed Spikes must not be rerun; any new execution requires separate approval.
+@echo off
+setlocal EnableExtensions DisableDelayedExpansion
+rem Prepared only. The wrapper flag is NOT authorization and is NOT a Runner flag.
+rem Invoke only after ChatGPT grants one separate G2-S Windows execution.
+rem Parent CMD must create a fresh capture directory and capture this script's
+rem full stdout/stderr and actual returned ERRORLEVEL (see delivered launch block).
+if not "%~1"=="--approved-g2s-once" goto usage
+if "%~2"=="" goto usage
+if not "%~3"=="" goto usage
+set "APV_G2S_CAPTURE=%~f2"
+set "APV_EXPERIMENT_RC=NOT_STARTED"
+if not exist "%APV_G2S_CAPTURE%\" exit /b 2
+cd /d "%~dp0..\.."
+if errorlevel 1 exit /b 2
+
+rem Exclusive lock, exact script bytes and SHA256, before any preflight or DB open.
+set APV_COMMAND=node -e "const f=require('node:fs'),p=require('node:path'),c=require('node:crypto'),a=require('node:assert/strict'),o=require('node:os');const root=p.resolve(process.argv[2]),temp=p.join(o.homedir(),'AppData','Local','Temp');a.equal(p.dirname(root).toLowerCase(),temp.toLowerCase());a.match(p.basename(root),/^apv-u3-vfs-g2s-cmd-[0-9a-f-]{36}$/i);a.equal(f.realpathSync.native(root).toLowerCase(),root.toLowerCase());f.writeFileSync(p.join(root,'single-execution.lock'),'G2-S only\n',{flag:'wx'});const raw=f.readFileSync(process.argv[1]),sha=c.createHash('sha256').update(raw).digest('hex');f.writeFileSync(p.join(root,'script.source.cmd'),raw,{flag:'wx'});f.writeFileSync(p.join(root,'script.source.sha256'),sha+'\n',{flag:'wx'});console.log(JSON.stringify({source:process.argv[1],sha256:sha,case:'G2-S',captureRoot:root}));" "%~f0" "%APV_G2S_CAPTURE%"
+call :capture capture-setup
+if not "%APV_RC%"=="0" goto failed
+
+set "APV_RUNNER=experiments\phase-2-sqlite-u3-vfs-g2-spike\runner.cjs"
+set "APV_BUILD=5e2b0f20-b2b6-4d45-afba-0de72a954587"
+set "APV_COMMAND=node %APV_RUNNER% --preflight --build-id %APV_BUILD%"
+call :capture preflight
+if not "%APV_RC%"=="0" goto failed
+
+rem Pin the authorized JS revision independently of the Native BuildId.
+rem Preflight itself checks all eight runtime files and all seven Native inputs.
+set APV_COMMAND=node -e "const a=require('node:assert/strict'),p=JSON.parse(require('node:fs').readFileSync(process.argv[1],'utf8'));a.equal(p.buildId,'5e2b0f20-b2b6-4d45-afba-0de72a954587');a.equal(p.executionPackage.revision,'0afc00ee-a6b0-4b61-b466-86e7f89be8ad');a.equal(p.executionPackage.workerSha256,'eec99a46f7bbd1d5121da8f23a7c7c611a148fe1e44b494bd82e338f850b6d5d');a.equal(p.metadata.binarySha256,'c9fc51e4863043f1d6313be78a6c719bc1411d275870edca5a7e6d579a25ea5d');a.equal(p.executionPackage.nativeBuildId,p.buildId);a.equal(p.executionPackage.nativeDllSha256,p.metadata.binarySha256);a.equal(p.databaseOpens,0);console.log('EXPECTED_PACKAGE_OK');" "%APV_G2S_CAPTURE%\preflight.stdout.txt"
+call :capture package-check
+if not "%APV_RC%"=="0" goto failed
+
+rem The only experiment command. Runner generates its own fresh RunId/TEMP root.
+rem Never loop/retry, force the old baseline, ACK, publish or replay.
+set "APV_COMMAND=node %APV_RUNNER% --run-g2 --execute --case G2-S --build-id %APV_BUILD%"
+call :capture g2s
+set "APV_EXPERIMENT_RC=%APV_RC%"
+
+rem Extract only recorded identity; do not open a DB or invoke the Audit.
+set APV_COMMAND=node -e "const f=require('node:fs'),p=require('node:path'),a=require('node:assert/strict'),o=require('node:os');const first=f.readFileSync(process.argv[1],'utf8').split(/\r?\n/)[0],v=JSON.parse(first);a.equal(v.case,'G2-S');a.match(v.runId,/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i);a.notEqual(v.runId,'37653ca1-d3a7-41d6-87ca-f42a3466b738');a.notEqual(v.runId,'9ea19414-93a0-44f7-b164-4fe4ce3bddbd');a.equal(p.normalize(v.evidenceRoot),p.join(o.homedir(),'AppData','Local','Temp','apv-u3-vfs-g2',v.runId));console.log(JSON.stringify({runId:v.runId,evidenceRoot:v.evidenceRoot,case:v.case}));" "%APV_G2S_CAPTURE%\g2s.stdout.txt"
+call :capture identity-query
+set "APV_IDENTITY_RC=%APV_RC%"
+set "APV_RC=%APV_EXPERIMENT_RC%"
+if not "%APV_EXPERIMENT_RC%"=="0" goto failed
+if not "%APV_IDENTITY_RC%"=="0" goto identity_failed
+echo Experiment process exit: %APV_EXPERIMENT_RC%
+type "%APV_G2S_CAPTURE%\identity-query.stdout.txt"
+echo Independent evidence review is still required. G2-S is not predeclared PASS.
+exit /b 0
+
+:identity_failed
+set "APV_RC=%APV_IDENTITY_RC%"
+:failed
+echo STOP. Capture: %APV_G2S_CAPTURE%
+echo Experiment process exit, if started: %APV_EXPERIMENT_RC%
+echo Script return: %APV_RC%
+echo Preserve all original evidence. Do not retry, clean up or start G2-W.
+exit /b %APV_RC%
+
+:capture
+if exist "%APV_G2S_CAPTURE%\%~1.command.txt" goto capture_refused
+if exist "%APV_G2S_CAPTURE%\%~1.stdout.txt" goto capture_refused
+if exist "%APV_G2S_CAPTURE%\%~1.stderr.txt" goto capture_refused
+if exist "%APV_G2S_CAPTURE%\%~1.cmd-exit.txt" goto capture_refused
+> "%APV_G2S_CAPTURE%\%~1.command.txt" echo %APV_COMMAND%
+%APV_COMMAND% 1> "%APV_G2S_CAPTURE%\%~1.stdout.txt" 2> "%APV_G2S_CAPTURE%\%~1.stderr.txt"
+set "APV_RC=%ERRORLEVEL%"
+> "%APV_G2S_CAPTURE%\%~1.cmd-exit.txt" echo %APV_RC%
+exit /b %APV_RC%
+
+:capture_refused
+set "APV_RC=1"
+exit /b 1
+
+:usage
+echo Disabled. Requires separate execution approval, --approved-g2s-once and a fresh capture directory.
+exit /b 2

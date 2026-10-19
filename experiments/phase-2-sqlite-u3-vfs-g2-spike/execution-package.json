@@ -1,0 +1,17 @@
+{
+  "scope": "G2-js-arm-boundary-v2",
+  "revision": "0afc00ee-a6b0-4b61-b466-86e7f89be8ad",
+  "nativeBuildId": "5e2b0f20-b2b6-4d45-afba-0de72a954587",
+  "nativeDllSha256": "c9fc51e4863043f1d6313be78a6c719bc1411d275870edca5a7e6d579a25ea5d",
+  "workerSha256": "eec99a46f7bbd1d5121da8f23a7c7c611a148fe1e44b494bd82e338f850b6d5d",
+  "sourceHashes": {
+    "worker.cjs": "eec99a46f7bbd1d5121da8f23a7c7c611a148fe1e44b494bd82e338f850b6d5d",
+    "checks.cjs": "35682a752383c18ccb6dd09a01ca5dfba9822ea1693332003cc23ffdf7e79325",
+    "runner.cjs": "ab405d17674a4008c9617900673647424d9464fb92e5bb2a9c077b7326fc6ad5",
+    "audit.cjs": "46b1367d46781f67807abf99a09d1155e2ce322e5a94b7aeb48793f4ebbdde4c",
+    "policy.cjs": "33968ce30663ee46249758802b814c70bbd6f416a102244ef6af8409529cc855",
+    "oracle.cjs": "a84dd9b7a6543c813891c65b6b036b5ec04e4891d94bdaf5fdd7cd183784b07b",
+    "fixture.cjs": "6415edebfa15e9f52aef60d667250c6a47c6f93672aa2ccb5846d4528376c337",
+    "physical-path.ps1": "8a09187a4aca72c4a9b108699fbc564e5363baae2b15e9e212a1379a39aceb60"
+  }
+}

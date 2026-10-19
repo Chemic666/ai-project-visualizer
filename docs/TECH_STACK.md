@@ -334,6 +334,10 @@ Storage 实现持久化、事务、迁移和恢复读取；编译依赖 Storage 
 
 Host 提供存储位置和生命周期；Storage 不读取 vscode Workspace API、不实施业务推断。Driver/宿主 disposable packaging 的已测范围见 §11；生产打包与同项目多窗口写入策略仍 Technical Verification Pending。
 
+Phase 2.3 的 [Storage 设计](storage/phase-2.3-design.md)与 D-042–D-044 为 Proposed：原子提交、严格数据边界、恢复、迁移、Retention/删除及 writer 限制须审核和实际验证。本轮不建立 storage package，不锁定 Driver 生产依赖，也不变更已验证工具链。
+
+follow-up 的唯一 Writer 推荐使用候选 Driver 的独立 owner.sqlite 连接长期持有 BEGIN IMMEDIATE（owner 库 rollback/DELETE，项目库短事务 WAL/FULL），并以持久化 epoch 拒绝陈旧候选。相比 Windows 命名 Mutex 不新增 Win32 binding，但长期锁连接是有明确限制的 Proposed 例外，生命周期/异常释放/真实 Windows 竞争仍 NOT TESTED。禁止异步 transaction callback、锁丢失后旧 token 重连、PID 超时抢占或删除 live lock file；不因此锁定新依赖或扩大平台支持。
+
 # 9. 为什么选择 SQLite
 
 Visualizer 的数据天然是关系型的：

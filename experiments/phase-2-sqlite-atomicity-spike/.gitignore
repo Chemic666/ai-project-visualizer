@@ -1,0 +1,7 @@
+_runtime/
+artifacts/
+evidence/
+node_modules/
+*.sqlite*
+*.db*
+*.vsix

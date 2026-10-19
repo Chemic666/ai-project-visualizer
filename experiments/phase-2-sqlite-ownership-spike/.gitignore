@@ -1,0 +1,13 @@
+# Private originals always remain in the new OS temporary RunId root.
+evidence/
+_runtime/
+artifacts/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.log
+node_modules/
+coverage/
+out/
+dist/

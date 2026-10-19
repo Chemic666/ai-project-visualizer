@@ -138,16 +138,20 @@ v0.1 的 Current Task Confidence 是关联判断的规则可信度，不是 Task
 
 # 9. Normalized Event Model
 
-统一事件 envelope 记录 schemaVersion、id、projectId、可选 sessionId、sourceId、sourceEventId（来源不提供时由 Adapter 的稳定 cursor/identity 策略生成）、occurredAt（未知则明确缺失）、receivedAt、可用 sourceSequence、因果引用，以及按 type 校验的 payload。
+统一事件 envelope 记录 schemaVersion、独立内部 EventId 的 id、projectId、可选 sessionId、sourceId、可选 sourceIdentity、occurredAt（未知则明确缺失）、必需 receivedAt、可用 sourceSequence、因果引用，以及按 type 校验的 payload。sourceIdentity 沿用 Core 的 source_event / cursor 区分：只有 source_event 分支要求同一 SourceId namespace 下的稳定 sourceEventId；cursor 分支保存来源的 opaque reference/revision，表示消费位置，可以对应多个事件。sourceIdentity 允许缺失；不要求从 Cursor 生成 sourceEventId，不将外部来源身份当作内部 EventId。
 
 - Core 输入采用 discriminated payload contract；专有原始 payload 留在 Adapter，不以 unknown 直接交给业务规则。
 - 输入前校验类型、引用和时间；无效或项目归属未知的事件隔离/报告，不猜测更新其他项目。
-- 同一 sourceId + sourceEventId 重放是幂等的；缺失稳定身份的来源须在 Spike 中报告降级风险，不能声称 exactly-once。
-- 来源内顺序优先使用 sequence/revision；缺失时按明确 cursor/接收策略处理。迟到事件可保留历史，但不能仅凭到达时间倒写当前状态或撤销纠正。
+- Core 在传入 CoreState 的 acceptedEvents 中对已接受内部 EventId 的重放幂等；只有 sourceIdentity.kind = source_event 时才按 SourceId + sourceEventId 识别来源事件重复，重复的别名 EventId 不追加到 acceptedEvents。cursor-only 或无稳定来源身份的输入使用新内部 EventId 时可能再次接纳；须报告重复观察/at-least-once 限制，不能声称 exactly-once，不擅自构造缺失来源身份的持久去重算法。Core 的键重放不比较完整重复 claim；持久化边界的 claim 一致性检查与 Project/generation 隔离属于后续 Storage 验证，不能写成 Phase 1 已实现保证。
+- 来源内顺序或恢复位置仅依赖已验证的 source-local sequence/revision/消费规则；缺失可靠顺序时，接收顺序只表示 APV 接纳顺序，opaque Cursor 不按字符串大小或时间猜测排序。Source Cursor 是消费位置，不是事件唯一键；事件与 Cursor 的原子推进须由后续 Storage 验证完整消费单元覆盖及前置 checkpoint 匹配。来源 ACK 在持久化 COMMIT 确认后独立进行；未知 COMMIT 不得盲目重放、发布成功或 ACK，无法可靠对账恢复时返回 unavailable。迟到事件可保留历史，但不能仅凭到达时间倒写当前状态或撤销纠正。
 - 不假设跨来源全局时钟一致；有因果关系的 plan/status/progress 使用引用关联。
 - 断连、Session 结束和新 Turn 是不同概念。恢复不能生成重复派生 Timeline。
 
-Phase 1 测试中验证归一化契约和幂等规则；真实传输能力须独立验证。
+Phase 1 验证 typed normalized-event 契约、内部 EventId / 稳定 source_event 重放、cursor-only / 无身份输入的降级及最小进程内应用；不等于持久化去重、Cursor 推进、ACK 或崩溃恢复验收。Phase 2 另行验证重复 claim、Project/generation 作用域及 Event / Assertion / Snapshot / Cursor 原子一致性；真实 Adapter 身份、顺序、resume / ACK 能力须独立验证。
+
+Phase 2.3 对齐曾发现 sourceEventId/cursor 生成措辞与 Core 的 optional sourceIdentity、多事件 Cursor 契约存在差异。本轮依据用户转述的 ChatGPT 审核批准，对 [事件身份契约提案](docs/storage/phase-2.3-event-identity-contract-proposal.md) 所述语义作上述最小修订：保留可选来源身份、条件 sourceEventId、内部事件身份及消费位置的区分；不批准提案的全部文本或新的身份算法。
+
+架构预审 follow-up 在 [Storage 设计 §2/§7](docs/storage/phase-2.3-design.md) 中分别定义来源事件键、sourceCursor、本地 ledgerSequence 与 snapshotWatermark 的作用域/持久位置；没有稳定事件身份或顺序时明确降级，不将 Cursor 当作事件唯一键。Storage Contract 与 D-041～D-044 仍为 Proposed，不更改当前 Core 契约；生产 S02/S13 仍为 NOT TESTED，关闭的 Atomicity Spike 仅覆盖稳定 sourceEventId 子集，未验证缺失身份或多事件 Cursor 的持久化路径。
 
 # 10. Event Types
 
@@ -374,13 +378,17 @@ Timeline 可展示带纠正说明的解释，但原观察/原判断不可删除�
 
 # 20. Storage Architecture
 
-SQLite 为已接受本地持久化方向，具体 driver 和 VSIX/runtime packaging 是 Technical Verification Pending。Storage 依赖 Core 的数据契约，负责读写、事务/迁移；Core 不导入 SQLite。
+SQLite 为已接受本地持久化方向。Phase 2.2 已定义 Windows x64 Driver/VSIX/runtime 兼容性验证完成，保留 PASS WITH LIMITATION；D-041 仍 Proposed，生产持久化/恢复和其他平台仍 Technical Verification Pending。Storage 依赖 Core 的数据契约，负责读写、事务/迁移；Core 不导入 SQLite。
 
 持久恢复需要来源事件/断言、plan revisions、纠正及其失效记录与处理 cursor；当前状态/进度/Timeline 是解释后的投影，不能是唯一来源。不要求框架级全事件溯源；Phase 2 须确定最小 authoritative records + versioned snapshot 恢复方案。
 
 一次状态转移关联的 plan/correction/projection/cursor 更新必须原子提交。Snapshot 标记 schema/规则版本和消费位置；恢复先加载一致快照及必要来源，幂等处理后续事件，不重复产生 Timeline。迁移、崩溃恢复及同项目多窗口写入策略须在 Phase 2 前设计验证；未验证前不声称多 writer 安全。
 
 Host 提供 repo 外本地应用存储位置。Storage 不负责推断、进度计算或 UI；阶段新增契约时增量扩展 schema，不提前建全表。
+
+Phase 2.3 的 [设计草案](docs/storage/phase-2.3-design.md) / D-042 提出最小版本化领域记录、来源事件、Snapshot 和独立 Source Checkpoint 的原子边界；恢复/迁移/单 writer 的验证尚未执行。上文“Phase 2 前”与 ROADMAP“Phase 2 内选型前”的时间措辞差异已报告供批准澄清，不能以草案豁免门槛。
+
+follow-up 比较独立 SQLite 所有权库长期 IMMEDIATE 事务与 Windows 命名 Mutex，唯一推荐前者加项目 writerEpoch/ownerToken，**Proposed / NOT TESTED**。所有权覆盖观察生命周期，项目事务覆盖记录原子性，epoch/generation/head 检查拒绝陈旧工作；PID/进程内 Mutex/数据库短事务不能替代跨进程所有权。COMMIT 确认前不发布已确认状态、不确认来源消费；外部 ACK 不属于 SQL 事务。Plan/Correction/已持久化 Timeline 的实际输出在其阶段契约形成后纳入同一提交，当前不预建 Engine/表。详细恢复矩阵见草案 §8，缺少权威 provenance/correction/ledger 或 Cursor 超前必须 unavailable。
 
 # 21. Suggested Tables
 
@@ -391,6 +399,10 @@ Host 提供 repo 外本地应用存储位置。Storage 不负责推断、进度�
 默认不持久化完整源代码、原始 edit/command 输出、私有 prompt 或未筛选 agent messages。仅持久化字段 allowlist 下的归一化元数据、最小计划/完成依据及意义事件；引用不要求保存整个 raw payload。
 
 原始传输数据仅用于必要的瞬时解析，不默认写数据库或日志。需要保留的最小依据与来源身份须在清理后仍能解释历史结论。具体 bounded retention/删除期限及验证在 Phase 2/真实采集前决策；当前没有“全保留”或“默认 7 天”的承诺。高级 retention 配置和通用 compaction interface 后置。
+
+具体字段/容量/备份/删除提案见 [Phase 2.3 §§9–11](docs/storage/phase-2.3-design.md)，D-043–D-044 均为 Proposed。当前 Core.acceptedEvents 为重放账本，草案禁止未审查裁剪；清理 Snapshot 缓存不等于删除来源事实或纠正历史。
+
+follow-up 明确字段四类隐私政策及持久化/诊断前筛选、删除期间持有跨进程 owner lock、DB/WAL/SHM/journal/temp/backup 清理范围和最小残留标记。所有期限/配额/删除默认仍为 Proposed；不足配额不得丢事件后推进 Cursor。权威历史压缩需要另行批准 Core 重放/引用闭包等价契约，不能以当前设计擅自裁剪。
 
 # 23. Portable State
 
