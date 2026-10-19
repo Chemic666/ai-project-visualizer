@@ -6,6 +6,7 @@ import type {
 import type { SyntheticCapability } from "./host-admission.mjs";
 export { admitSyntheticRoot } from "./host-admission.mjs";
 export interface SqliteConnection {
+  readonly name: string;
   readonly open: boolean;
   readonly inTransaction: boolean;
   exec(sql: string): unknown;
@@ -56,6 +57,21 @@ export interface CommitRequest {
   cursor?: SourceCheckpoint;
   createSnapshot?: boolean;
 }
+export interface ResourceBinding {
+  reportedConnections: Record<
+    string,
+    {
+      sqliteReportedName: string;
+      driverName: string;
+      nativeHandleIdentity: "unavailable";
+      assurance: "connection-reported-path-only";
+    }
+  >;
+  metadataIdentities: Record<string, unknown>;
+  sidecars: Array<{ file: string; metadata: unknown }>;
+  actualDriverHandleIdentity: "unavailable";
+  productionWriteEnabled: false;
+}
 export interface SyntheticStore {
   read(): StorageCut;
   commit(request: CommitRequest): StorageCut & {
@@ -66,7 +82,13 @@ export interface SyntheticStore {
     ack: false;
   };
   writer(): WriterCapability;
-  paths(): { catalog: string; owner: string; project: string };
+  paths(): {
+    catalog: string;
+    catalogAdmission: string;
+    owner: string;
+    project: string;
+  };
+  resourceBinding(): ResourceBinding;
   evidence(): Array<{ seq: number; phase: string; [key: string]: unknown }>;
   close(): { status: "closed"; processSettlementRequired: true };
   admission(): { productionWriteEnabled: false; bindingAssurance: string };

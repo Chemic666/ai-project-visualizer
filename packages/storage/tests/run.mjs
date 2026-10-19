@@ -14,7 +14,7 @@ if (args.length === 0) {
 } else {
   if (
     args.length !== 3 ||
-    args[0] !== "--execute-synthetic" ||
+    !["--execute-synthetic", "--execute-host-synthetic"].includes(args[0]) ||
     args[1] !== "--driver-root" ||
     !path.isAbsolute(args[2])
   )
@@ -62,7 +62,12 @@ if (args.length === 0) {
   }
   const childArgs = [
     "--test",
-    path.join(repo, "packages/storage/tests/integration.test.mjs"),
+    path.join(
+      repo,
+      args[0] === "--execute-host-synthetic"
+        ? "packages/storage/tests/host-integration.test.mjs"
+        : "packages/storage/tests/integration.test.mjs",
+    ),
   ];
   const sources = ["src", "tests"].flatMap((dir) =>
     inventory(path.join(repo, "packages/storage", dir)),

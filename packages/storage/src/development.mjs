@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { inspectConnection } from "./connection-binding.mjs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { inspectCapability, checkFile } from "./host-admission.mjs";
@@ -95,6 +96,8 @@ export function openSyntheticStore(capability, options = {}) {
     project,
     ownerHeld = false;
   const events = [];
+  const reportedConnections = {},
+    sidecarIdentities = new Map();
   const note = (phase, fields = {}) =>
     events.push({ seq: events.length + 1, phase, ...fields });
   const admitted = inspectCapability(capability);
@@ -131,8 +134,24 @@ export function openSyntheticStore(capability, options = {}) {
     retired = false;
   function checkBinding() {
     inspectCapability(capability);
-    for (const key of ["catalog", "owner", "project"])
+    for (const key of ["catalog", "catalogAdmission", "owner", "project"])
       checkFile(paths[key], identities[key]);
+    for (const [kind, db] of [
+      ["owner", owner],
+      ["project", project],
+    ])
+      if (db?.open)
+        reportedConnections[kind] = inspectConnection(db, paths[kind]);
+    if (project?.open)
+      for (const suffix of ["-wal", "-shm"]) {
+        const file = paths.project + suffix;
+        if (fs.existsSync(file))
+          sidecarIdentities.set(
+            file,
+            checkFile(file, sidecarIdentities.get(file)),
+          );
+        else demand(!sidecarIdentities.has(file), "binding_conflict");
+      }
     checkFile(path.dirname(paths.owner));
     checkFile(path.dirname(paths.project));
     for (const file of [
@@ -180,8 +199,21 @@ export function openSyntheticStore(capability, options = {}) {
       touch(catalogPath);
     }
     const catalogIdentity = checkFile(catalogPath);
+    const catalogAdmissionPath = path.join(
+      admitted.privateRoot,
+      "catalog-admission.json",
+    );
+    if (!newCatalog) {
+      checkFile(catalogAdmissionPath);
+      const proof = JSON.parse(fs.readFileSync(catalogAdmissionPath, "utf8"));
+      demand(
+        encode(proof) === encode({ version: 1, catalogIdentity }),
+        "binding_conflict",
+      );
+    }
     catalog = new options.Database(catalogPath, { fileMustExist: true });
     checkFile(catalogPath, catalogIdentity);
+    reportedConnections.catalog = inspectConnection(catalog, catalogPath);
     if (!newCatalog)
       demand(
         catalog.pragma("application_id", { simple: true }) === CATALOG_ID &&
@@ -199,6 +231,13 @@ export function openSyntheticStore(capability, options = {}) {
         catalog.pragma("user_version", { simple: true }) === 1,
       "unavailable",
     );
+    if (newCatalog)
+      fs.writeFileSync(
+        catalogAdmissionPath,
+        encode({ version: 1, catalogIdentity }),
+        { flag: "wx" },
+      );
+    const catalogAdmissionIdentity = checkFile(catalogAdmissionPath);
     catalog.exec("BEGIN IMMEDIATE");
     let binding = catalog
       .prepare("SELECT * FROM bindings WHERE root_locator=? OR project_id=?")
@@ -241,6 +280,7 @@ export function openSyntheticStore(capability, options = {}) {
     }
     paths = {
       catalog: catalogPath,
+      catalogAdmission: catalogAdmissionPath,
       owner: path.join(ownership, binding.store_key, "owner.sqlite"),
       project: path.join(
         projects,
@@ -255,6 +295,7 @@ export function openSyntheticStore(capability, options = {}) {
     }
     identities = {
       catalog: catalogIdentity,
+      catalogAdmission: catalogAdmissionIdentity,
       owner: checkFile(
         paths.owner,
         newBinding ? undefined : JSON.parse(binding.owner_identity),
@@ -312,6 +353,8 @@ export function openSyntheticStore(capability, options = {}) {
       );
     configure(project, "WAL");
     note("configuration", {
+      sqliteVersion: project.prepare("SELECT sqlite_version() AS version").get()
+        .version,
       journalMode: project.pragma("journal_mode", { simple: true }),
       synchronous: project.pragma("synchronous", { simple: true }),
       walAutocheckpoint: project.pragma("wal_autocheckpoint", { simple: true }),
@@ -372,6 +415,7 @@ export function openSyntheticStore(capability, options = {}) {
       catalog.exec("COMMIT");
     }
     const restored = restore(project, scope);
+    note("recovered", { head: restored.head });
     project.exec("BEGIN IMMEDIATE");
     const meta = project.prepare("SELECT * FROM store_meta WHERE id=1").get();
     demand(
@@ -729,6 +773,19 @@ export function openSyntheticStore(capability, options = {}) {
     commit,
     writer: () => copy(context),
     paths: () => copy(paths),
+    resourceBinding: () => {
+      active();
+      return copy({
+        reportedConnections,
+        metadataIdentities: identities,
+        sidecars: [...sidecarIdentities].map(([file, metadata]) => ({
+          file,
+          metadata,
+        })),
+        actualDriverHandleIdentity: "unavailable",
+        productionWriteEnabled: false,
+      });
+    },
     evidence: () => copy(events),
     close: () => {
       closeProjectFirst();

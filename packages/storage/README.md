@@ -45,3 +45,20 @@ The explicit run uses new TEMP identities, preserves failed runs, never retries 
 Current targeted subcoverage: S01, S02 application failure, S05 matching-intent retry only, S06/S07 claims, S08 missing identity/shared Cursor, S09 coverage, S12 missing authority; O01 cooperative acquisition/release and separate-process exclusion; O02 disabled production tuple; P01 known synthetic sentinel/closed fields, P02 identity scope, P03 actual TEMP/NTFS/admission rejection, P05 small quota rejection; M01 selected unavailable conditions only. Full S/P/M and O01/O02 remain NOT TESTED; the suite is not a parallel acceptance taxonomy. No closed-Spike result is upgraded or rerun.
 
 Actual first-slice results, independent SQL cuts and B1–B7 dispositions: [implementation evidence](../../docs/storage/phase-2-first-slice.md). The runtime implementation is ESM JavaScript with checked Core-compatible declaration types; it does not add a Node type package. Driver peer metadata is optional so this default-disabled package does not require an automatic Native install. The explicit synthetic composition still requires exact Driver 13.0.3.
+
+## Synthetic Host composition (2026-10-19)
+
+`@apv/storage/host` exports `openHost()`; it is unavailable without starting a process or opening a database. `@apv/storage/host-development` separately exports `launchSyntheticHost(capability, options)` with exact Driver binary/Core hashes and an admitted synthetic root. See [typed Host interface](src/host-development.d.mts) and [implementation/evidence](../../docs/storage/phase-2-first-slice.md#host-composition-follow-up--2026-10-19).
+
+The child privately owns both Owner and Project connections. Await `admitted` for the actual pre-open barrier (`holdAtAdmission:true` is development-only), `activate()` to release that barrier, then `ready`. `read()` and `commit()` are bounded async calls; only one can be in flight. `close()` synchronously disables intake, drains the accepted operation and waits for Project-before-Owner closure plus actual child exit and channel/stdio completion. `status()` separates lifecycle phase from returned outcome; phase CLOSED never proves COMMIT outcome. No automatic replay, publish, ACK, restart or PID lease exists.
+
+Actual open connections report their main names via SQLite/Driver APIs. Those names and filesystem metadata are checked separately; `resourceBinding.actualDriverHandleIdentity` remains `unavailable`. No SQLite-owned Windows file-ID proof or live replacement safety is claimed. Existing synthetic catalogs lacking the new exclusive `catalog-admission.json` readiness proof are refused unchanged; there is no automatic import/recreation/migration. This marker is a startup admission check, not a business ownership lock.
+
+Run only on fresh synthetic data, with the existing approved installed Driver root:
+
+```cmd
+node --test packages\storage\tests\lifecycle.test.mjs
+node packages\storage\tests\run.mjs --execute-host-synthetic --driver-root "%APV_DRIVER_ROOT%"
+```
+
+No arguments remain disabled. Host requests are bounded to 8 MiB; initialization and full-state response envelopes to 256 MiB so the retained ledger is not accidentally limited by the 8 MiB Snapshot cache. Original 128 MiB logical authority policy still applies. Limits are not throughput, memory-availability or durability guarantees. Production Host, actual physical identity, release-failure handling, real COMMIT uncertainty and full O01/O02/S/P/M remain gated. No historical VFS Harness or fault DLL is invoked.

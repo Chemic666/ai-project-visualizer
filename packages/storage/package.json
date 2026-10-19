@@ -11,12 +11,21 @@
     "./development": {
       "types": "./src/development.d.mts",
       "default": "./src/development.mjs"
+    },
+    "./host": {
+      "types": "./src/host.d.mts",
+      "default": "./src/host.mjs"
+    },
+    "./host-development": {
+      "types": "./src/host-development.d.mts",
+      "default": "./src/host-development.mjs"
     }
   },
   "scripts": {
     "test": "node tests/run.mjs",
     "test:boundaries": "node --test tests/codec.test.mjs tests/host.test.mjs",
-    "typecheck": "tsc --project tsconfig.json --noEmit"
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test:lifecycle": "node --test tests/lifecycle.test.mjs"
   },
   "peerDependencies": {
     "better-sqlite3": "13.0.3"

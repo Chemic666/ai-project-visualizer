@@ -67,6 +67,8 @@ Compatibility, Ownership, Atomicity, Recovery and VFS G1/G2-W/G2-S are **CLOSED 
 
 Current work: [first real Storage adapter](packages/storage/README.md), default disabled, fresh synthetic TEMP data only. Production entry returns unavailable while actual physical binding B1 is unproved. B1–B7, genuine release/COMMIT uncertainty, real Host and full S/P/M/O01/O02 remain production gates. No real user project intake or Phase 2 completion is declared.
 
+First-slice local checkpoint: `d98aa1f4a9e4c83b26fd6c898c750fdcfa2d0810` (35 reviewed files, no push). The separately authorized [synthetic Host follow-up](docs/storage/phase-2-first-slice.md#host-composition-follow-up--2026-10-19) adds joint Owner/Project process lifetime, concurrent catalog admission and normal handoff tests; actual Driver handle binding remains unavailable. No real-project enablement or Codex Session integration is approved.
+
 ### Historical 2026-10-08 preparation (superseded status/sequence only)
 
 2026-10-08 状态更新：用户认定 Phase 2.2 disposable Driver/runtime/VSIX 的已定义 Windows x64 W1/W2/W3 兼容性验证技术完成，正式审计为 **PASS WITH LIMITATION**；认可 better-sqlite3 13.0.3 为唯一首选提案，D-041 继续 **Proposed**，生产选型尚未 Accepted。原子恢复、privacy/retention 及生产 Project State 恢复仍 Technical Verification Pending，原有选型前门槛未豁免。其他平台/宿主及完整自动退出、崩溃恢复未获支持声明。见 [Phase 2.2 关闭准备](docs/spikes/phase-2.2-closure.md)与[Git 里程碑清单](docs/spikes/phase-2.2-checkpoint.md)；兼容性里程碑已提交推送并归档，整个 Phase 2 尚未关闭，不启动生产实现或 Phase 3。
