@@ -1,6 +1,10 @@
 # Phase 2 Local Storage — Atomic Recovery / Privacy Acceptance Plan
 
-**Status: Proposed; all executable cases below are NOT TESTED.** Date: 2026-10-08.
+**Production acceptance status: all full S/P/M and O01/O02 cases remain NOT TESTED.**
+
+**2026-10-19 authorization:** D-041–D-044 accepted as initial policies (D-042 conditional, D-044 initial implementation). Approved sequence: policy → restricted implementation → full acceptance → production enablement. The default-disabled [Storage slice](../../packages/storage/README.md) now implements current Core contracts for isolated synthetic data only. Its targeted tests report subcondition evidence using these existing IDs; no full case or product-support status is upgraded. The original disposable preparation protocol below is historical; its prohibition on becoming packages/storage does not restrict this separately authorized adapter implementation. All independent safety/Oracle requirements remain.
+
+**Historical preparation:** Proposed test protocol, 2026-10-08.
 Design: [Phase 2.3](../storage/phase-2.3-design.md), D-042–D-044 Proposed.
 This is a test protocol ready to implement after architecture approval, not an existing runner or a passing report. No guessed commands for nonexistent scripts are supplied.
 Architecture follow-up keeps the original **25 S/P/M case IDs**, strengthens their subcases, and specifies O01 cross-process ownership subcases below. Direction acknowledgment is not design approval or executable evidence; D-041–D-044 remain Proposed.

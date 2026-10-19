@@ -26,7 +26,7 @@
 | 仓库形式      | **pnpm Monorepo**                       | 管理多个独立模块                        |
 | 单元测试      | **Vitest**                              | Core、Adapter、Storage 测试             |
 | 本地数据库    | **SQLite**                              | 保存项目状态、Timeline、Plan History 等 |
-| SQLite Driver | **首选提案：better-sqlite3 13.0.3**      | D-041 Proposed；尚未批准锁定             |
+| SQLite Driver | **better-sqlite3 13.0.3**              | D-041 Accepted（2026-10-19）；完整生产验收未通过             |
 | IDE 界面      | **VS Code Extension API**               | 第一主要 UI                             |
 | 复杂 UI       | **Webview 按需使用**                    | Overview、Timeline 等                   |
 | 类型检查      | **TypeScript Compiler (`tsc`)** | 编译期类型检查                          |

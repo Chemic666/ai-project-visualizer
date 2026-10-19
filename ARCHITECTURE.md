@@ -151,7 +151,7 @@ Phase 1 验证 typed normalized-event 契约、内部 EventId / 稳定 source_ev
 
 Phase 2.3 对齐曾发现 sourceEventId/cursor 生成措辞与 Core 的 optional sourceIdentity、多事件 Cursor 契约存在差异。本轮依据用户转述的 ChatGPT 审核批准，对 [事件身份契约提案](docs/storage/phase-2.3-event-identity-contract-proposal.md) 所述语义作上述最小修订：保留可选来源身份、条件 sourceEventId、内部事件身份及消费位置的区分；不批准提案的全部文本或新的身份算法。
 
-架构预审 follow-up 在 [Storage 设计 §2/§7](docs/storage/phase-2.3-design.md) 中分别定义来源事件键、sourceCursor、本地 ledgerSequence 与 snapshotWatermark 的作用域/持久位置；没有稳定事件身份或顺序时明确降级，不将 Cursor 当作事件唯一键。Storage Contract 与 D-041～D-044 仍为 Proposed，不更改当前 Core 契约；生产 S02/S13 仍为 NOT TESTED，关闭的 Atomicity Spike 仅覆盖稳定 sourceEventId 子集，未验证缺失身份或多事件 Cursor 的持久化路径。
+架构预审 follow-up 在 [Storage 设计 §2/§7](docs/storage/phase-2.3-design.md) 中分别定义来源事件键、sourceCursor、本地 ledgerSequence 与 snapshotWatermark 的作用域/持久位置；没有稳定事件身份或顺序时明确降级，不将 Cursor 当作事件唯一键。2026-10-19 D-041～D-044 已获初始政策批准（D-042 为条件架构，D-044 为初始实现政策），不更改当前 Core 契约；生产 S02/S13 仍为 NOT TESTED，关闭的 Atomicity Spike 仅覆盖稳定 sourceEventId 子集，未验证缺失身份或多事件 Cursor 的持久化路径。
 
 # 10. Event Types
 
@@ -378,17 +378,17 @@ Timeline 可展示带纠正说明的解释，但原观察/原判断不可删除�
 
 # 20. Storage Architecture
 
-SQLite 为已接受本地持久化方向。Phase 2.2 已定义 Windows x64 Driver/VSIX/runtime 兼容性验证完成，保留 PASS WITH LIMITATION；D-041 仍 Proposed，生产持久化/恢复和其他平台仍 Technical Verification Pending。Storage 依赖 Core 的数据契约，负责读写、事务/迁移；Core 不导入 SQLite。
+SQLite 为已接受本地持久化方向。Phase 2.2 已定义 Windows x64 Driver/VSIX/runtime 兼容性验证完成，保留 PASS WITH LIMITATION；D-041 已于 2026-10-19 Accepted，生产持久化/恢复和其他平台仍 Technical Verification Pending。Storage 依赖 Core 的数据契约，负责读写、事务/迁移；Core 不导入 SQLite。
 
 持久恢复需要来源事件/断言、plan revisions、纠正及其失效记录与处理 cursor；当前状态/进度/Timeline 是解释后的投影，不能是唯一来源。不要求框架级全事件溯源；Phase 2 须确定最小 authoritative records + versioned snapshot 恢复方案。
 
-一次状态转移关联的 plan/correction/projection/cursor 更新必须原子提交。Snapshot 标记 schema/规则版本和消费位置；恢复先加载一致快照及必要来源，幂等处理后续事件，不重复产生 Timeline。迁移、崩溃恢复及同项目多窗口写入策略须在 Phase 2 前设计验证；未验证前不声称多 writer 安全。
+一次状态转移关联的 plan/correction/projection/cursor 更新必须原子提交。Snapshot 标记 schema/规则版本和消费位置；恢复先加载一致快照及必要来源，幂等处理后续事件，不重复产生 Timeline。迁移、崩溃恢复及同项目多窗口写入策略按批准的“政策批准 → 受限实现 → 完整验收 → 生产启用”顺序推进；未验证前不声称多 writer 安全。
 
 Host 提供 repo 外本地应用存储位置。Storage 不负责推断、进度计算或 UI；阶段新增契约时增量扩展 schema，不提前建全表。
 
-Phase 2.3 的 [设计草案](docs/storage/phase-2.3-design.md) / D-042 提出最小版本化领域记录、来源事件、Snapshot 和独立 Source Checkpoint 的原子边界；恢复/迁移/单 writer 的验证尚未执行。上文“Phase 2 前”与 ROADMAP“Phase 2 内选型前”的时间措辞差异已报告供批准澄清，不能以草案豁免门槛。
+Phase 2.3 的 [Storage 设计](docs/storage/phase-2.3-design.md) / D-042 规定最小版本化领域记录、来源事件、Snapshot 和独立 Source Checkpoint 的原子边界。2026-10-19 正式批准上述准入顺序；已关闭 Spike 仅有各自限定证据，完整生产恢复/迁移/所有权仍未验收。首个 [Storage 切片](packages/storage/README.md) 只允许默认禁用的隔离合成数据开发路径；B1 未可靠绑定实际 Driver 句柄，真实项目入口必须 unavailable。
 
-follow-up 比较独立 SQLite 所有权库长期 IMMEDIATE 事务与 Windows 命名 Mutex，唯一推荐前者加项目 writerEpoch/ownerToken，**Proposed / NOT TESTED**。所有权覆盖观察生命周期，项目事务覆盖记录原子性，epoch/generation/head 检查拒绝陈旧工作；PID/进程内 Mutex/数据库短事务不能替代跨进程所有权。COMMIT 确认前不发布已确认状态、不确认来源消费；外部 ACK 不属于 SQL 事务。Plan/Correction/已持久化 Timeline 的实际输出在其阶段契约形成后纳入同一提交，当前不预建 Engine/表。详细恢复矩阵见草案 §8，缺少权威 provenance/correction/ledger 或 Cursor 超前必须 unavailable。
+follow-up 比较独立 SQLite 所有权库长期 IMMEDIATE 事务与 Windows 命名 Mutex，唯一推荐前者加项目 writerEpoch/ownerToken，**Accepted — conditional architecture / production NOT TESTED**。所有权覆盖观察生命周期，项目事务覆盖记录原子性，epoch/generation/head 检查拒绝陈旧工作；PID/进程内 Mutex/数据库短事务不能替代跨进程所有权。COMMIT 确认前不发布已确认状态、不确认来源消费；外部 ACK 不属于 SQL 事务。Plan/Correction/已持久化 Timeline 的实际输出在其阶段契约形成后纳入同一提交，当前不预建 Engine/表。详细恢复矩阵见草案 §8，缺少权威 provenance/correction/ledger 或 Cursor 超前必须 unavailable。
 
 # 21. Suggested Tables
 
@@ -400,9 +400,9 @@ follow-up 比较独立 SQLite 所有权库长期 IMMEDIATE 事务与 Windows 命
 
 原始传输数据仅用于必要的瞬时解析，不默认写数据库或日志。需要保留的最小依据与来源身份须在清理后仍能解释历史结论。具体 bounded retention/删除期限及验证在 Phase 2/真实采集前决策；当前没有“全保留”或“默认 7 天”的承诺。高级 retention 配置和通用 compaction interface 后置。
 
-具体字段/容量/备份/删除提案见 [Phase 2.3 §§9–11](docs/storage/phase-2.3-design.md)，D-043–D-044 均为 Proposed。当前 Core.acceptedEvents 为重放账本，草案禁止未审查裁剪；清理 Snapshot 缓存不等于删除来源事实或纠正历史。
+具体字段/容量/备份/删除提案见 [Phase 2.3 §§9–11](docs/storage/phase-2.3-design.md)，D-043 已 Accepted，D-044 已 Accepted — initial implementation policy；生产验证未通过。当前 Core.acceptedEvents 为重放账本，草案禁止未审查裁剪；清理 Snapshot 缓存不等于删除来源事实或纠正历史。
 
-follow-up 明确字段四类隐私政策及持久化/诊断前筛选、删除期间持有跨进程 owner lock、DB/WAL/SHM/journal/temp/backup 清理范围和最小残留标记。所有期限/配额/删除默认仍为 Proposed；不足配额不得丢事件后推进 Cursor。权威历史压缩需要另行批准 Core 重放/引用闭包等价契约，不能以当前设计擅自裁剪。
+follow-up 明确字段四类隐私政策及持久化/诊断前筛选、删除期间持有跨进程 owner lock、DB/WAL/SHM/journal/temp/backup 清理范围和最小残留标记。期限/配额/删除默认已获初始政策批准，实施验证仍未通过；不足配额不得丢事件后推进 Cursor。权威历史压缩需要另行批准 Core 重放/引用闭包等价契约，不能以当前设计擅自裁剪。
 
 # 23. Portable State
 

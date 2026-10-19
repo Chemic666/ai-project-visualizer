@@ -57,11 +57,21 @@ SQLite
 重新启动
 ```
 
-Project State 可以恢复。Driver/runtime/VSIX Spike、最小来源/纠正/快照/cursor 原子恢复和 privacy/retention 政策在本阶段选型前完成；只持久化现有契约，后续增量扩展。
+Project State 可以恢复。当前准入顺序按 2026-10-19 授权调整为：政策批准 → 受限实现 → 完整验收 → 生产启用。只持久化现有契约，后续增量扩展；完整技术/隐私验收在真实项目启用前完成。
+
+## Phase 2.3 — Current implementation authorization (2026-10-19)
+
+D-041/D-043 **Accepted**, D-042 **Accepted — conditional architecture**, D-044 **Accepted — initial implementation policy**. Decision acceptance is not a production PASS. The reviewed checkpoint is `e60c3d2cdc6b58728b9b1847672593d08cec1021`.
+
+Compatibility, Ownership, Atomicity, Recovery and VFS G1/G2-W/G2-S are **CLOSED — PASS WITH LIMITATION**, each only in its documented experimental scope. The original G2-W ARM failure remains FAIL. Controlled pre-delegation VFS rejection is not physical disk failure or true partially durable unknown COMMIT proof. See [Recovery closure](docs/spikes/sqlite-recovery-closure-review.md), [G1 audit](docs/spikes/sqlite-u3-vfs-g1-evidence-audit.md), [G2-W audit](docs/spikes/sqlite-u3-vfs-g2-w-patched-evidence-audit.md), [G2-S audit](docs/spikes/sqlite-u3-vfs-g2-s-evidence-audit.md). No further SQLite Spike is planned.
+
+Current work: [first real Storage adapter](packages/storage/README.md), default disabled, fresh synthetic TEMP data only. Production entry returns unavailable while actual physical binding B1 is unproved. B1–B7, genuine release/COMMIT uncertainty, real Host and full S/P/M/O01/O02 remain production gates. No real user project intake or Phase 2 completion is declared.
+
+### Historical 2026-10-08 preparation (superseded status/sequence only)
 
 2026-10-08 状态更新：用户认定 Phase 2.2 disposable Driver/runtime/VSIX 的已定义 Windows x64 W1/W2/W3 兼容性验证技术完成，正式审计为 **PASS WITH LIMITATION**；认可 better-sqlite3 13.0.3 为唯一首选提案，D-041 继续 **Proposed**，生产选型尚未 Accepted。原子恢复、privacy/retention 及生产 Project State 恢复仍 Technical Verification Pending，原有选型前门槛未豁免。其他平台/宿主及完整自动退出、崩溃恢复未获支持声明。见 [Phase 2.2 关闭准备](docs/spikes/phase-2.2-closure.md)与[Git 里程碑清单](docs/spikes/phase-2.2-checkpoint.md)；兼容性里程碑已提交推送并归档，整个 Phase 2 尚未关闭，不启动生产实现或 Phase 3。
 
-## Phase 2.3 — Storage Architecture & Decision Gates（设计准备）
+### Historical Phase 2.3 — Storage Architecture & Decision Gates（2026-10-08 设计准备）
 
 Phase 2.2 Git checkpoint 已由用户推送：`f6d04ad261d2dd4a5d35cd30841697b515405e44`。当前仅准备 [Storage 架构方案](docs/storage/phase-2.3-design.md)、D-042–D-044 Proposed 与 [故障/隐私验收协议](docs/acceptance/phase-2-storage.md)，不实现生产 Storage。
 

@@ -1,0 +1,29 @@
+{
+  "name": "@apv/storage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.mts",
+      "default": "./src/index.mjs"
+    },
+    "./development": {
+      "types": "./src/development.d.mts",
+      "default": "./src/development.mjs"
+    }
+  },
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "test:boundaries": "node --test tests/codec.test.mjs tests/host.test.mjs",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "better-sqlite3": "13.0.3"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
+  }
+}

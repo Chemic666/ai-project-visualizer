@@ -1535,7 +1535,11 @@ Phase 3 reconciliation 的正式契约/实验证据揭示初始化或阶段边�
 
 # D-041 — Prefer better-sqlite3 for Initial Local Storage
 
-**Status:** Proposed
+**Status:** Accepted
+
+**Accepted:** 2026-10-19, ChatGPT/user formal authorization. Initial better-sqlite3 13.0.3 choice; exact deployment still needs Host/artifact acceptance.
+
+Policy acceptance ≠ production verification PASS. Only default-disabled synthetic Storage integration is authorized; real-project enablement requires actual physical binding and complete S/P/M/O01/O02 acceptance. The sequence is policy approval → restricted implementation → complete acceptance → production enablement. Original proposal/evidence/limitations below are retained as history; their prior Proposed/authorization timing is superseded by this dated approval.
 
 **Proposed:** 2026-10-08，Phase 2.2 Driver Decision & Closure review
 
@@ -1577,7 +1581,11 @@ W3 的完整测试窗口退出包含人工确认和采样进程证据；自动�
 
 # D-042 — Atomic Project Store and Versioned Recovery Authority
 
-**Status:** Proposed
+**Status:** Accepted — conditional architecture
+
+**Accepted:** 2026-10-19, ChatGPT/user formal authorization. B+C+A: independent lifetime Owner DB plus transactional Project fencing under the stated local/cooperative/stable-resource assumptions. Actual binding/lifecycle mechanics remain gated; no instantaneous hidden-loss or successful-file-replacement guarantee.
+
+Policy acceptance ≠ production verification PASS. Only default-disabled synthetic Storage integration is authorized; real-project enablement requires actual physical binding and complete S/P/M/O01/O02 acceptance. The sequence is policy approval → restricted implementation → complete acceptance → production enablement. Original proposal/evidence/limitations below are retained as history; their prior Proposed/authorization timing is superseded by this dated approval.
 
 **Proposed:** 2026-10-08，Phase 2.3 architecture preparation
 
@@ -1615,7 +1623,11 @@ Approved Core contracts require ledger compaction/new input kinds, actual fault/
 
 # D-043 — Local Storage Field Allowlist and Private Binding Boundary
 
-**Status:** Proposed
+**Status:** Accepted
+
+**Accepted:** 2026-10-19, ChatGPT/user formal authorization. Closed field allowlists and private local placement; source-specific codecs must be admitted. Unknown fields reject the whole bundle before persistence/output. Synthetic admission is not permission for raw user input.
+
+Policy acceptance ≠ production verification PASS. Only default-disabled synthetic Storage integration is authorized; real-project enablement requires actual physical binding and complete S/P/M/O01/O02 acceptance. The sequence is policy approval → restricted implementation → complete acceptance → production enablement. Original proposal/evidence/limitations below are retained as history; their prior Proposed/authorization timing is superseded by this dated approval.
 
 **Proposed:** 2026-10-08，Phase 2.3 privacy preparation
 
@@ -1647,7 +1659,11 @@ New fields/sources/engine contracts or platforms require new minimal data, or re
 
 # D-044 — Bounded History Admission and Generation-scoped Deletion
 
-**Status:** Proposed
+**Status:** Accepted — initial implementation policy
+
+**Accepted:** 2026-10-19, ChatGPT/user formal authorization. Bounded admission with retained authority: 128 MiB logical history, <=2 snapshots <=8 MiB each, 512 MiB physical high-water, 8 MiB catalog budget; <=1 migration backup, 7-day expiry only after verified migration, preserve failed recovery backup; explicit generation deletion with disclosed minimal revocation marker. These are policy values, not measured capacities. Unimplemented backup/deletion/migration entry points stay unavailable.
+
+Policy acceptance ≠ production verification PASS. Only default-disabled synthetic Storage integration is authorized; real-project enablement requires actual physical binding and complete S/P/M/O01/O02 acceptance. The sequence is policy approval → restricted implementation → complete acceptance → production enablement. Original proposal/evidence/limitations below are retained as history; their prior Proposed/authorization timing is superseded by this dated approval.
 
 **Proposed:** 2026-10-08，Phase 2.3 retention/deletion preparation
 
@@ -1687,7 +1703,7 @@ Core gains a reviewed compact replay ledger, users request explicit different hi
 例如：
 
 ```
-具体 SQLite Driver
+尚未批准的其他平台/宿主支持政策
 ```
 
 决策状态使用 Proposed（§5）；技术验证状态另记 Technical Verification Pending。Accepted 表示决策被批准，不表示技术实验通过。

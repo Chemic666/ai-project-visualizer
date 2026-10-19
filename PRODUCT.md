@@ -601,9 +601,9 @@ Unknown
 
 原始传输内容只作必要瞬时解析。具体 bounded retention/删除期限在 Phase 2/采集前决定并验证；当前不承诺全保留或默认 7 天，不提前建立通用 retention 框架。历史结论及纠正的最小依据不得因 raw 清理丢失。
 
-Phase 2.3 的字段 allowlist、容量限制、备份期限和删除/generation 政策在 [Storage 设计](docs/storage/phase-2.3-design.md) / D-043–D-044 中作为 **Proposed** 供审核。设计草案不是批准的新默认值，尚未运行隐私/删除验收；本轮不改变上述已接受原则。
+Phase 2.3 的字段 allowlist、容量限制、备份期限和删除/generation 政策在 [Storage 设计](docs/storage/phase-2.3-design.md) / D-043–D-044 中于 2026-10-19 获初始政策批准。Accepted 不等于隐私/删除验收 PASS；只授权默认禁用的隔离合成数据实现，不改变上述已接受原则。
 
-架构预审补充默认可持久化、限制/脱敏后可保存、仅瞬时处理、默认禁止四类字段规则；筛选发生在持久化和任何诊断输出之前。主动删除会移除该 generation 的可审计业务历史，仅保留已披露的最小删除/绑定及 ownership 标记；不默认另行存档，不承诺即时物理擦除。容量不足暂停 APV 自身 intake，保留旧状态/Cursor，不能静默跳过事件。上述具体政策仍 Proposed，待批准与验证。
+架构预审补充默认可持久化、限制/脱敏后可保存、仅瞬时处理、默认禁止四类字段规则；筛选发生在持久化和任何诊断输出之前。主动删除会移除该 generation 的可审计业务历史，仅保留已披露的最小删除/绑定及 ownership 标记；不默认另行存档，不承诺即时物理擦除。容量不足暂停 APV 自身 intake，保留旧状态/Cursor，不能静默跳过事件。上述具体政策已获初始批准，完整生产验证仍未完成。
 
 # 22. Live Activity
 
@@ -837,9 +837,9 @@ Other IDEs
 
 # 33. Storage
 
-默认 repo 外 Local App Storage。Host 提供位置，Storage 负责持久化/事务/迁移并依赖 Core 契约，Core 不依赖数据库/插件 API。恢复必须保留来源、计划历史和纠正；不能只有最后一个状态数字。Phase 2.2 的已定义 Windows x64 Driver/VSIX 兼容性验证已完成，保留 PASS WITH LIMITATION；D-041 仍 Proposed，生产 Storage、原子恢复和其他平台未验证。
+默认 repo 外 Local App Storage。Host 提供位置，Storage 负责持久化/事务/迁移并依赖 Core 契约，Core 不依赖数据库/插件 API。恢复必须保留来源、计划历史和纠正；不能只有最后一个状态数字。Phase 2.2 的已定义 Windows x64 Driver/VSIX 兼容性验证已完成，保留 PASS WITH LIMITATION；D-041 已 Accepted，完整生产 Storage、原子恢复和其他平台仍未验收。
 
-Phase 2.3 仅准备 [持久化/恢复设计](docs/storage/phase-2.3-design.md)和[故障验收协议](docs/acceptance/phase-2-storage.md)。D-042–D-044 尚未批准，不能因写出方案就声称恢复/Retention/删除能力已支持。
+Phase 2.3 仅准备 [持久化/恢复设计](docs/storage/phase-2.3-design.md)和[故障验收协议](docs/acceptance/phase-2-storage.md)。D-042–D-044 已获初始政策批准（D-042 条件架构，D-044 初始实现政策）；按政策批准 → 受限实现 → 完整验收 → 生产启用推进，不能声称恢复/Retention/删除已获得生产支持。
 
 不得默认创建 .ai-project/；Export 在 Phase 18，经用户主动操作。
 

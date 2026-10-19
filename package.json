@@ -8,11 +8,13 @@
     "pnpm": ">=12 <13"
   },
   "scripts": {
-    "typecheck": "pnpm --filter @apv/core typecheck",
+    "typecheck": "pnpm --filter @apv/core typecheck && pnpm --filter @apv/storage typecheck",
     "test": "pnpm --filter @apv/core test",
-    "lint": "eslint packages/core/src packages/core/tests --max-warnings=0",
-    "format:check": "prettier --check package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .prettierrc.json packages/core",
-    "format": "prettier --write package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .prettierrc.json packages/core"
+    "lint": "eslint packages/core/src packages/core/tests packages/storage --max-warnings=0",
+    "format:check": "prettier --check package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .prettierrc.json packages/core packages/storage",
+    "format": "prettier --write package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .prettierrc.json packages/core packages/storage",
+    "test:storage": "node packages/storage/tests/run.mjs",
+    "test:storage:boundaries": "node --test packages/storage/tests/codec.test.mjs packages/storage/tests/host.test.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/parser": "8.71.1",
