@@ -3,7 +3,10 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
-import { admitSyntheticRoot } from "./host-admission.mjs";
+import {
+  admitSyntheticRoot,
+  admitLocalValidationRoot,
+} from "./host-admission.mjs";
 import { openSyntheticStore } from "./development.mjs";
 import { WriterLifecycle } from "./lifecycle.mjs";
 import { plain, closed } from "./codec.mjs";
@@ -182,12 +185,20 @@ async function init(value) {
       shutdown();
       return;
     }
-    cap = admitSyntheticRoot({
-      enabled: true,
-      root: spec.root,
-      reopen: true,
-      expectedNonce: spec.rootNonce,
-    });
+    cap = spec.localAdmission
+      ? admitLocalValidationRoot({
+          enabled: true,
+          root: spec.root,
+          ...spec.localAdmission,
+          reopen: true,
+          expectedNonce: spec.rootNonce,
+        })
+      : admitSyntheticRoot({
+          enabled: true,
+          root: spec.root,
+          reopen: true,
+          expectedNonce: spec.rootNonce,
+        });
     send("parked");
     initializing = false;
     if (!spec.holdAtAdmission) open();

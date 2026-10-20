@@ -1,0 +1,22 @@
+{
+  "name": "apv-storage-host-validation",
+  "displayName": "APV Storage Host Validation",
+  "publisher": "apv-local-validation",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Default-disabled isolated synthetic Storage deployment acceptance. Not a production surface.",
+  "engines": {
+    "vscode": "1.140.0"
+  },
+  "main": "./extension.cjs",
+  "extensionKind": [
+    "ui"
+  ],
+  "activationEvents": [],
+  "files": [
+    "extension.cjs",
+    "host-tests.cjs",
+    "runtime/**"
+  ],
+  "license": "UNLICENSED"
+}

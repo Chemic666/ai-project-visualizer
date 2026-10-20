@@ -4,7 +4,10 @@ import type {
   applyNormalizedEvent,
 } from "../../core/src/index.js";
 import type { SyntheticCapability } from "./host-admission.mjs";
-export { admitSyntheticRoot } from "./host-admission.mjs";
+export {
+  admitSyntheticRoot,
+  admitLocalValidationRoot,
+} from "./host-admission.mjs";
 export interface NativePackage {
   manifestPath: string;
   buildId: string;

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { inspectInstalledResources } from "./installed-resources.mjs";
 import { validateNativePackage } from "./native-attestor.mjs";
 import path from "node:path";
 import os from "node:os";
@@ -56,6 +57,13 @@ export function launchSyntheticHost(capability, options) {
         process.arch === "x64" &&
         process.version === "v24.21.0",
     );
+    if (admission.local)
+      demand(
+        options.nativePackage &&
+          options.projectId === admission.local.projectId &&
+          options.generation === admission.local.generation,
+        "binding_conflict",
+      );
     if (options.nativePackage) validateNativePackage(options.nativePackage);
     id(options.projectId);
     id(options.generation);
@@ -72,12 +80,32 @@ export function launchSyntheticHost(capability, options) {
       fs.readFileSync(path.join(options.driverRoot, "package.json"), "utf8"),
     );
     demand(pkg.name === "better-sqlite3" && pkg.version === "13.0.3");
-    const coreParent = path.dirname(options.corePath);
-    demand(
-      path.basename(options.corePath) === "core.mjs" &&
-        path.dirname(coreParent) === fs.realpathSync.native(os.tmpdir()) &&
-        /^apv-storage-evidence-/.test(path.basename(coreParent)),
-    );
+    if (
+      options.corePath ===
+      fileURLToPath(new URL("../../core.mjs", import.meta.url))
+    ) {
+      const deployed = inspectInstalledResources();
+      demand(
+        options.driverRoot === deployed.driverRoot &&
+          options.corePath === deployed.corePath &&
+          options.processorFingerprint === deployed.processorFingerprint &&
+          options.nativePackage?.manifestPath ===
+            deployed.nativePackage.manifestPath,
+        "unavailable",
+      );
+      demand(
+        process.versions.electron === "43.7.3" &&
+          process.versions.modules === "148",
+        "unavailable",
+      );
+    } else {
+      const coreParent = path.dirname(options.corePath);
+      demand(
+        path.basename(options.corePath) === "core.mjs" &&
+          path.dirname(coreParent) === fs.realpathSync.native(os.tmpdir()) &&
+          /^apv-storage-evidence-/.test(path.basename(coreParent)),
+      );
+    }
     demand(
       hash(options.corePath) === options.processorFingerprint &&
         hash(path.join(options.driverRoot, "prebuilds/win32-x64.node")) ===
@@ -192,6 +220,10 @@ export function launchSyntheticHost(capability, options) {
       serialization: "json",
       windowsHide: true,
       execArgv: [],
+      env: {
+        ...process.env,
+        ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
+      },
     },
   );
   note("spawn", { pid: child.pid, nonce, node: process.version });
@@ -255,6 +287,7 @@ export function launchSyntheticHost(capability, options) {
               ...options,
               root: admission.root,
               rootNonce: admission.nonce,
+              ...(admission.local ? { localAdmission: admission.local } : {}),
             },
           });
       } else if (message.type === "parked") {

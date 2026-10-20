@@ -4,7 +4,10 @@ import { inspectConnection } from "./connection-binding.mjs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { inspectCapability, checkFile } from "./host-admission.mjs";
-export { admitSyntheticRoot } from "./host-admission.mjs";
+export {
+  admitSyntheticRoot,
+  admitLocalValidationRoot,
+} from "./host-admission.mjs";
 import { StorageError, demand, safeFailure } from "./errors.mjs";
 import {
   plain,
@@ -108,6 +111,13 @@ export function openSyntheticStore(capability, options = {}) {
   const note = (phase, fields = {}) =>
     events.push({ seq: events.length + 1, phase, ...fields });
   const admitted = inspectCapability(capability);
+  if (admitted.local)
+    demand(
+      native &&
+        options.projectId === admitted.local.projectId &&
+        options.generation === admitted.local.generation,
+      "binding_conflict",
+    );
   const scope = {
     projectId: options.projectId,
     generation: options.generation,
@@ -270,7 +280,7 @@ export function openSyntheticStore(capability, options = {}) {
         .run(
           scope.projectId,
           admitted.observedRoot,
-          randomUUID(),
+          admitted.local?.storeKey ?? randomUUID(),
           scope.generation,
         );
       binding = catalog
@@ -280,7 +290,8 @@ export function openSyntheticStore(capability, options = {}) {
     demand(
       binding.project_id === scope.projectId &&
         binding.generation === scope.generation &&
-        binding.root_locator === admitted.observedRoot,
+        binding.root_locator === admitted.observedRoot &&
+        (!admitted.local || binding.store_key === admitted.local.storeKey),
       "binding_conflict",
     );
     demand(

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { inspectInstalledResources } from "./installed-resources.mjs";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
@@ -26,6 +27,13 @@ function regular(p) {
 }
 export function readNativePackage(manifestPath) {
   try {
+    if (
+      manifestPath ===
+      fileURLToPath(
+        new URL("../native-resource/manifest.json", import.meta.url),
+      )
+    )
+      return inspectInstalledResources().nativePackage;
     demand(
       process.platform === "win32" &&
         process.arch === "x64" &&
