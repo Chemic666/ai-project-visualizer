@@ -40,6 +40,7 @@ export type {
   NormalizedEvent,
   NormalizedEventType,
   PlanInput,
+  PlanPhaseInput,
   PlanStepInput,
   SessionEventInput,
   SourceEventIdentity,
@@ -68,3 +69,21 @@ export {
   getTask,
   hasProcessedEvent,
 } from "./queries.js";
+export {
+  applyPlanEvent,
+  createPlanEngineState,
+  getPlanSnapshot,
+} from "./plan-engine.js";
+export type {
+  PlanApplicationResult,
+  PlanChange,
+  PlanChangedEvent,
+  PlanEngineState,
+  PlanEntry,
+  PlanHead,
+  PlanIssue,
+  PlanPhase,
+  PlanRevision,
+  PlanScope,
+  PlanSnapshotResult,
+} from "./domain/plan.js";

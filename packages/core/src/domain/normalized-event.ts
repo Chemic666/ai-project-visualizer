@@ -1,6 +1,7 @@
 import type { EventId, ProjectId, SessionId, SourceId, TaskId } from "./ids.js";
 import type { SourceReference } from "./source-reference.js";
-import type { WorkStatus } from "./status.js";
+import type { PlanCertainty, WorkStatus } from "./status.js";
+import type { Provenance } from "./provenance.js";
 
 // Stable identity supplied by the source or its Adapter, never a Core EventId.
 // A cursor/revision may identify a position rather than one event. Its replay
@@ -20,11 +21,28 @@ export interface SessionEventInput {
 
 export interface PlanStepInput {
   readonly title: string;
+  // Present only when the source guarantees stable item identity within a plan.
+  // Neither title, array position nor sourceReference implies this guarantee.
+  readonly sourceItemId?: string;
+  readonly sourcePhaseId?: string;
+  readonly certainty?: PlanCertainty;
   // Steps need not have stable external identities or existing Core Task IDs.
   readonly sourceReference?: SourceReference;
 }
 
+export interface PlanPhaseInput {
+  readonly sourcePhaseId: string;
+  readonly title: string;
+}
+
 export interface PlanInput {
+  // Additive Phase 3 contract. Legacy Phase 1 inputs remain ledger-only unless
+  // explicitly passed to the Plan Engine; missing source contract is unknown.
+  readonly planId?: string;
+  readonly provenance?: Exclude<Provenance, "visualizer_inferred">;
+  readonly previousEventId?: EventId;
+  readonly phases?: readonly PlanPhaseInput[];
+  readonly deletedSourceItemIds?: readonly string[];
   // Describes the scope of this source input, not resolved plan certainty.
   readonly completeness: "complete" | "partial";
   readonly steps: readonly PlanStepInput[];

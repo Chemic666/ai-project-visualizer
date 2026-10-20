@@ -83,6 +83,8 @@ Phase 2.2 Git checkpoint 已由用户推送：`f6d04ad261d2dd4a5d35cd30841697b51
 
 # Phase 3 — Plan Engine
 
+2026-10-20 受限实现：已获授权独立推进 Synthetic-only Core Plan Engine，不以 Phase 2 生产准入完成为前提；B1 BLOCKED、生产 Storage unavailable 和 D-038 Technical Verification Pending 均不变。实现边界与组件验证见 [Phase 3 实施说明](docs/phase-3-plan-engine.md)。这不关闭 Phase 2、不升级 O01/O02 或 S/P/M，也不代表真实 Codex Plan capture。
+
 目标：
 
 让系统真正理解：
