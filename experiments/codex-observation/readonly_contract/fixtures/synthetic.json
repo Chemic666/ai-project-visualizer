@@ -1,0 +1,95 @@
+{
+  "contract_version": "0.160.0",
+  "project_root": "D:\\Synthetic\\apv-fixture",
+  "exchanges": [
+    {
+      "request": {
+        "id": 1,
+        "method": "thread/list",
+        "params": {
+          "cwd": "D:\\Synthetic\\apv-fixture",
+          "limit": 10,
+          "useStateDbOnly": true
+        }
+      },
+      "response": {
+        "id": 1,
+        "result": {
+          "data": [
+            {
+              "id": "PRIVATE_THREAD_ID",
+              "cwd": "D:\\Synthetic\\apv-fixture",
+              "preview": "PRIVATE_PROMPT"
+            }
+          ],
+          "nextCursor": null
+        }
+      }
+    },
+    {
+      "request": {
+        "id": 2,
+        "method": "thread/read",
+        "params": { "threadId": "PRIVATE_THREAD_ID", "includeTurns": false }
+      },
+      "response": {
+        "id": 2,
+        "result": {
+          "thread": {
+            "id": "PRIVATE_THREAD_ID",
+            "cwd": "D:\\Synthetic\\apv-fixture",
+            "sessionId": "PRIVATE_SESSION_ID",
+            "status": { "type": "active" },
+            "preview": "PRIVATE_PROMPT",
+            "name": "PRIVATE_NAME",
+            "turns": [{ "text": "PRIVATE_TOOL_OUTPUT" }],
+            "token": "PRIVATE_TOKEN"
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "id": 3,
+        "method": "thread/list",
+        "params": {
+          "cwd": "D:\\Synthetic\\apv-fixture",
+          "limit": 10,
+          "useStateDbOnly": true
+        }
+      },
+      "response": {
+        "id": 3,
+        "result": {
+          "data": [
+            {
+              "id": "PRIVATE_FOREIGN_THREAD",
+              "cwd": "D:\\Synthetic\\other",
+              "preview": "PRIVATE_FOREIGN_PROMPT"
+            }
+          ],
+          "nextCursor": "PRIVATE_REJECTED_CURSOR"
+        }
+      }
+    },
+    {
+      "request": {
+        "id": 4,
+        "method": "thread/read",
+        "params": {
+          "threadId": "PRIVATE_FOREIGN_THREAD",
+          "includeTurns": false
+        }
+      },
+      "response": { "id": 4, "error": { "message": "PRIVATE_TOKEN" } }
+    },
+    {
+      "request": {
+        "id": 5,
+        "method": "PRIVATE_UNKNOWN_METHOD",
+        "params": { "instructions": "PRIVATE_INSTRUCTIONS" }
+      },
+      "response": { "id": 5, "result": {} }
+    }
+  ]
+}

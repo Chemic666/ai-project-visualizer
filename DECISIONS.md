@@ -537,6 +537,8 @@ Subtask
 
 > 2026-10-07 后续澄清：完成计数和权重边界见 D-035；无来源权重默认算法仍待 Phase 4 前决策。
 
+> 2026-10-20：S-15 已正式 Accepted，见 D-035 下的初始权重政策；缺失权重保持 unknown，不自动生成等权或复杂度估计。上条保留历史决策过程。
+
 **Status:** Accepted
 
 ## Decision
@@ -1380,6 +1382,16 @@ Confirmed 表示正式计划上的有依据完成记录，不保证独立验证�
 ## Consequences
 
 Task Weight 编辑保留为 v0.1 必须功能。Phase weight 为任务权重汇总，不作第二次加权。未知正式权重/空分母显示 unavailable；UI 一位小数，去掉 .0，计算不预先舍入。权重来源、人工调整和改变原因可追溯；无来源权重的初始化算法在 Phase 4 前单独批准/验证，不以必开 LLM 或永久全 1 偷偷代替。
+
+### S-15 — Initial Task Weight Policy
+
+**Status:** Accepted
+
+**Accepted:** 2026-10-20，用户正式批准 Phase 4 Synthetic-only 实施时选择。
+
+缺失来源权重保持 unknown，不自动填充默认等权。任一当前 Confirmed Task 缺少有效权重、权重无效或冲突未解决时，Confirmed Project Progress 返回 unavailable 与明确原因，不排除该任务来制造百分比。用户明确输入的等权可以保存为 User Confirmed 权重，但不冒充来源复杂度估计。
+
+Semantic Analysis 关闭时仍可接收明确来源权重和人工输入；Core 不调用 LLM、不按标题猜测复杂度。有效人工权重纠正按 D-037 优先于后续来源估计，原断言和纠正历史保留。政策 Accepted 不表示真实来源、UI、Storage 或完整生产验收 PASS。
 
 ## Revisit When
 

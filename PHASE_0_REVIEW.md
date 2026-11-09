@@ -439,6 +439,8 @@ This is a proposed edit list; all specification files remain unchanged in this t
 
 ### CAN DEFER disposition
 
+2026-10-20 S-15 后续决策：用户已正式批准 **Accepted — 缺失权重保持 unknown，不自动填充默认等权**，详见 [D-035 下的 S-15 初始政策](DECISIONS.md)。上表 Decision Pending 保留为当时的历史审核记录；不改变其他问题或生产验收状态。
+
 D-01–D-05 均 Deferred。未来 UI/provider frameworks/完整多源reconciliation/竞品来源研究/License 不作为 Phase1 package 实现内容。License 仍需公开分发前用户决策；竞品快照未重新做外部核验。
 
 ### Nine-document consistency recheck

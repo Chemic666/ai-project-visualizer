@@ -270,7 +270,7 @@ weight 必须是正的有限数；缺少正式计划、分母为零或任一正�
 
 当前 Phase 来自有效 Current Task 的所属 Phase，保留引用和关联的不确定性；无有效 Current Task 不凭已完成数量猜测当前 Phase。移除任务从当前分母退出但保留历史；重新打开任务移出分子；权重/计划变化都记录原因。空 Phase/Plan 不自动算 100%。
 
-初始权重支持来源明确给出的估计和用户调整，不要求 Core 调用 LLM。无源权重的确定性默认政策仍须 Phase 4 前批准并验证（S-15）；不将全 1 永久当作可靠复杂度模型。
+初始权重支持来源明确给出的估计和用户调整，不要求 Core 调用 LLM。2026-10-20 S-15 已 Accepted：缺失权重保持 unknown，不自动填充默认等权；任一当前 Confirmed Task 缺少有效权重则进度 unavailable。用户明确输入的等权保留 User Confirmed 来源，不冒充来源复杂度估计。政策批准不代表生产验收通过。
 
 ## Estimated Task Progress（Phase 13）
 

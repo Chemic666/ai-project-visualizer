@@ -1,5 +1,7 @@
 # Disposable Codex observation Spike
 
+> 2026-11-08 safety addendum: the commands and `read_probe.py` below are retained historical research, not current approved execution steps. The old probe records cwd match but can still hydrate a listed foreign thread, and its allowlist includes global loaded-list access. Do not use it as a project-isolation boundary. The new [offline scope contract](readonly_contract/README.md) tests metadata-only request/response checks using synthetic stdin, with no transport or live session reads. Historical evidence is unchanged; observation remains Inconclusive.
+
 Result: **Inconclusive**. See [execution report](../../docs/spikes/codex-observation-feasibility-results.md).
 
 This is research tooling and evidence, not a production Adapter or Phase 1 package. No dependency installation. Requires the already installed Node, Codex CLI and Python standard library. Existing user-session observation has **not** succeeded.
@@ -21,14 +23,14 @@ codex app-server daemon version
 
 Schema generation succeeded; daemon version failed with socket OS error 10013. A requested escalation was rejected before execution by the environment's policy. No proxy connection or daemon mutation was attempted.
 
-The local installation paths below are machine-specific and are executable entry points, not auth/config locations:
+The historical command below uses redacted local executable and chat-directory placeholders. It is retained as a record, not a current execution instruction:
 
 ```powershell
 python experiments/codex-observation/read_probe.py `
   --node 'C:/Program Files/nodejs/node.exe' `
-  --cli-js 'C:/Users/Chemic/AppData/Roaming/npm/node_modules/@openai/codex/bin/codex.js' `
+  --cli-js '<CODEX_CLI_JS>' `
   --project 'D:/Projects/ai-project-visualizer' `
-  --project 'C:/Users/Chemic/Documents/Codex/2026-10-07/phase-0-review-phase-0-specification' `
+  --project '<HISTORICAL_CHAT_CWD>' `
   --out experiments/codex-observation/evidence/standalone-read.json
 ```
 

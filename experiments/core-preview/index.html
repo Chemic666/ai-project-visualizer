@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>APV · 合成项目预览</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a
+          class="brand"
+          href="#overview"
+          aria-label="AI Project Visualizer 首页"
+          ><span class="brand-mark">A</span
+          ><span>Project Visualizer<small>把开发过程看清楚</small></span></a
+        >
+        <div class="project-label">合成项目</div>
+        <div class="project-name">Authentication</div>
+        <div class="project-caption">计划、进度与依据</div>
+        <nav class="tabs" role="tablist" aria-label="项目视图">
+          <button
+            id="tab-overview"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="overview"
+            data-tab="overview"
+          >
+            <span>◈</span> 总览
+          </button>
+          <button
+            id="tab-plan"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="plan"
+            tabindex="-1"
+            data-tab="plan"
+          >
+            <span>☷</span> 计划
+          </button>
+          <button
+            id="tab-timeline"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="timeline"
+            tabindex="-1"
+            data-tab="timeline"
+          >
+            <span>◷</span> 时间线
+          </button>
+        </nav>
+        <div class="sidebar-note">
+          <span class="quiet-dot"></span> 仅合成数据<br /><small
+            >真实观察未验证<br />生产存储未启用</small
+          >
+        </div>
+      </aside>
+      <main>
+        <header class="topbar">
+          <span class="breadcrumb">项目 / Authentication</span
+          ><span class="demo-badge">合成演示 · 无真实接入</span>
+        </header>
+        <div class="content">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">PROJECT OVERVIEW</div>
+              <h1 id="page-title">项目现在到哪了？</h1>
+              <p>看进度，也看每个结论从何而来。</p>
+            </div>
+            <span id="session-state" class="session-badge"></span>
+          </div>
+          <section class="replay-card" aria-label="合成检查点回放">
+            <div class="replay-heading">
+              <div>
+                <span class="section-kicker">查看一次开发过程</span>
+                <h2 id="checkpoint-label"></h2>
+              </div>
+              <div class="replay-controls">
+                <button
+                  type="button"
+                  id="previous-step"
+                  aria-label="上一个检查点"
+                >
+                  ←</button
+                ><span id="step-counter" aria-live="polite"></span
+                ><button type="button" id="next-step" aria-label="下一个检查点">
+                  →
+                </button>
+              </div>
+            </div>
+            <div class="trial-toolbar">
+              <button type="button" class="text-button" id="open-trial">
+                JWT 权重试算</button
+              ><button
+                type="button"
+                class="text-button"
+                id="reset-trial"
+                hidden
+              >
+                恢复默认案例</button
+              ><span id="trial-notice" class="small-note" role="status" hidden
+                >独立合成案例已重新计算，不累积操作历史。</span
+              >
+            </div>
+            <nav
+              id="checkpoint-nav"
+              class="checkpoint-nav"
+              aria-label="合成检查点"
+            ></nav>
+          </section>
+          <section id="overview" role="tabpanel" aria-labelledby="tab-overview">
+            <div class="overview-grid">
+              <article class="card progress-card">
+                <div class="card-heading">
+                  <h2>正式项目进度</h2>
+                  <span class="tiny-label">Confirmed</span>
+                </div>
+                <div
+                  id="progress-number"
+                  class="progress-number"
+                  aria-live="polite"
+                ></div>
+                <p id="progress-calculation" class="calculation"></p>
+                <progress
+                  id="progress-bar"
+                  max="1"
+                  aria-label="正式项目进度"
+                ></progress>
+                <div id="unknown-progress" class="unknown-progress" hidden>
+                  —
+                </div>
+                <div class="progress-footer">
+                  <span id="progress-change"></span
+                  ><button type="button" class="text-button" id="why-button">
+                    查看计算依据 ↗
+                  </button>
+                </div>
+              </article>
+              <article class="card context-card">
+                <div class="card-heading"><h2>当前工作上下文</h2></div>
+                <div class="context-label">当前任务</div>
+                <div id="current-task" class="current-task"></div>
+                <div id="current-task-source"></div>
+                <div class="context-divider"></div>
+                <div class="context-label">当前阶段</div>
+                <div class="phase-unknown">
+                  未知 <span>没有可用的阶段声明</span>
+                </div>
+                <p class="small-note">任务关联与完成进度分别呈现。</p>
+              </article>
+            </div>
+            <div class="lower-grid">
+              <article class="card">
+                <div class="card-heading">
+                  <h2>正式计划</h2>
+                  <button type="button" class="text-button" id="show-plan">
+                    查看全部 →
+                  </button>
+                </div>
+                <div id="overview-tasks"></div>
+              </article>
+              <article class="card">
+                <div class="card-heading">
+                  <h2>最近的意义事件</h2>
+                  <button type="button" class="text-button" id="show-timeline">
+                    查看历史 →
+                  </button>
+                </div>
+                <ol id="recent-events" class="event-list compact"></ol>
+              </article>
+            </div>
+          </section>
+          <section id="plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
+            <article class="card">
+              <div class="card-heading">
+                <h2>当前正式计划</h2>
+                <span id="task-count" class="tiny-label"></span>
+              </div>
+              <p class="section-description">
+                完整完成声明才增加分子；权重、状态和来源保留各自依据。
+              </p>
+              <div id="plan-tasks"></div>
+            </article>
+            <details class="card history-card">
+              <summary>
+                额外案例：移除任务与重新纳入
+                <span class="tag neutral">独立合成分支</span>
+              </summary>
+              <p class="section-description">
+                这是与当前检查点独立的合成案例，不代表此时已经发生的事情。
+              </p>
+              <div class="history-grid">
+                <div>
+                  <span class="context-label">旧 JWT · 已移出计划</span
+                  ><strong id="old-history"></strong>
+                  <p>原状态声明与纠正历史可追溯。</p>
+                </div>
+                <div>
+                  <span class="context-label">重新纳入的 JWT · 新内部身份</span
+                  ><strong id="new-history"></strong>
+                  <p>没有继承旧纠正；新权重仍未知。</p>
+                </div>
+              </div>
+            </details>
+          </section>
+          <section
+            id="timeline"
+            role="tabpanel"
+            aria-labelledby="tab-timeline"
+            hidden
+          >
+            <article class="card">
+              <div class="card-heading">
+                <h2>开发时间线</h2>
+                <span id="timeline-count" class="tiny-label"></span>
+              </div>
+              <p class="section-description">
+                只显示当前检查点之前的意义事件，不显示原始工具日志。合成时间按北京时间展示。
+              </p>
+              <ol id="all-events" class="event-list"></ol>
+            </article>
+          </section>
+          <footer class="page-footer">
+            本地合成浏览预览 · 不代表真实观察、人工五秒理解或产品验收通过
+          </footer>
+        </div>
+      </main>
+    </div>
+    <dialog id="why-dialog" aria-labelledby="why-title">
+      <div class="dialog-heading">
+        <div>
+          <span class="section-kicker">WHY THIS NUMBER</span>
+          <h2 id="why-title">进度的计算依据</h2>
+        </div>
+        <button type="button" id="close-why" aria-label="关闭依据">×</button>
+      </div>
+      <div id="why-summary"></div>
+      <div id="why-tasks"></div>
+      <p class="small-note">
+        COMPLETED 保留声明来源；只有 Core 已绑定独立验证依据时才显示
+        VERIFIED。当前任务关联不是完成比例。
+      </p>
+    </dialog>
+    <dialog id="trial-dialog" aria-labelledby="trial-title">
+      <div class="dialog-heading">
+        <div>
+          <span class="section-kicker">SYNTHETIC TRIAL</span>
+          <h2 id="trial-title">JWT 权重试算</h2>
+        </div>
+        <button type="button" id="close-trial" aria-label="关闭试算">×</button>
+      </div>
+      <p class="why-description">
+        从固定合成基线重新运行一次人工纠正。只改变本页案例，不累积操作历史，也不写入真实项目。
+      </p>
+      <form id="trial-form" novalidate>
+        <label for="trial-weight">JWT 合成权重</label
+        ><input
+          id="trial-weight"
+          type="number"
+          inputmode="decimal"
+          step="any"
+          value="17"
+        />
+        <p id="trial-error" class="trial-error" role="alert" hidden></p>
+        <button type="submit" class="primary-button">重新计算合成案例</button>
+      </form>
+    </dialog>
+    <noscript
+      >这个合成预览需要 JavaScript 执行现有 Core
+      场景计算；不会连接真实会话。</noscript
+    >
+  </body>
+</html>

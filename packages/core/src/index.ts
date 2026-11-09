@@ -87,3 +87,81 @@ export type {
   PlanScope,
   PlanSnapshotResult,
 } from "./domain/plan.js";
+export {
+  calculateProgress,
+  createProgressEngineState,
+  formatProgressPercentage,
+  updateProgress,
+} from "./progress-engine.js";
+export type {
+  IndependentVerificationSupport,
+  ProgressApplicationResult,
+  ProgressChangeReason,
+  ProgressChangedEvent,
+  ProgressEngineState,
+  ProgressEvidenceReference,
+  ProgressIssue,
+  ProgressIssueCode,
+  ProgressPhaseTotal,
+  ProgressResult,
+  ProgressTaskBasis,
+} from "./domain/progress.js";
+
+export {
+  applyUserCorrection,
+  expireUserCorrection,
+  getUserCorrectedCurrentTask,
+} from "./correction-engine.js";
+export type {
+  UserCorrectionInput,
+  CorrectionExpiryInput,
+  CorrectionEngineEvent,
+  CorrectionApplicationResult,
+  UserCorrectedCurrentTask,
+} from "./correction-engine.js";
+
+export {
+  createTimelineState,
+  appendTimelineEvents,
+  getTimelineEntries,
+} from "./timeline-engine.js";
+export type {
+  TimelineInput,
+  TimelineProgress,
+  TimelineKind,
+  TimelineEntry,
+  TimelineState,
+  TimelineQuery,
+  TimelineApplicationResult,
+} from "./timeline-engine.js";
+
+export { getTimelinePage } from "./timeline-pagination.js";
+export type {
+  TimelineCursor,
+  TimelinePageQuery,
+  TimelinePageResult,
+} from "./timeline-pagination.js";
+
+export {
+  createProjectEngineState,
+  applyProjectUpdate,
+} from "./project-engine.js";
+export type {
+  ProjectEngineState,
+  ProjectUpdate,
+  ProjectUpdateResult,
+} from "./project-engine.js";
+
+export { getTaskHistory } from "./task-history.js";
+export type {
+  TaskPlanHistoryEntry,
+  TaskCorrectionHistory,
+  TaskHistoryResult,
+} from "./task-history.js";
+
+export { getTimelineEntryDetails } from "./timeline-details.js";
+export type {
+  TimelineEvidenceRecord,
+  TimelineEvidenceResolution,
+  TimelineEntryDetailsResult,
+} from "./timeline-details.js";
