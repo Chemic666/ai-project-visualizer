@@ -8,13 +8,21 @@
     "pnpm": ">=12 <13"
   },
   "scripts": {
-    "typecheck": "pnpm --filter @apv/core typecheck && pnpm --filter @apv/storage typecheck",
-    "test": "pnpm --filter @apv/core test",
-    "lint": "eslint packages/core/src packages/core/tests packages/storage --max-warnings=0",
-    "format:check": "prettier --check package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .prettierrc.json packages/core packages/storage",
-    "format": "prettier --write package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .prettierrc.json packages/core packages/storage",
+    "typecheck": "pnpm --filter @apv/core typecheck && pnpm --filter @apv/storage typecheck && pnpm typecheck:preview",
+    "test": "pnpm --filter @apv/core test && pnpm test:preview && pnpm test:surface",
+    "demo:core": "node experiments/core-walkthrough/run.mjs",
+    "demo:preview": "node experiments/core-preview/run.mjs",
+    "typecheck:preview": "tsc --project experiments/core-preview/tsconfig.json --noEmit",
+    "lint": "eslint packages/core/src packages/core/tests packages/core/examples packages/storage experiments/core-walkthrough/run.mjs --max-warnings=0 experiments/core-preview packages/storage-host-validation packages/vscode-surface",
+    "format:check": "prettier --check package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .prettierrc.json packages/core packages/storage \"experiments/core-preview/*.{ts,mjs,html,css,json,md}\" packages/vscode-surface",
+    "format": "prettier --write package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .prettierrc.json packages/core packages/storage \"experiments/core-preview/*.{ts,mjs,html,css,json,md}\" packages/vscode-surface",
     "test:storage": "node packages/storage/tests/run.mjs",
-    "test:storage:boundaries": "node --test packages/storage/tests/codec.test.mjs packages/storage/tests/host.test.mjs"
+    "test:storage:boundaries": "node --test packages/storage/tests/codec.test.mjs packages/storage/tests/host.test.mjs",
+    "test:preview": "node --test experiments/core-preview/server.test.mjs experiments/core-preview/output.test.mjs",
+    "test:storage:validation": "node --test packages/storage/tests/runtime-admission.test.mjs packages/storage-host-validation/restart-contract.test.cjs packages/storage-host-validation/archive-inventory.test.mjs packages/storage-host-validation/restart-entry.test.cjs packages/storage-host-validation/process-exit-proof.test.cjs packages/storage/tests/local-root-diagnostics.test.mjs",
+    "test:surface": "node --test packages/vscode-surface/tests/*.test.cjs packages/vscode-surface/tests/*.test.mjs",
+    "build:surface": "node packages/vscode-surface/build.mjs",
+    "validate:surface": "node packages/vscode-surface/validate.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/parser": "8.71.1",

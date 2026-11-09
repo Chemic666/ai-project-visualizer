@@ -1,0 +1,42 @@
+{
+  "name": "apv-project-visualizer",
+  "displayName": "AI Project Visualizer",
+  "publisher": "apv-local",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local project observation surface. Real intake unavailable; explicit synthetic walkthrough included.",
+  "engines": {
+    "vscode": "1.144.0"
+  },
+  "main": "./dist/extension.cjs",
+  "extensionKind": [
+    "ui"
+  ],
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "apv.open",
+        "title": "打开项目概览",
+        "category": "AI Project Visualizer"
+      },
+      {
+        "command": "apv.openSyntheticDemo",
+        "title": "体验合成项目示例",
+        "category": "AI Project Visualizer"
+      }
+    ]
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "files": [
+    "dist/extension.cjs",
+    "media/**",
+    "README.md"
+  ],
+  "license": "UNLICENSED"
+}

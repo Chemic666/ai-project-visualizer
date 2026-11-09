@@ -190,6 +190,8 @@ importers:
 
   packages/core: {}
 
+  packages/vscode-surface: {}
+
 packages:
 
   '@cacheable/memory@2.2.0':

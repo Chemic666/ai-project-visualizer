@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Project Visualizer · 项目概览</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="bridge.js" defer></script>
+  </head>
+  <body>
+    <main id="unconnected-overview" class="surface-overview">
+      <header class="surface-header">
+        <div class="brand-mark">A</div>
+        <div>
+          <p class="surface-eyebrow">AI PROJECT VISUALIZER</p>
+          <h1 id="surface-title" tabindex="-1">项目概览</h1>
+        </div>
+        <span class="surface-status">未连接会话</span>
+      </header>
+      <section class="surface-intro" aria-labelledby="connection-title">
+        <p class="surface-eyebrow">看清开发进展</p>
+        <h2 id="connection-title">等待连接开发会话</h2>
+        <p>连接后，这里将展示项目的计划、进度、变化依据和人工纠正。</p>
+      </section>
+      <section class="surface-metrics" aria-label="当前项目状态">
+        <article>
+          <h3>项目进度</h3>
+          <p class="surface-value">未知</p>
+          <p>尚无可计算的正式计划</p>
+        </article>
+        <article>
+          <h3>当前阶段</h3>
+          <p class="surface-value">未确定</p>
+          <p>等待有据的阶段信息</p>
+        </article>
+        <article>
+          <h3>当前任务</h3>
+          <p class="surface-value">未确定</p>
+          <p>尚无可用的任务关联</p>
+        </article>
+        <article>
+          <h3>最近变化</h3>
+          <p class="surface-value">暂无记录</p>
+          <p>连接后显示计划和状态变化</p>
+        </article>
+      </section>
+      <section class="surface-demo" aria-labelledby="demo-title">
+        <div>
+          <p class="surface-eyebrow">先看看它如何工作</p>
+          <h2 id="demo-title">体验一个完整的项目案例</h2>
+          <p>从计划建立、任务完成声明，到用户调整权重和查看时间线。</p>
+          <p class="surface-small">
+            示例使用固定合成数据，与真实项目状态分开显示。
+          </p>
+        </div>
+        <button id="open-demo" type="button">体验合成项目示例 →</button>
+      </section>
+      <footer class="surface-footer">
+        当前版本尚未接入真实开发会话。示例操作仅影响本次预览。
+      </footer>
+    </main>
+  </body>
+</html>

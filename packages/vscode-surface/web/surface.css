@@ -1,0 +1,191 @@
+body[data-apv-mode="overview"] {
+  background: var(--vscode-editor-background, #f3f5f9);
+  color: var(--vscode-editor-foreground, #263349);
+  color-scheme: light dark;
+}
+.surface-overview {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 40px clamp(20px, 5vw, 64px);
+}
+.surface-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding-bottom: 30px;
+  border-bottom: 1px solid var(--vscode-panel-border, #e5e9f1);
+}
+.surface-header .brand-mark {
+  flex: 0 0 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: #6a62c7;
+  color: white;
+  border-radius: 12px;
+  font-size: 23px;
+  font-weight: 700;
+}
+.surface-header h1 {
+  font-size: 23px;
+  line-height: 1.3;
+  margin: 0;
+}
+.surface-eyebrow {
+  margin: 0 0 5px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--vscode-descriptionForeground, #758197);
+}
+.surface-status {
+  margin-left: auto;
+  border: 1px solid var(--vscode-panel-border, #dfe4ee);
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.surface-intro {
+  padding: 44px 0 22px;
+}
+.surface-intro h2 {
+  font-size: 30px;
+  margin: 3px 0 12px;
+  letter-spacing: -0.03em;
+}
+.surface-intro > p:last-child {
+  color: var(--vscode-descriptionForeground, #758197);
+  margin: 0;
+}
+.surface-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 8px 0 28px;
+}
+.surface-metrics article {
+  padding: 22px;
+  border: 1px solid var(--vscode-panel-border, #e5e9f1);
+  border-radius: 14px;
+  background: var(--vscode-sideBar-background, #fff);
+}
+.surface-metrics h3 {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0;
+  color: var(--vscode-descriptionForeground, #758197);
+}
+.surface-metrics .surface-value {
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 9px 0;
+}
+.surface-metrics article > p:last-child {
+  margin: 0;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #758197);
+}
+.surface-demo {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  justify-content: space-between;
+  border: 1px solid var(--vscode-panel-border, #e5e9f1);
+  border-radius: 14px;
+  padding: 26px;
+  background: var(--vscode-sideBar-background, #fff);
+}
+.surface-demo h2 {
+  font-size: 19px;
+  margin: 4px 0 9px;
+}
+.surface-demo p {
+  margin: 5px 0;
+}
+.surface-small {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #758197);
+}
+.surface-demo button {
+  padding: 12px 18px;
+  border-radius: 9px;
+  background: #6a62c7;
+  color: #fff;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.surface-demo button:hover {
+  background: #5952b0;
+}
+.surface-footer {
+  padding-top: 24px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #758197);
+}
+.surface-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 24px;
+  border-bottom: 1px solid #e5e9f1;
+  background: #fff;
+  color: #58657c;
+  font-size: 12px;
+}
+.surface-switcher button {
+  padding: 4px 7px;
+  color: #625bb5;
+  font-weight: 600;
+}
+@media (max-width: 600px) {
+  .surface-overview {
+    padding: 24px 18px;
+  }
+  .surface-header {
+    gap: 10px;
+  }
+  .surface-header h1 {
+    font-size: 19px;
+  }
+  .surface-eyebrow {
+    font-size: 9px;
+  }
+  .surface-intro {
+    padding-top: 30px;
+  }
+  .surface-intro h2 {
+    font-size: 25px;
+  }
+  .surface-metrics {
+    gap: 10px;
+  }
+  .surface-metrics article {
+    padding: 16px;
+  }
+  .surface-metrics .surface-value {
+    font-size: 21px;
+  }
+  .surface-demo {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+  }
+  .surface-status {
+    padding: 4px 7px;
+    font-size: 10px;
+  }
+}
+
+/* VS Code supplies body defaults; preserve the approved light demo palette. */
+body[data-apv-mode] {
+  margin: 0;
+  padding: 0;
+}
+body[data-apv-mode="synthetic"] {
+  color: var(--ink);
+  background: #f3f5f9;
+  color-scheme: light;
+}

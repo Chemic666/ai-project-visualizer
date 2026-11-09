@@ -1,6 +1,7 @@
 packages:
   - packages/core
   - packages/storage
+  - packages/vscode-surface
 
 allowBuilds:
   esbuild@0.28.2: true

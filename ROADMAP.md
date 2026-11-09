@@ -65,7 +65,9 @@ D-041/D-043 **Accepted**, D-042 **Accepted — conditional architecture**, D-044
 
 Compatibility, Ownership, Atomicity, Recovery and VFS G1/G2-W/G2-S are **CLOSED — PASS WITH LIMITATION**, each only in its documented experimental scope. The original G2-W ARM failure remains FAIL. Controlled pre-delegation VFS rejection is not physical disk failure or true partially durable unknown COMMIT proof. See [Recovery closure](docs/spikes/sqlite-recovery-closure-review.md), [G1 audit](docs/spikes/sqlite-u3-vfs-g1-evidence-audit.md), [G2-W audit](docs/spikes/sqlite-u3-vfs-g2-w-patched-evidence-audit.md), [G2-S audit](docs/spikes/sqlite-u3-vfs-g2-s-evidence-audit.md). No further SQLite Spike is planned.
 
-Current work: [first real Storage adapter](packages/storage/README.md), default disabled, fresh synthetic TEMP data only. Production entry returns unavailable while actual physical binding B1 is unproved. B1–B7, genuine release/COMMIT uncertainty, real Host and full S/P/M/O01/O02 remain production gates. No real user project intake or Phase 2 completion is declared.
+Current work: [first real Storage adapter](packages/storage/README.md), default disabled, synthetic-only. Production entry returns unavailable while full physical binding B1 remains unproved. On 2026-11-09, separately installed VS Code 1.144.0 completed two whole-Extension-Host normal starts/exits and exact state/Cursor/receipt recovery with an independent nine-table Reader in explicit TEMP mode: **PASS WITH LIMITATION**. Final RunId 474143d4-3ac5-4073-abae-288b4bbbc7e1, audit 309/309 inventory, 16/16 execution inputs, 52/52 runtime. The separate current LocalAppData run failed final-path admission before SQLite; no fallback or guard relaxation. A single follow-up (a8dd7abe-c10e-49e2-b222-1a222d55bfdf) retained the same refusal with same-helper fixed labels; 244/244 inventory and 53/53 deployment/archive runtime were audited. It refines failure evidence, not namespace approval. See [bounded results](docs/storage/phase-2-first-slice.md#whole-extension-host-normal-restart-follow-up--2026-11-09). This adds normal Host restart subcoverage, not full ProjectEngineState persistence, B1–B7, genuine release/COMMIT uncertainty or full S/P/M/O01/O02 acceptance. D-044's 8MiB logical Catalog limit is now enforced; scoped tests passed ordinary3 + Native2. S11 optional cache content faults now fall back to complete recorded authority, with ordinary11 + Native11 controls and unchanged authority failures. New healthy installed TEMP restart passed with limitation (1de9e45b-2c5d-468b-8172-52e22a41f4fa, audit307/307, runtime54); it is separate from Node corruption tests. No real user project intake or Phase 2 completion is declared.
+
+S09 synthetic canonical-reference checkpoint-only now has ordinary17 + Native17 and two-Worker head3/original-receipt subcoverage, including controlled return-boundary settlement and recorded Writer-epoch refusal with legal fencing gaps. Exact prior and known-position refusals do not prove ordering or completeness for a real source; recorded epochs do not reconstruct missing control history. Final current installed healthy TEMP head2 restart passed separately (54535c85-a0f0-4768-ba56-1f4dc2f34e59, inventory313/runtime54); production gates remain open. [Bounded evidence](docs/storage/phase-2-first-slice.md#s09-synthetic-checkpoint-only-follow-up--2026-11-09).
 
 First-slice local checkpoint: `d98aa1f4a9e4c83b26fd6c898c750fdcfa2d0810` (35 reviewed files, no push). The separately authorized [synthetic Host follow-up](docs/storage/phase-2-first-slice.md#host-composition-follow-up--2026-10-19) adds joint Owner/Project process lifetime, concurrent catalog admission and normal handoff tests; actual Driver handle binding remains unavailable. No real-project enablement or Codex Session integration is approved.
 
@@ -116,6 +118,8 @@ plan.changed（Core-derived）
 
 # Phase 4 — Progress Engine
 
+2026-10-20：S-15 初始政策已 Accepted（缺失权重保持 unknown，不自动等权）；已授权独立 Synthetic-only Core 实现，生产 Storage unavailable、B1 BLOCKED、D-038 Technical Verification Pending 均不变。组件范围见 [Phase 4 实施说明](docs/phase-4-progress-engine.md)。
+
 目标：
 
 回答：
@@ -142,13 +146,15 @@ Plan expanded
 
 验收：
 
-组件验收仅验证 fixture 的公式、完成依据、非混合、回退原因及 explanation；UI/真实事件全链路后续标 Pending。初始无来源权重政策须本阶段前批准/验证，Core 不要求 LLM；每个进度都能回答：
+组件验收仅验证 fixture 的公式、完成依据、非混合、回退原因及 explanation；UI/真实事件全链路后续标 Pending。初始无来源权重政策已按 S-15 批准为 unknown，行为由本阶段 fixture 验证；Core 不要求 LLM。每个进度都能回答：
 
 ```
 Why?
 ```
 
 # Phase 5 — User Correction System
+
+2026-11-08：按当前自主推进授权完成 Synthetic-only Core 第一片：Current Task / Task Weight 人工纠正、明确范围的替代、Session end / 当前完整计划移除、权重明确部分删除的有据失效、幂等和引用保留；与既有 Progress Engine 组合。见 [Phase 5 实施说明](docs/phase-5-correction-engine.md)。Core 回归 192/192（含相邻 Timeline 组件）；历史 Activity 关联、新显式源选择失效、UI/Storage/真实接入仍未实现或未验证，不声明整个 Phase 5 或产品验收完成。B1、生产 Storage、D-038 门槛不变。
 
 目标：
 
@@ -178,6 +184,8 @@ User Confirmed
 ```
 
 # Phase 6 — Development Timeline
+
+2026-11-08：按自主推进授权，在既有 Plan/Progress/Correction 输出上实现 Synthetic-only 意义时间线：Session/Task status 来源声明、计划/进度变化及纠正生命周期，显式时间、范围过滤、依据引用、幂等与整批拒绝冲突。见 [Phase 6 实施说明](docs/phase-6-timeline.md)。已补齐固定历史范围的分页浏览、可序列化续读位置，以及既有 Plan/Correction/Progress/Timeline 的纯内存原子组合，补齐可运行的合成 Core 演示（pnpm demo:core）及含移除/再入、原断言与纠正的单任务历史查询，补齐进度纠正历史完整性保护；增加独立合成浏览预览和 JWT 权重试算（开发审阅工具，不升级 Phase 10），补齐时间线直接依据只读展开和开发演示的 --timeline / --inspect N，2026-11-09 当前 Core 277/277、预览边界 7/7。试算对话框已补齐实际浏览验收；完整Timeline已加入只读依据展开，按检查点保留纠正状态、原声明来源和可读任务归属，键盘与390宽度已实际检查；不生成缺少来源的 Phase 完成或失败事实，不代表 UI、Storage、Codex 或完整产品验收通过。Phase 5 缺少输入的历史 Activity/较新显式源选择仍保留待办，不以本片关闭该阶段。
 
 目标：
 
@@ -274,6 +282,8 @@ Confidence
 - User correction integration（D-037）；Confidence 为 association score，不是完成比例
 
 # Phase 10 — VS Code Extension Shell
+
+2026-11-09 独立界面首片：复用已经验证的宿主/打包路径，实现可安装的未连接概览及明确进入的合成 Core 示例；实际安装启动、页面切换和 Windows UI 检查已完成受限验证。真实 Adapter 门槛仍未通过，故此进展不关闭 Phase7/10/11，也不启用真实项目。见 [界面实施记录](docs/phase-10-surface.md)。
 
 经 host/runtime/package smoke 验证后实现 Overview、Plan、Timeline、Task Detail/Correction、Why Progress 和必要 Settings。Host 负责组合和生命周期，Surface 不计算业务状态。
 
