@@ -1,3 +1,4 @@
+import { projectLocalRootDiagnostic as safeDiagnostic } from "./local-root-diagnostics.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -91,50 +92,11 @@ export function inspectLocalValidationRoot(root, runId) {
   return invoke("Inspect", runId, root);
 }
 
-const stages = new Set([
-  "request",
-  "known_folder",
-  "native_probe",
-  "volume",
-  "ancestors",
-  "anchor_acl",
-  "application",
-  "validation_parent",
-  "validation_root",
-  "private_root",
-  "observed_root",
-  "tree",
-  "helper",
-]);
-const categories = new Set([
-  "invalid_request",
-  "helper_failed",
-  "operation_failed",
-  "access_denied",
-  "final_path_mismatch",
-  "reparse_point",
-  "hard_link",
-  "metadata_unavailable",
-  "unsupported_volume",
-  "path_not_canonical",
-  "volume_or_type_mismatch",
-  "acl_owner_or_protection",
-  "acl_descriptor_invalid",
-  "acl_untrusted_ace",
-  "acl_missing_user_control",
-  "already_exists",
-]);
 const diagnosticFailure = (stage, category) => ({
   ok: false,
   reason: "unavailable",
   diagnostic: { stage, category },
 });
-function safeDiagnostic(value) {
-  const d = value?.diagnostic;
-  return d && stages.has(d.stage) && categories.has(d.category)
-    ? diagnosticFailure(d.stage, d.category)
-    : diagnosticFailure("helper", "helper_failed");
-}
 // Explicit diagnostic surface for synthetic admission only. Never emits raw errors.
 export function diagnoseLocalValidationRoot(options = {}) {
   if (

@@ -10,8 +10,8 @@ import { demand, StorageError } from "./errors.mjs";
 // Independent reviewed artifact allowlist; a self-authored TEMP manifest is not
 // permission to load another DLL. Updating this requires another build review.
 const approvedBuild = Object.freeze({
-  buildId: "fc7be262-e067-4658-9329-dce0dd36d858",
-  dllSha256: "1e1dc8ebe575078928d7a7b84a1c9321dfc867f735135483b7146531e8be46db",
+  buildId: "bbb9ff2b-580e-49a5-b4bf-c9f3f6a2d3ac",
+  dllSha256: "c966a773446bb58b370c4a96269c0d5523b3db7dfa1183b541a73ae25fb4f681",
 });
 const hash = (p) =>
   createHash("sha256").update(fs.readFileSync(p)).digest("hex");

@@ -16,9 +16,14 @@ exports.activate = function (context) {
         throw Error("invalid_evidence");
       const spec = JSON.parse(fs.readFileSync(specPath, "utf8")),
         vscode = require("vscode");
+      const restarting = spec.validationMode === "whole-host-restart";
+      if (spec.validationMode !== undefined && !restarting)
+        throw Error("validation_mode_rejected");
+      if (restarting && !["write", "recover"].includes(spec.phase))
+        throw Error("restart_phase_rejected");
       const save = (name, data) =>
         fs.writeFileSync(
-          path.join(evidence, name),
+          path.join(evidence, restarting ? `${spec.phase}-${name}` : name),
           JSON.stringify(data, null, 2),
           { flag: "wx" },
         );
@@ -37,13 +42,14 @@ exports.activate = function (context) {
       };
       save("host-environment.json", environment);
       if (
-        vscode.version !== "1.140.0" ||
-        process.version !== "v24.21.0" ||
-        process.versions.electron !== "43.7.3" ||
-        process.versions.modules !== "148" ||
-        process.platform !== "win32" ||
-        process.arch !== "x64" ||
-        vscode.env.remoteName
+        !restarting &&
+        (vscode.version !== "1.140.0" ||
+          process.version !== "v24.21.0" ||
+          process.versions.electron !== "43.7.3" ||
+          process.versions.modules !== "148" ||
+          process.platform !== "win32" ||
+          process.arch !== "x64" ||
+          vscode.env.remoteName)
       )
         throw Error("unsupported_host");
       const load = async (p) =>
@@ -60,6 +66,17 @@ exports.activate = function (context) {
           "storage/src/installed-resources.mjs",
         ),
         resources = inspectInstalledResources();
+      if (restarting)
+        return require(path.join(resources.base, "restart-validation.cjs")).run(
+          {
+            spec,
+            evidence,
+            resources,
+            save,
+            load,
+            environment,
+          },
+        );
       const { admitSyntheticRoot } = await load(
           "storage/src/host-admission.mjs",
         ),

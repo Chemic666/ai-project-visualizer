@@ -369,3 +369,101 @@ test(
     );
   },
 );
+
+test("S09: checkpoint-only RPC preserves canonical input through two actual Worker lifetimes", async () => {
+  const { cap } = fresh(),
+    one = start(cap),
+    first = await one.ready;
+  const accepted = await one.commit(request(first));
+  const candidate = {
+    operationId: "op:checkpoint-only",
+    operationNonce: "nonce:checkpoint-only",
+    expectedHead: 2,
+    writer: first.writer,
+    events: [],
+    cursor: cursor(["E1"], "batch:2", "batch:1"),
+  };
+  const checkpoint = await one.commit(candidate);
+  assert.equal(checkpoint.head, 3);
+  assert.deepEqual(checkpoint.state, accepted.state);
+  assert.equal(checkpoint.ack, false);
+  const exited = await one.close();
+  assert.equal(exited.status, "closed");
+  assert.equal(exited.processExited, true);
+  assert.equal(exited.exitCode, 0);
+  const two = start(cap),
+    second = await two.ready;
+  // The first process has exited; Windows may reuse its numeric PID.
+  assert.equal(second.writer.epoch, 2);
+  const recovered = await two.read();
+  assert.equal(recovered.head, 3);
+  assert.deepEqual(recovered.state, accepted.state);
+  assert.deepEqual(recovered.cursor, checkpoint.cursor);
+  const retry = await two.commit({ ...candidate, writer: second.writer });
+  assert.equal(retry.status, "already_committed");
+  assert.deepEqual(retry.receipt, checkpoint.receipt);
+  const ended = await two.close();
+  assert.equal(ended.status, "closed");
+  assert.equal(ended.processExited, true);
+  assert.equal(ended.exitCode, 0);
+  const db = new Database(second.paths.project, {
+    readonly: true,
+    fileMustExist: true,
+  });
+  let cut;
+  try {
+    db.exec("BEGIN");
+    cut = Object.fromEntries(
+      [
+        "store_meta",
+        "commits",
+        "normalized_events",
+        "entity_versions",
+        "assertions",
+        "correction_versions",
+        "conclusion_versions",
+        "snapshots",
+        "source_checkpoint_versions",
+      ].map((name) => [name, db.prepare(`SELECT * FROM ${name}`).all()]),
+    );
+    assert.equal(cut.store_meta[0].head, 3);
+    assert.deepEqual(
+      cut.commits.map((r) => r.seq),
+      [1, 2, 3],
+    );
+    assert.equal(cut.normalized_events.length, 1);
+    assert.equal(cut.normalized_events[0].event_id, "E1");
+    assert.equal(cut.normalized_events[0].seq, 2);
+    assert.deepEqual(JSON.parse(cut.commits[2].intent_json).eventClaims, []);
+    assert.deepEqual(
+      JSON.parse(cut.commits[2].result_json).canonicalEventIds,
+      [],
+    );
+    assert.deepEqual(
+      cut.source_checkpoint_versions.map((r) => r.seq),
+      [2, 3],
+    );
+    db.exec("COMMIT");
+  } finally {
+    db.close();
+  }
+  fs.writeFileSync(
+    path.join(spec.evidence, "checkpoint-host.json"),
+    JSON.stringify(
+      {
+        firstPid: first.pid,
+        firstSettlement: exited,
+        secondPid: second.pid,
+        secondSettlement: ended,
+        accepted,
+        checkpoint,
+        recovered,
+        retry,
+        cut,
+      },
+      null,
+      2,
+    ),
+    { flag: "wx" },
+  );
+});

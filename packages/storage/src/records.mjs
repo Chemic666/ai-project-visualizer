@@ -44,7 +44,8 @@ export function checkedBody(row) {
   return body;
 }
 export function vectorAt(db, head) {
-  const map = new Map();
+  const map = new Map(),
+    positions = new Map();
   for (const row of db
     .prepare(
       "SELECT * FROM source_checkpoint_versions WHERE seq<=? ORDER BY source_id,stream_id,seq",
@@ -62,6 +63,10 @@ export function vectorAt(db, head) {
       cursor.expectedPrevious === (prior?.position ?? null),
       "unavailable",
     );
+    const used = positions.get(key) ?? new Set();
+    demand(!used.has(cursor.position), "unavailable");
+    used.add(cursor.position);
+    positions.set(key, used);
     map.set(key, cursor);
   }
   return [...map.values()];
@@ -158,10 +163,16 @@ export function restore(db, scope) {
       "unavailable",
     );
     demand(
-      db.pragma("integrity_check").every((r) => r.integrity_check === "ok") &&
-        db.pragma("foreign_key_check").length === 0,
+      db.pragma("integrity_check").every((r) => r.integrity_check === "ok"),
       "unavailable",
     );
+    // A cache watermark is not authority. Every authoritative table retains
+    // strict FK checking; cache rows are inspected separately after full restore.
+    for (const table of tables.filter((name) => name !== "snapshots"))
+      demand(
+        db.pragma(`foreign_key_check(${table})`).length === 0,
+        "unavailable",
+      );
     const metaRows = db.prepare("SELECT * FROM store_meta").all();
     demand(metaRows.length === 1, "unavailable");
     const meta = metaRows[0];
@@ -184,6 +195,7 @@ export function restore(db, scope) {
           row.generation === scope.generation &&
           Number.isSafeInteger(row.epoch) &&
           row.epoch >= 0 &&
+          (i === 0 || (row.epoch >= 1 && row.epoch >= commits[i - 1].epoch)) &&
           row.epoch <= meta.writer_epoch,
         "unavailable",
       );
@@ -272,13 +284,48 @@ export function restore(db, scope) {
       } else {
         demand(
           Array.isArray(intent.eventClaims) &&
-            intent.eventClaims.length > 0 &&
             intent.eventClaims.length === result.canonicalEventIds.length &&
             typeof intent.createSnapshot === "boolean",
           "unavailable",
         );
+        const checkpointOnly = intent.eventClaims.length === 0;
+        if (checkpointOnly)
+          demand(
+            intent.cursor !== null &&
+              encode(state) === encode(current.state) &&
+              db
+                .prepare(
+                  "SELECT count(*) AS n FROM normalized_events WHERE seq=?",
+                )
+                .get(row.seq).n === 0,
+            "unavailable",
+          );
         if (intent.cursor !== null) {
           validateCursor(intent.cursor);
+          const c = intent.cursor;
+          if (checkpointOnly) {
+            demand(c.coveredEventIds.length > 0, "unavailable");
+            for (const id of c.coveredEventIds)
+              demand(
+                current.state.acceptedEvents.some(
+                  (event) => event.id === id && event.sourceId === c.sourceId,
+                ),
+                "unavailable",
+              );
+          } else {
+            demand(
+              encode([...new Set(result.canonicalEventIds)].sort()) ===
+                encode([...c.coveredEventIds].sort()),
+              "unavailable",
+            );
+            for (const id of result.canonicalEventIds)
+              demand(
+                state.acceptedEvents.some(
+                  (event) => event.id === id && event.sourceId === c.sourceId,
+                ),
+                "unavailable",
+              );
+          }
           const persisted = db
             .prepare("SELECT * FROM source_checkpoint_versions WHERE seq=?")
             .all(row.seq);
@@ -315,30 +362,67 @@ export function restore(db, scope) {
       current = { state, cursor, head: row.seq, stateDigest };
     }
     demand(current.stateDigest === meta.state_digest, "unavailable");
-    for (const snapshot of db
-      .prepare("SELECT * FROM snapshots ORDER BY watermark")
-      .all()) {
-      demand(
-        snapshot.watermark >= 1 && snapshot.watermark <= meta.head,
-        "unavailable",
-      );
-      const body = checkedBody(snapshot),
-        expected = cacheBody(
-          stateAt(db, snapshot.watermark),
-          vectorAt(db, snapshot.watermark),
-          snapshot.watermark,
-          scope,
-        );
-      demand(encode(body) === encode(expected), "unavailable");
-    }
-    demand(
-      db.prepare("SELECT count(*) AS n FROM snapshots").get().n <= 2,
-      "unavailable",
-    );
     return current;
   } catch {
     throw new StorageError("unavailable");
   }
+}
+// Optional caches never supply authority. Inspect only bounded bodies, after
+// the caller has verified every authoritative cut. SQL/I/O failures propagate.
+export function inspectSnapshotCache(db, scope, head) {
+  const entries = db.prepare("SELECT count(*) AS n FROM snapshots").get().n;
+  if (entries === 0) return { status: "missing", entries, reasons: [] };
+  if (entries > 2)
+    return { status: "bypassed", entries, reasons: ["entry_limit"] };
+  const headers = db
+    .prepare(
+      "SELECT watermark,length(CAST(body AS BLOB)) AS body_bytes,length(CAST(body_digest AS BLOB)) AS digest_bytes FROM snapshots ORDER BY watermark LIMIT 2",
+    )
+    .all();
+  demand(headers.length === entries, "unavailable");
+  const reasons = new Set();
+  for (const header of headers) {
+    if (
+      !Number.isSafeInteger(header.watermark) ||
+      header.watermark < 1 ||
+      header.watermark > head
+    ) {
+      reasons.add("watermark_invalid");
+      continue;
+    }
+    if (header.body_bytes > 8 * 1024 * 1024) {
+      reasons.add("size_limit");
+      continue;
+    }
+    if (header.digest_bytes !== 64) {
+      reasons.add("body_invalid");
+      continue;
+    }
+    // Authority reads stay outside the cache-error catch. They must never be
+    // disguised as optional-cache faults.
+    const expected = cacheBody(
+      stateAt(db, header.watermark),
+      vectorAt(db, header.watermark),
+      header.watermark,
+      scope,
+    );
+    const snapshot = db
+      .prepare("SELECT * FROM snapshots WHERE watermark=?")
+      .get(header.watermark);
+    try {
+      const body = checkedBody(snapshot);
+      if (encode(body) !== encode(expected)) reasons.add("body_mismatch");
+    } catch (error) {
+      if (error instanceof SyntaxError || error instanceof StorageError)
+        reasons.add("body_invalid");
+      else throw error;
+    }
+  }
+  return {
+    status: reasons.size ? "bypassed" : "consistent",
+    entries,
+    reasons: [...reasons],
+  };
 }
 export function logicalBytes(db) {
   return tables

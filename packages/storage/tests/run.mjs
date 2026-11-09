@@ -14,7 +14,12 @@ if (args.length === 0) {
   );
 } else {
   if (
-    (args[0] === "--execute-b1-synthetic"
+    ([
+      "--execute-b1-synthetic",
+      "--execute-catalog-native-synthetic",
+      "--execute-cache-native-synthetic",
+      "--execute-checkpoint-native-synthetic",
+    ].includes(args[0])
       ? args.length !== 5 ||
         args[3] !== "--native-manifest" ||
         !path.isAbsolute(args[4])
@@ -23,15 +28,25 @@ if (args.length === 0) {
       "--execute-synthetic",
       "--execute-host-synthetic",
       "--execute-b1-synthetic",
+      "--execute-catalog-synthetic",
+      "--execute-catalog-native-synthetic",
+      "--execute-cache-synthetic",
+      "--execute-checkpoint-synthetic",
+      "--execute-cache-native-synthetic",
+      "--execute-checkpoint-native-synthetic",
     ].includes(args[0]) ||
     args[1] !== "--driver-root" ||
     !path.isAbsolute(args[2])
   )
     throw new Error("INVALID_TEST_ARGUMENTS");
-  const nativePackage =
-    args[0] === "--execute-b1-synthetic"
-      ? readNativePackage(args[4])
-      : undefined;
+  const nativePackage = [
+    "--execute-b1-synthetic",
+    "--execute-catalog-native-synthetic",
+    "--execute-cache-native-synthetic",
+    "--execute-checkpoint-native-synthetic",
+  ].includes(args[0])
+    ? readNativePackage(args[4])
+    : undefined;
   const driverRoot = fs.realpathSync.native(args[2]);
   const driver = JSON.parse(
     fs.readFileSync(path.join(driverRoot, "package.json"), "utf8"),
@@ -77,11 +92,26 @@ if (args.length === 0) {
     "--test",
     path.join(
       repo,
-      args[0] === "--execute-b1-synthetic"
-        ? "packages/storage/tests/native-identity.test.mjs"
-        : args[0] === "--execute-host-synthetic"
-          ? "packages/storage/tests/host-integration.test.mjs"
-          : "packages/storage/tests/integration.test.mjs",
+      [
+        "--execute-checkpoint-synthetic",
+        "--execute-checkpoint-native-synthetic",
+      ].includes(args[0])
+        ? "packages/storage/tests/checkpoint-only.test.mjs"
+        : [
+              "--execute-cache-synthetic",
+              "--execute-cache-native-synthetic",
+            ].includes(args[0])
+          ? "packages/storage/tests/snapshot-cache.test.mjs"
+          : [
+                "--execute-catalog-synthetic",
+                "--execute-catalog-native-synthetic",
+              ].includes(args[0])
+            ? "packages/storage/tests/catalog-quota.test.mjs"
+            : args[0] === "--execute-b1-synthetic"
+              ? "packages/storage/tests/native-identity.test.mjs"
+              : args[0] === "--execute-host-synthetic"
+                ? "packages/storage/tests/host-integration.test.mjs"
+                : "packages/storage/tests/integration.test.mjs",
     ),
   ];
   const sources = ["src", "tests", "native"].flatMap((dir) =>

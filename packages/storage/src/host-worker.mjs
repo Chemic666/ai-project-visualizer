@@ -1,6 +1,8 @@
+import { supportsSyntheticRuntime } from "./runtime-admission.mjs";
+import { inspectInstalledResources } from "./installed-resources.mjs";
 import fs from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import {
@@ -161,6 +163,40 @@ async function init(value) {
   try {
     demand(!spec, "unavailable");
     spec = value;
+    const installed =
+      spec.corePath ===
+      fileURLToPath(new URL("../../core.mjs", import.meta.url));
+    demand(
+      supportsSyntheticRuntime(
+        {
+          node: process.version,
+          electron: process.versions.electron,
+          modules: process.versions.modules,
+          platform: process.platform,
+          arch: process.arch,
+        },
+        {
+          installed,
+          local: !!spec.localAdmission,
+          nativeBound: !!spec.nativePackage,
+          profile: spec.validationRuntime,
+        },
+      ),
+      "unavailable",
+    );
+    if (spec.validationRuntime !== undefined) {
+      const deployed = inspectInstalledResources();
+      demand(
+        spec.driverRoot === deployed.driverRoot &&
+          spec.corePath === deployed.corePath &&
+          spec.processorFingerprint === deployed.processorFingerprint &&
+          spec.nativePackage?.manifestPath ===
+            deployed.nativePackage.manifestPath &&
+          spec.nativePackage.buildId === deployed.nativePackage.buildId &&
+          spec.nativePackage.dllSha256 === deployed.nativePackage.dllSha256,
+        "unavailable",
+      );
+    }
     const require = createRequire(path.join(spec.driverRoot, "package.json"));
     loadRequire = require;
     const hash = (file) =>

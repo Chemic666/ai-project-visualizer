@@ -1,3 +1,4 @@
+import { checkCatalogBudget } from "./catalog-budget.mjs";
 import fs from "node:fs";
 import { createAttestor, stableIdentity } from "./native-attestor.mjs";
 import { inspectConnection } from "./connection-binding.mjs";
@@ -24,6 +25,7 @@ import {
   APPLICATION_ID,
   schema,
   restore,
+  inspectSnapshotCache,
   cacheBody,
   logicalBytes,
   writeState,
@@ -34,6 +36,7 @@ const quarantined = new Set();
 const CATALOG_ID = 0x41504331;
 const OWNER_ID = 0x41504f31;
 const defaults = Object.freeze({
+  catalogBytes: 8 * 1024 * 1024,
   logicalBytes: 128 * 1024 * 1024,
   snapshotBytes: 8 * 1024 * 1024,
   physicalBytes: 512 * 1024 * 1024,
@@ -148,7 +151,8 @@ export function openSyntheticStore(capability, options = {}) {
   let paths,
     identities,
     context,
-    retired = false;
+    retired = false,
+    cacheBypassed = false;
   function checkBinding() {
     inspectCapability(capability);
     if (native && nativeExpected)
@@ -269,6 +273,7 @@ export function openSyntheticStore(capability, options = {}) {
       );
     const catalogAdmissionIdentity = checkFile(catalogAdmissionPath);
     catalog.exec("BEGIN IMMEDIATE");
+    checkCatalogBudget(catalog, !!native, limits.catalogBytes);
     let binding = catalog
       .prepare("SELECT * FROM bindings WHERE root_locator=? OR project_id=?")
       .get(admitted.observedRoot, scope.projectId);
@@ -299,6 +304,7 @@ export function openSyntheticStore(capability, options = {}) {
       "binding_conflict",
     );
     demand(newBinding || binding.lifecycle === "active", "unavailable");
+    checkCatalogBudget(catalog, !!native, limits.catalogBytes);
     catalog.exec("COMMIT");
     if (native && !newBinding) {
       const n = catalog
@@ -370,6 +376,7 @@ export function openSyntheticStore(capability, options = {}) {
           encode(nativeExpected.owner),
           encode(nativeExpected.project),
         );
+      checkCatalogBudget(catalog, true, limits.catalogBytes);
       catalog.exec("COMMIT");
     }
     checkBinding();
@@ -491,9 +498,13 @@ export function openSyntheticStore(capability, options = {}) {
           encode(identities.project),
           scope.projectId,
         );
+      checkCatalogBudget(catalog, !!native, limits.catalogBytes);
       catalog.exec("COMMIT");
     }
     const restored = restore(project, scope);
+    const cache = inspectSnapshotCache(project, scope, restored.head);
+    cacheBypassed = cache.status === "bypassed";
+    note("snapshot-cache", { method: "authority_rebuild", ...cache });
     note("recovered", { head: restored.head });
     project.exec("BEGIN IMMEDIATE");
     const meta = project.prepare("SELECT * FROM store_meta WHERE id=1").get();
@@ -602,7 +613,10 @@ export function openSyntheticStore(capability, options = {}) {
       demand(
         Number.isSafeInteger(request.writer.epoch) && request.writer.epoch >= 0,
       );
-      demand(Array.isArray(request.events) && request.events.length > 0);
+      demand(Array.isArray(request.events));
+      // Empty input is only a declared synthetic consumption checkpoint over
+      // existing canonical authority, never a fabricated Core event.
+      demand(request.events.length > 0 || request.cursor !== undefined);
       request.events.forEach((e) => validateEvent(e, scope.projectId));
       if (request.cursor !== undefined) validateCursor(request.cursor);
       demand(
@@ -699,11 +713,21 @@ export function openSyntheticStore(capability, options = {}) {
           request.events.every((e) => e.sourceId === c.sourceId),
           "coverage_conflict",
         );
-        demand(
-          encode([...new Set(canonicalEventIds)].sort()) ===
-            encode([...c.coveredEventIds].sort()),
-          "coverage_conflict",
-        );
+        if (request.events.length === 0) {
+          demand(c.coveredEventIds.length > 0, "coverage_conflict");
+          for (const id of c.coveredEventIds)
+            demand(
+              before.state.acceptedEvents.some(
+                (event) => event.id === id && event.sourceId === c.sourceId,
+              ),
+              "coverage_conflict",
+            );
+        } else
+          demand(
+            encode([...new Set(canonicalEventIds)].sort()) ===
+              encode([...c.coveredEventIds].sort()),
+            "coverage_conflict",
+          );
         const prior = before.cursor.find(
           (old) => old.sourceId === c.sourceId && old.streamId === c.streamId,
         );
@@ -711,6 +735,17 @@ export function openSyntheticStore(capability, options = {}) {
           (prior?.position ?? null) === c.expectedPrevious,
           "coverage_conflict",
         );
+        // Opaque strings are not ordered. Reject only a position already
+        // recorded in this exact source/stream, including a cycle via data input.
+        for (const row of project
+          .prepare(
+            "SELECT body FROM source_checkpoint_versions WHERE source_id=? AND stream_id=?",
+          )
+          .iterate(c.sourceId, c.streamId))
+          demand(
+            JSON.parse(row.body).position !== c.position,
+            "coverage_conflict",
+          );
         nextCursor = [
           ...before.cursor.filter(
             (old) =>
@@ -744,6 +779,9 @@ export function openSyntheticStore(capability, options = {}) {
         "quota_exceeded",
       );
       phase = "records";
+      // Only a genuinely new successful transaction may replace known-bad
+      // optional caches. A matching retry returned above without touching them.
+      if (cacheBypassed) project.prepare("DELETE FROM snapshots").run();
       const receipt = addReceipt(project, {
         state,
         cursor: nextCursor,
@@ -798,6 +836,9 @@ export function openSyntheticStore(capability, options = {}) {
       phase = "commit_attempted";
       note("commit-enter", { head });
       project.exec("COMMIT");
+      // Keep this flag on every rollback/unknown outcome; never assume the
+      // cache replacement committed before SQLite actually returns success.
+      cacheBypassed = false;
       phase = "committed";
       note("commit-return", { head, status: "returned" });
       return {

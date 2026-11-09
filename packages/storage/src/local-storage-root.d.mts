@@ -40,4 +40,15 @@ export function diagnoseLocalValidationRoot(options?: {
   reopen?: boolean;
 }):
   | LocalValidationRoot
-  | (LocalRootFailure & { diagnostic?: { stage: string; category: string } });
+  | (LocalRootFailure & {
+      diagnostic?: {
+        stage: string;
+        category: string;
+        context?: {
+          source: "helper-process";
+          packageIdentity: "present" | "absent" | "unknown";
+          finalPathRelation: "case_only" | "different" | "unavailable";
+          packageCacheSegments: "present" | "absent" | "unknown";
+        };
+      };
+    });

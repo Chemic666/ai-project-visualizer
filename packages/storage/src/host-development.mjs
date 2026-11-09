@@ -1,3 +1,4 @@
+import { supportsSyntheticRuntime } from "./runtime-admission.mjs";
 import fs from "node:fs";
 import { inspectInstalledResources } from "./installed-resources.mjs";
 import { validateNativePackage } from "./native-attestor.mjs";
@@ -50,12 +51,27 @@ export function launchSyntheticHost(capability, options) {
         "projectId",
         "generation",
       ],
-      ["bootstrap", "holdAtAdmission", "nativePackage"],
+      ["bootstrap", "holdAtAdmission", "nativePackage", "validationRuntime"],
     );
+    const installed =
+      options.corePath ===
+      fileURLToPath(new URL("../../core.mjs", import.meta.url));
     demand(
-      process.platform === "win32" &&
-        process.arch === "x64" &&
-        process.version === "v24.21.0",
+      supportsSyntheticRuntime(
+        {
+          node: process.version,
+          electron: process.versions.electron,
+          modules: process.versions.modules,
+          platform: process.platform,
+          arch: process.arch,
+        },
+        {
+          installed,
+          local: !!admission.local,
+          nativeBound: !!options.nativePackage,
+          profile: options.validationRuntime,
+        },
+      ),
     );
     if (admission.local)
       demand(
@@ -80,10 +96,7 @@ export function launchSyntheticHost(capability, options) {
       fs.readFileSync(path.join(options.driverRoot, "package.json"), "utf8"),
     );
     demand(pkg.name === "better-sqlite3" && pkg.version === "13.0.3");
-    if (
-      options.corePath ===
-      fileURLToPath(new URL("../../core.mjs", import.meta.url))
-    ) {
+    if (installed) {
       const deployed = inspectInstalledResources();
       demand(
         options.driverRoot === deployed.driverRoot &&
@@ -91,11 +104,6 @@ export function launchSyntheticHost(capability, options) {
           options.processorFingerprint === deployed.processorFingerprint &&
           options.nativePackage?.manifestPath ===
             deployed.nativePackage.manifestPath,
-        "unavailable",
-      );
-      demand(
-        process.versions.electron === "43.7.3" &&
-          process.versions.modules === "148",
         "unavailable",
       );
     } else {
@@ -360,7 +368,8 @@ export function launchSyntheticHost(capability, options) {
             Number.isSafeInteger(request.expectedHead) &&
             request.expectedHead >= 1,
         );
-        demand(Array.isArray(request.events) && request.events.length > 0);
+        demand(Array.isArray(request.events));
+        demand(request.events.length > 0 || request.cursor !== undefined);
         request.events.forEach((e) => validateEvent(e, options.projectId));
         if (request.cursor !== undefined) validateCursor(request.cursor);
         demand(

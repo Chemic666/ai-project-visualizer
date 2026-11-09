@@ -38,6 +38,14 @@ public static class APVPrivateRootMetadata {
     static extern uint GetFinalPathNameByHandle(SafeFileHandle h, StringBuilder path, uint length, uint flags);
     [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
     static extern uint QueryDosDevice(string device, char[] target, int length);
+    // Query presence with a null buffer; do not fetch or retain the package name.
+    [DllImport("kernel32.dll", ExactSpelling=true)]
+    static extern int GetCurrentPackageFullName(ref uint length, IntPtr name);
+    public static string PackageIdentity() {
+        uint length=0; int code=GetCurrentPackageFullName(ref length,IntPtr.Zero);
+        if (code==15700) return "absent";
+        return code==122 && length>0 ? "present" : "unknown";
+    }
     public static void CheckDrive(string root) {
         var d = new DriveInfo(root);
         if (d.DriveType != DriveType.Fixed || !String.Equals(d.DriveFormat,"NTFS",StringComparison.Ordinal)) throw new IOException("unsupported_volume");
@@ -52,7 +60,13 @@ public static class APVPrivateRootMetadata {
             if ((i.Attributes & 0x400)!=0) throw new IOException("reparse_point");
             var b=new StringBuilder(32768); var n=GetFinalPathNameByHandle(h,b,(uint)b.Capacity,0);
             if (n==0 || n>=b.Capacity) throw new IOException("metadata_unavailable");
-            if (!String.Equals(b.ToString(),@"\\?\"+path,StringComparison.Ordinal)) throw new IOException("final_path_mismatch");
+            if (!String.Equals(b.ToString(),@"\\?\"+path,StringComparison.Ordinal)) {
+                var error=new IOException("final_path_mismatch");
+                error.Data["finalPathRelation"]=String.Equals(b.ToString(),@"\\?\"+path,StringComparison.OrdinalIgnoreCase) ? "case_only" : "different";
+                // Segment presence is a bounded observation, not proof of its cause.
+                error.Data["packageCacheSegments"]=b.ToString().IndexOf(@"\Packages\",StringComparison.OrdinalIgnoreCase)>=0 && b.ToString().IndexOf(@"\LocalCache\",StringComparison.OrdinalIgnoreCase)>=0 ? "present" : "absent";
+                throw error;
+            }
             if ((i.Attributes & 0x10)==0 && i.Links!=1) throw new IOException("hard_link");
             return i;
         }
@@ -185,13 +199,22 @@ public static class APVPrivateRootMetadata {
     if ($Diagnostics) {
         $allowedCategories=@('final_path_mismatch','reparse_point','hard_link','metadata_unavailable','unsupported_volume','path_not_canonical','volume_or_type_mismatch','acl_owner_or_protection','acl_descriptor_invalid','acl_untrusted_ace','acl_missing_user_control','already_exists')
         $category='operation_failed'
+        $context=@{packageIdentity='unknown';finalPathRelation='unavailable';packageCacheSegments='unknown'}
+        try { $context.packageIdentity=[APVPrivateRootMetadata]::PackageIdentity() } catch { }
         $exception=$_.Exception
         while ($null -ne $exception) {
-            if ($allowedCategories -ccontains $exception.Message) { $category=$exception.Message; break }
+            if ($allowedCategories -ccontains $exception.Message) {
+                $category=$exception.Message
+                if ($category -ceq 'final_path_mismatch') {
+                    if (@('case_only','different') -ccontains $exception.Data['finalPathRelation']) { $context.finalPathRelation=$exception.Data['finalPathRelation'] }
+                    if (@('present','absent') -ccontains $exception.Data['packageCacheSegments']) { $context.packageCacheSegments=$exception.Data['packageCacheSegments'] }
+                }
+                break
+            }
             if ($exception -is [UnauthorizedAccessException]) { $category='access_denied' }
             $exception=$exception.InnerException
         }
-        @{ok=$false;reason='unavailable';diagnostic=@{stage=$stage;category=$category}} | ConvertTo-Json -Compress
+        @{ok=$false;reason='unavailable';diagnostic=@{stage=$stage;category=$category;context=$context}} | ConvertTo-Json -Depth 4 -Compress
     } else {
         [Console]::Out.WriteLine('{"ok":false,"reason":"unavailable"}')
     }

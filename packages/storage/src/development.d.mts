@@ -23,6 +23,7 @@ export interface SqliteConnection {
     run(...values: unknown[]): { changes: number };
     get(...values: unknown[]): unknown;
     all(...values: unknown[]): unknown[];
+    iterate(...values: unknown[]): Iterable<unknown>;
   };
   loadExtension(filename: string, entryPoint: string): unknown;
   close(): unknown;
@@ -62,6 +63,7 @@ export interface CommitRequest {
   operationNonce: string;
   expectedHead: number;
   writer: WriterCapability;
+  /** Empty only with a nonempty synthetic Cursor over prior canonical inputs. */
   events: NormalizedEvent[];
   cursor?: SourceCheckpoint;
   createSnapshot?: boolean;
@@ -120,6 +122,7 @@ export function openSyntheticStore(
     bootstrap?: CoreState;
     nativePackage?: NativePackage;
     limits?: {
+      catalogBytes?: number;
       logicalBytes?: number;
       snapshotBytes?: number;
       physicalBytes?: number;

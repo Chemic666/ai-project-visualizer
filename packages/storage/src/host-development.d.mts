@@ -68,5 +68,7 @@ export function launchSyntheticHost(
     bootstrap?: CoreState;
     nativePackage?: NativePackage;
     holdAtAdmission?: boolean;
+    validationRuntime?:
+      "extension-host-restart-1.144.0" | "extension-host-temp-restart-1.144.0";
   },
 ): SyntheticHost;

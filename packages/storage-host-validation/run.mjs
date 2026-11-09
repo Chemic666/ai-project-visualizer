@@ -1,3 +1,7 @@
+import exitProofApi from "./process-exit-proof.cjs";
+import assert from "node:assert/strict";
+import { readVsixInventory } from "./archive-inventory.mjs";
+import restartContract from "./restart-contract.cjs";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -9,12 +13,17 @@ import { readNativePackage } from "../storage/src/native-attestor.mjs";
 const args = process.argv.slice(2);
 if (!args.length) {
   console.log(
-    "Installed VSIX validation disabled. --execute --code-root ABS --driver-root ABS --native-manifest ABS",
+    "Installed VSIX validation disabled. --execute | --execute-local-validation | --execute-local-restart | --execute-temp-restart; --code-root ABS --driver-root ABS --native-manifest ABS",
   );
 } else {
   if (
     args.length !== 7 ||
-    !["--execute", "--execute-local-validation"].includes(args[0]) ||
+    ![
+      "--execute",
+      "--execute-local-validation",
+      "--execute-local-restart",
+      "--execute-temp-restart",
+    ].includes(args[0]) ||
     args[1] !== "--code-root" ||
     args[3] !== "--driver-root" ||
     args[5] !== "--native-manifest" ||
@@ -22,6 +31,14 @@ if (!args.length) {
     process.arch !== "x64"
   )
     throw Error("ARGUMENTS_REJECTED");
+  const restarting = [
+    "--execute-local-restart",
+    "--execute-temp-restart",
+  ].includes(args[0]);
+  const localMode = [
+    "--execute-local-validation",
+    "--execute-local-restart",
+  ].includes(args[0]);
   const repo = fileURLToPath(new URL("../../", import.meta.url)),
     source = fileURLToPath(new URL("./", import.meta.url)),
     codeRoot = fs.realpathSync.native(args[2]),
@@ -94,6 +111,12 @@ if (!args.length) {
         path.join(stage, f),
         fs.constants.COPYFILE_EXCL,
       );
+    if (restarting) {
+      const packageFile = path.join(stage, "package.json");
+      const stagedPackage = JSON.parse(fs.readFileSync(packageFile, "utf8"));
+      stagedPackage.engines.vscode = restartContract.runtimeTuple.vscode;
+      fs.writeFileSync(packageFile, JSON.stringify(stagedPackage, null, 2));
+    }
     const runtime = path.join(stage, "runtime");
     fs.mkdirSync(runtime);
     fs.mkdirSync(path.join(runtime, "storage"));
@@ -169,6 +192,16 @@ if (!args.length) {
       path.join(runtime, "local-shm.cjs"),
       fs.constants.COPYFILE_EXCL,
     );
+    for (const name of [
+      "restart-contract.cjs",
+      "restart-validation.cjs",
+      "process-exit-proof.cjs",
+    ])
+      fs.copyFileSync(
+        path.join(source, name),
+        path.join(runtime, name),
+        fs.constants.COPYFILE_EXCL,
+      );
     const files = inventory(runtime).map((f) => ({
       path: path.relative(runtime, f.path).split(path.sep).join("/"),
       sha256: f.sha256,
@@ -180,10 +213,14 @@ if (!args.length) {
     );
     const spec = {
       runId,
-      rootMode:
-        args[0] === "--execute-local-validation" ? "local-validation" : "temp",
-      storeKey:
-        args[0] === "--execute-local-validation" ? randomUUID() : undefined,
+      rootMode: localMode ? "local-validation" : "temp",
+      storeKey: localMode ? randomUUID() : undefined,
+      ...(restarting
+        ? {
+            validationMode: "whole-host-restart",
+            targetRuntime: restartContract.runtimeTuple,
+          }
+        : {}),
       evidence,
       nativeBuild: approved,
       driverNativeSha256: hash(
@@ -216,17 +253,26 @@ if (!args.length) {
       ],
       { cwd: stage },
     );
-    const archive = run("archive", "powershell.exe", [
-      "-NoProfile",
-      "-NonInteractive",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-File",
-      path.join(source, "archive.ps1"),
-      "-Vsix",
-      vsix,
-    ]);
-    const contents = JSON.parse(archive.stdout);
+    let contents;
+    if (restarting) {
+      contents = await readVsixInventory(
+        vsix,
+        path.join(path.dirname(vsce), "package.json"),
+      );
+      save("archive.json", contents);
+    } else {
+      const archive = run("archive", "powershell.exe", [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        path.join(source, "archive.ps1"),
+        "-Vsix",
+        vsix,
+      ]);
+      contents = JSON.parse(archive.stdout);
+    }
     for (const f of files) {
       const entry = contents.find(
         (e) => e.path === "extension/runtime/" + f.path,
@@ -242,11 +288,36 @@ if (!args.length) {
       profile = path.join(evidence, "profile"),
       workspace = path.join(evidence, "workspace");
     for (const p of [extensions, profile, workspace]) fs.mkdirSync(p);
-    const appDir = fs
+    if (restarting) {
+      fs.mkdirSync(path.join(profile, "User"));
+      fs.writeFileSync(
+        path.join(profile, "User/settings.json"),
+        JSON.stringify({
+          "telemetry.telemetryLevel": "off",
+          "extensions.autoUpdate": false,
+          "extensions.autoCheckUpdates": false,
+          "update.mode": "none",
+          "workbench.enableExperiments": false,
+        }),
+        { flag: "wx" },
+      );
+    }
+    const appCandidates = fs
       .readdirSync(codeRoot, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => path.join(codeRoot, e.name, "resources/app"))
-      .find((p) => fs.existsSync(path.join(p, "out/cli.js")));
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(codeRoot, entry.name, "resources/app"))
+      .filter((candidate) => fs.existsSync(path.join(candidate, "out/cli.js")));
+    const matchingApps = restarting
+      ? appCandidates.filter(
+          (candidate) =>
+            JSON.parse(
+              fs.readFileSync(path.join(candidate, "package.json"), "utf8"),
+            ).version === restartContract.runtimeTuple.vscode,
+        )
+      : appCandidates;
+    if (restarting && matchingApps.length !== 1)
+      throw Error("CODE_TARGET_UNVERIFIED");
+    const appDir = matchingApps[0];
     if (!appDir) throw Error("CODE_CLI_MISSING");
     const codeExe = path.join(codeRoot, "Code.exe"),
       env = { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
@@ -292,7 +363,9 @@ if (!args.length) {
         name: "apv-test-controller",
         publisher: "apv-local-validation",
         version: "0.0.0",
-        engines: { vscode: "1.140.0" },
+        engines: {
+          vscode: restarting ? restartContract.runtimeTuple.vscode : "1.140.0",
+        },
         main: "main.cjs",
       }),
       { flag: "wx" },
@@ -302,42 +375,157 @@ if (!args.length) {
       "exports.activate=()=>{};",
       { flag: "wx" },
     );
-    const hostEnv = {
-      ...process.env,
-      APV_B1_HOST_SPEC: path.join(evidence, "manifest.json"),
-      APV_B1_CONTROLLER: controller,
-    };
-    delete hostEnv.ELECTRON_RUN_AS_NODE;
-    run(
-      "extension-host",
-      codeExe,
-      [
-        "--new-window",
-        "--user-data-dir",
-        profile,
-        "--extensions-dir",
-        extensions,
-        "--extensionDevelopmentPath",
-        controller,
-        "--extensionTestsPath",
-        path.join(installedRoot, "host-tests.cjs"),
-        "--disable-extension",
-        "github.copilot-chat",
-        "--disable-extension",
-        "github.copilot",
-        "--skip-welcome",
-        "--skip-release-notes",
-        "--disable-workspace-trust",
-        workspace,
-      ],
-      { env: hostEnv, timeout: 180000 },
-    );
-    const report = JSON.parse(
-      fs.readFileSync(path.join(evidence, "host-result.json"), "utf8"),
-    );
-    if (report.status !== "PASS WITH LIMITATION")
-      throw Error("NO_HOST_EVIDENCE");
-    status = report.status;
+    const hostArguments = [
+      "--new-window",
+      "--user-data-dir",
+      profile,
+      "--extensions-dir",
+      extensions,
+      "--extensionDevelopmentPath",
+      controller,
+      "--extensionTestsPath",
+      path.join(installedRoot, "host-tests.cjs"),
+      "--disable-extension",
+      "github.copilot-chat",
+      "--disable-extension",
+      "github.copilot",
+      "--skip-welcome",
+      "--skip-release-notes",
+      ...(!restarting ? ["--disable-workspace-trust", workspace] : []),
+    ];
+    const baseHostEnv = { ...process.env, APV_B1_CONTROLLER: controller };
+    delete baseHostEnv.ELECTRON_RUN_AS_NODE;
+    if (!restarting) {
+      run("extension-host", codeExe, hostArguments, {
+        env: {
+          ...baseHostEnv,
+          APV_B1_HOST_SPEC: path.join(evidence, "manifest.json"),
+        },
+        timeout: 180000,
+      });
+      const report = JSON.parse(
+        fs.readFileSync(path.join(evidence, "host-result.json"), "utf8"),
+      );
+      if (report.status !== "PASS WITH LIMITATION")
+        throw Error("NO_HOST_EVIDENCE");
+      status = report.status;
+    } else {
+      const read = (name) =>
+        JSON.parse(fs.readFileSync(path.join(evidence, name), "utf8"));
+      const phases = {};
+      for (const phase of ["write", "recover"]) {
+        const phaseSpec = { ...spec, phase };
+        if (phase === "recover" && !localMode)
+          phaseSpec.storeKey = path.basename(
+            path.dirname(phases.write.ready.paths.owner),
+          );
+        save(phase + ".spec.json", phaseSpec);
+        run(phase + "-extension-host", codeExe, hostArguments, {
+          env: {
+            ...baseHostEnv,
+            APV_B1_HOST_SPEC: path.join(evidence, phase + ".spec.json"),
+          },
+          timeout: 180000,
+        });
+        const result = read(phase + "-result.json"),
+          environment = read(phase + "-host-environment.json"),
+          ready = read(phase + "-ready.json"),
+          settled = read(phase + "-worker-exit.json");
+        restartContract.validateRuntime(environment);
+        assert.equal(
+          result.status,
+          phase === "write" ? "WRITE_COMPLETE" : "RECOVERY_COMPLETE",
+        );
+        assert.equal(result.hostPid, environment.pid);
+        assert.equal(result.workerPid, ready.pid);
+        assert.equal(settled.pid, ready.pid);
+        assert.equal(settled.exitCode, 0);
+        assert.equal(settled.processExited, true);
+        const exits = {
+          host: exitProofApi.observeRecordedExit(
+            environment.pid,
+            path.join(evidence, phase + "-host-environment.json"),
+          ),
+          worker: exitProofApi.observeRecordedExit(
+            ready.pid,
+            path.join(evidence, phase + "-ready.json"),
+          ),
+        };
+        save(phase + "-process-exits.json", exits);
+        phases[phase] = {
+          result,
+          environment,
+          ready,
+          settled,
+          exits,
+          cut: read(phase + "-cut.json"),
+        };
+      }
+      const a = phases.write,
+        b = phases.recover;
+      assert.deepEqual(a.ready.paths, b.ready.paths);
+      assert.deepEqual(
+        a.ready.resourceBinding.nativeAttestation.expected,
+        b.ready.resourceBinding.nativeAttestation.expected,
+      );
+      assert.deepEqual(a.cut, b.cut);
+      assert.deepEqual(a.result.receipt, b.result.receipt);
+      assert.equal(a.ready.writer.epoch, 1);
+      assert.equal(b.ready.writer.epoch, 2);
+      save("reader.spec.json", {
+        ...spec,
+        driverRoot: path.join(installedRoot, "runtime/driver"),
+        processorFingerprint: read("write-handoff.json").processorFingerprint,
+        databaseFile: b.ready.paths.project,
+        expectedState: b.cut.state,
+        expectedWriterEpoch: 2,
+        writerSettlement: { pid: a.ready.pid, status: 0, closed: true },
+        recoverySettlement: { pid: b.ready.pid, status: 0, closed: true },
+        extensionHostSettlements: {
+          write: a.exits.host,
+          recover: b.exits.host,
+        },
+      });
+      run(
+        "restart-sql-reader",
+        codeExe,
+        [
+          path.join(installedRoot, "runtime/sql-reader.mjs"),
+          path.join(evidence, "reader.spec.json"),
+        ],
+        { env, timeout: 20000 },
+      );
+      const reader = read("reader.result.json");
+      assert.equal(reader.tableCount, 9);
+      assert.equal(reader.head, 2);
+      assert.equal(reader.fullStateMatch, true);
+      assert.equal(reader.stateDigest, b.cut.stateDigest);
+      assert.equal(
+        reader.cutSha256,
+        hash(path.join(evidence, "reader.cut.json")),
+      );
+      save("host-result.json", {
+        status: "PASS WITH LIMITATION",
+        runId,
+        validationMode: "whole-host-restart",
+        rootMode: spec.rootMode,
+        installationRootAdmitted: localMode,
+        installed: true,
+        wholeExtensionHostRestart: true,
+        targetRuntime: restartContract.runtimeTuple,
+        originalHead: 2,
+        recoveredHead: 2,
+        epochs: [1, 2],
+        matchingIntent: "already_committed",
+        readerTableCount: 9,
+        productionEnabled: false,
+        shmDirectHandle: "unverified",
+        replay: false,
+        publish: false,
+        ack: false,
+      });
+      status = "PASS WITH LIMITATION";
+    }
   } catch (error) {
     save("failure.json", {
       status: "unavailable",
@@ -346,7 +534,10 @@ if (!args.length) {
     process.exitCode = 1;
   } finally {
     const files = inventory(evidence);
-    const rootFile = path.join(evidence, "synthetic-root.json");
+    const rootFile = path.join(
+      evidence,
+      restarting ? "write-synthetic-root.json" : "synthetic-root.json",
+    );
     if (fs.existsSync(rootFile))
       files.push(
         ...inventory(JSON.parse(fs.readFileSync(rootFile, "utf8")).root),

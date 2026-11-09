@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { StorageError, demand } from "./errors.mjs";
 export const nativeBuild = Object.freeze({
-  buildId: "fc7be262-e067-4658-9329-dce0dd36d858",
-  dllSha256: "1e1dc8ebe575078928d7a7b84a1c9321dfc867f735135483b7146531e8be46db",
+  buildId: "bbb9ff2b-580e-49a5-b4bf-c9f3f6a2d3ac",
+  dllSha256: "c966a773446bb58b370c4a96269c0d5523b3db7dfa1183b541a73ae25fb4f681",
 });
 export const driverSha256 =
   "e21e5efd71fba66578e95b62554d9028064a80dafd7221bf8a8ef155de8d240a";
