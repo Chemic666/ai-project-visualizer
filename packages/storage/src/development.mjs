@@ -30,7 +30,18 @@ import {
   logicalBytes,
   writeState,
   addReceipt,
+  writePlanVersions,
 } from "./records.mjs";
+import {
+  emptyPlan,
+  isPlanEvent,
+  observePlanSession,
+  PLAN_SCHEMA,
+  planCoreOptions,
+  planVersionFromResult,
+  validatePlanScope,
+  verifyPlanSessions,
+} from "./plan-records.mjs";
 
 const quarantined = new Set();
 const CATALOG_ID = 0x41504331;
@@ -98,6 +109,20 @@ function receiptFromRow(row) {
   };
 }
 export function openSyntheticStore(capability, options = {}) {
+  return openStore(capability, options);
+}
+
+export function openSyntheticPlanStore(capability, options) {
+  const planScope = validatePlanScope(options?.planScope, options?.projectId);
+  demand(
+    typeof options.applyPlanEvent === "function" &&
+      typeof options.validatePlan === "function",
+  );
+  return openStore(capability, options, planScope);
+}
+
+function openStore(capability, options, planScope) {
+  const schemaVersion = planScope ? 2 : 1;
   const native = options.nativePackage
     ? createAttestor(options.nativePackage)
     : null;
@@ -114,18 +139,22 @@ export function openSyntheticStore(capability, options = {}) {
   const note = (phase, fields = {}) =>
     events.push({ seq: events.length + 1, phase, ...fields });
   const admitted = inspectCapability(capability);
-  if (admitted.local)
+  if (admitted.local) {
+    demand(!planScope);
     demand(
       native &&
         options.projectId === admitted.local.projectId &&
         options.generation === admitted.local.generation,
       "binding_conflict",
     );
+  }
   const scope = {
     projectId: options.projectId,
     generation: options.generation,
     processorFingerprint: options.processorFingerprint,
     observedRoot: admitted.observedRoot,
+    planScope,
+    validatePlan: planScope ? options.validatePlan : undefined,
   };
   id(scope.projectId);
   demand(
@@ -137,10 +166,12 @@ export function openSyntheticStore(capability, options = {}) {
       typeof options.Database === "function" &&
       typeof options.applyNormalizedEvent === "function",
   );
-  if (options.bootstrap !== undefined)
+  if (options.bootstrap !== undefined) {
     validateState(options.bootstrap, scope.projectId, {
       allowedLocations: [scope.observedRoot],
     });
+    if (planScope) emptyPlan(options.bootstrap);
+  }
   const limits = Object.fromEntries(
     Object.entries(defaults).map(([k, v]) => {
       const n = options.limits?.[k] ?? v;
@@ -428,7 +459,7 @@ export function openSyntheticStore(capability, options = {}) {
     if (!newBinding)
       demand(
         project.pragma("application_id", { simple: true }) === APPLICATION_ID &&
-          project.pragma("user_version", { simple: true }) === 1,
+          project.pragma("user_version", { simple: true }) === schemaVersion,
         "unavailable",
       );
     if (native)
@@ -448,19 +479,22 @@ export function openSyntheticStore(capability, options = {}) {
     if (newBinding) {
       project.exec("BEGIN IMMEDIATE");
       project.pragma(`application_id=${APPLICATION_ID}`);
-      project.pragma("user_version=1");
-      project.exec(schema);
+      project.pragma("user_version=" + schemaVersion);
+      project.exec(schema + (planScope ? PLAN_SCHEMA : ""));
       const initial = copy(options.bootstrap),
+        plan = planScope ? emptyPlan(initial) : undefined,
         intent = {
           operationId: "bootstrap",
           operationNonce: admitted.nonce,
           projectId: scope.projectId,
           generation: scope.generation,
           expectedHead: 0,
-          seedDigest: digest(initial),
+          seedDigest: digest(plan ?? initial),
+          ...(planScope ? { planScope } : {}),
         };
       addReceipt(project, {
         state: initial,
+        plan,
         cursor: [],
         head: 1,
         intent,
@@ -475,18 +509,23 @@ export function openSyntheticStore(capability, options = {}) {
           scope.generation,
           scope.processorFingerprint,
           1,
-          digest(initial),
+          intent.seedDigest,
           admitted.nonce,
         );
-      const snapshot = cacheBody(initial, [], 1, scope);
+      if (!planScope) {
+        const snapshot = cacheBody(initial, [], 1, scope);
+        demand(
+          Buffer.byteLength(encode(snapshot)) <= limits.snapshotBytes,
+          "quota_exceeded",
+        );
+        project
+          .prepare("INSERT INTO snapshots VALUES(?,?,?)")
+          .run(1, encode(snapshot), digest(snapshot));
+      }
       demand(
-        Buffer.byteLength(encode(snapshot)) <= limits.snapshotBytes,
+        logicalBytes(project, planScope) <= limits.logicalBytes,
         "quota_exceeded",
       );
-      project
-        .prepare("INSERT INTO snapshots VALUES(?,?,?)")
-        .run(1, encode(snapshot), digest(snapshot));
-      demand(logicalBytes(project) <= limits.logicalBytes, "quota_exceeded");
       project.exec("COMMIT");
       catalog.exec("BEGIN IMMEDIATE");
       catalog
@@ -617,12 +656,15 @@ export function openSyntheticStore(capability, options = {}) {
       // Empty input is only a declared synthetic consumption checkpoint over
       // existing canonical authority, never a fabricated Core event.
       demand(request.events.length > 0 || request.cursor !== undefined);
-      request.events.forEach((e) => validateEvent(e, scope.projectId));
+      request.events.forEach((e) =>
+        validateEvent(e, scope.projectId, planScope),
+      );
       if (request.cursor !== undefined) validateCursor(request.cursor);
       demand(
         request.createSnapshot === undefined ||
           typeof request.createSnapshot === "boolean",
       );
+      if (planScope) demand(request.createSnapshot !== true);
       const intent = {
         operationId: request.operationId,
         operationNonce: request.operationNonce,
@@ -634,7 +676,7 @@ export function openSyntheticStore(capability, options = {}) {
           claim: sourceClaim(e),
         })),
         cursor: request.cursor ?? null,
-        createSnapshot: request.createSnapshot ?? true,
+        createSnapshot: request.createSnapshot ?? !planScope,
       };
       phase = "begin";
       project.exec("BEGIN IMMEDIATE");
@@ -670,6 +712,11 @@ export function openSyntheticStore(capability, options = {}) {
       demand(meta.head === request.expectedHead, "revision_conflict");
       const before = restore(project, scope);
       let state = before.state;
+      let plan = before.plan;
+      const planSessions = plan
+        ? new Map(copy(state.sessions).map((session) => [session.id, session]))
+        : undefined;
+      const planRecords = [];
       // The processor must not be able to rewrite what we admitted or make
       // an unchecked event influence deduplication for the rest of the batch.
       const expectedEvents = copy(state.acceptedEvents);
@@ -695,15 +742,32 @@ export function openSyntheticStore(capability, options = {}) {
         }
         if (old) canonicalEventIds.push(old.id);
         else {
-          const result = options.applyNormalizedEvent(state, copy(event));
-          demand(result.status === "applied", "admission_rejected");
-          state = result.state;
+          if (plan && isPlanEvent(event)) {
+            verifyPlanSessions(planSessions, state.sessions);
+            const base = { ...plan, core: state };
+            const result = options.applyPlanEvent(copy(base), copy(event));
+            const applied = planVersionFromResult(base, result, event, scope);
+            plan = applied.plan;
+            planRecords.push(applied.record);
+            state = plan.core;
+          } else {
+            const result = options.applyNormalizedEvent(state, copy(event));
+            demand(result.status === "applied", "admission_rejected");
+            state = result.state;
+          }
           expectedEvents.push(event);
+          if (planSessions) observePlanSession(planSessions, event);
           canonicalEventIds.push(event.id);
         }
       }
+      if (plan) {
+        verifyPlanSessions(planSessions, state.sessions);
+        plan = { ...plan, core: state };
+      }
       validateState(state, scope.projectId, {
         allowedLocations: [scope.observedRoot],
+        planScope,
+        ...(plan ? planCoreOptions(plan) : {}),
       });
       // Bind the processor's ordered ledger to the inputs we actually admitted.
       demand(
@@ -772,10 +836,9 @@ export function openSyntheticStore(capability, options = {}) {
           return x < y ? -1 : x > y ? 1 : 0;
         });
       }
-      const snapshot =
-        request.createSnapshot === false
-          ? null
-          : cacheBody(state, nextCursor, head, scope);
+      const snapshot = intent.createSnapshot
+        ? cacheBody(state, nextCursor, head, scope)
+        : null;
       if (snapshot)
         demand(
           Buffer.byteLength(encode(snapshot)) <= limits.snapshotBytes,
@@ -784,8 +847,16 @@ export function openSyntheticStore(capability, options = {}) {
       // Conservative pre-write whole-bundle estimate; exact retained SQL-row
       // accounting below is a second transactional backstop, not a disk guarantee.
       const estimate =
-        logicalBytes(project) +
-        Buffer.byteLength(encode({ state, intent, nextCursor })) * 2 +
+        logicalBytes(project, planScope) +
+        Buffer.byteLength(
+          encode({
+            state,
+            intent,
+            nextCursor,
+            ...(planRecords.length ? { planRecords } : {}),
+          }),
+        ) *
+          2 +
         2048;
       demand(
         estimate <= limits.logicalBytes &&
@@ -798,6 +869,7 @@ export function openSyntheticStore(capability, options = {}) {
       if (cacheBypassed) project.prepare("DELETE FROM snapshots").run();
       const receipt = addReceipt(project, {
         state,
+        plan,
         cursor: nextCursor,
         head,
         intent,
@@ -805,6 +877,7 @@ export function openSyntheticStore(capability, options = {}) {
         canonicalEventIds,
       });
       writeState(project, state, head);
+      writePlanVersions(project, planRecords, head);
       if (request.cursor)
         project
           .prepare("INSERT INTO source_checkpoint_versions VALUES(?,?,?,?,?)")
@@ -832,13 +905,16 @@ export function openSyntheticStore(capability, options = {}) {
         )
         .run(
           head,
-          digest(state),
+          receipt.stateDigest,
           meta.head,
           BigInt(context.epoch),
           context.token,
         );
       demand(changed.changes === 1, "stale_writer");
-      demand(logicalBytes(project) <= limits.logicalBytes, "quota_exceeded");
+      demand(
+        logicalBytes(project, planScope) <= limits.logicalBytes,
+        "quota_exceeded",
+      );
       try {
         demand(ownerHeld && owner.open && owner.inTransaction, "unavailable");
         checkBinding();
@@ -859,9 +935,10 @@ export function openSyntheticStore(capability, options = {}) {
         status: "committed",
         receipt,
         state: copy(state),
+        ...(plan ? { plan: copy(plan) } : {}),
         cursor: copy(nextCursor),
         head,
-        stateDigest: digest(state),
+        stateDigest: receipt.stateDigest,
         replay: false,
         publish: false,
         ack: false,

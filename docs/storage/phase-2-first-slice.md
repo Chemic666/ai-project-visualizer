@@ -409,3 +409,22 @@ The initial regressions reproduced five invalid acceptances (`758b8d5e-62fe-419b
 All three used Windows x64 Node 24.21.0 and the pinned better-sqlite3 13.0.3. The evidence matched all 50 storage source inputs and the Core and Driver hashes for each run. Original test artifacts stay local. The standard suite (298), storage boundary tests (5), typecheck, lint, and formatting passed. Follow-up static review confirmed the two event-history defects were closed.
 
 This is scoped recovery coverage for S12 and regression evidence for S06–S09 in the existing synthetic store. The schema and production admission remain unchanged. Installed Host recovery on this revision, full ProjectEngineState persistence, real-source coverage and production acceptance remain unverified.
+
+## Durable synthetic plan revisions — 2026-11-13
+
+`openSyntheticPlanStore` is the explicit development entry for one Project, Source, optional Session and Plan in a fresh synthetic TEMP database. The v2 schema keeps the existing Core authority records and adds one versioned `plan_versions` record per newly accepted Plan observation. Each record holds the actual Plan Engine revision and its change event when one exists. Normalized observations, Plan versions, Core changes, Cursor and receipt are committed in one guarded transaction. The receipt digest covers the whole `PlanEngineState`. Existing v1 databases use the original entry and keep the same compiled Core fingerprint.
+
+Recovery reads the recorded revisions, snapshots and changes in ledger order. It verifies the membership, identity, field changes, original certainty evidence and Core graph. The same pure Plan rule checks the recorded outcome and reasons against the observations and Sessions available at that point. The writer and Reader check Session creation against actual accepted start events. Recovery restores the recorded result without running the Engine transition again. V2 uses the recorded revisions as authority and runs without the optional Snapshot cache. A missing or inconsistent record keeps the store unavailable.
+
+Rollback leaves both the Plan record and its observation, receipt and Cursor unchanged. Normal reopening retains the old task after removal and assigns a new task identity on re-entry. Tests also cover an unresolved branch, a valid continuation through an unresolved predecessor, stable aliases, source scope, the maximum admitted event ID and identical Plan state in a fresh process after the writer exits.
+
+| Final synthetic mode | Result | RunId | Verified inventory |
+| --- | --- | --- | --- |
+| Ordinary SQLite | 17/17 | 3cd4bf48-7170-40a1-b047-941ef8590b5a | 121 |
+| SQLite with the reviewed Native binding | 17/17 | 3da18041-0a29-486b-b095-f627aa511a9b | 121 |
+| V1 first slice | 9/9 | 88041753-5af1-4980-8e78-4cc498a491ec | — |
+| V1 Native checkpoint regression | 26/26 | 78108c7f-4c99-4654-ab4f-c0c885eddd8c | — |
+
+Both Plan runs matched all 52 storage input hashes, the pinned Driver and actual compiled Core. The Native test asserts the loaded project's binding report. Earlier native-named Plan commands ran ordinary SQLite because their mode omitted the Native package. The final runner selects the suite and Native requirement together. Actual normal v1 installed TEMP restart also passed with limitation during this slice (RunId `386e3b23-38c8-42fb-a745-4c2da93af798`, before the final v2 Session check and test-runner changes). Standard tests and type, lint, format and diff checks passed. Private evidence remains local.
+
+The v2 slice covers the Plan Engine and existing Core data on synthetic inputs. Correction commands, Progress and Timeline persistence, v1 migration, real observation, and v2 integration with the installed Host remain open.

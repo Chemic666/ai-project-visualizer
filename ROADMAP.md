@@ -71,6 +71,8 @@ S09 synthetic canonical-reference checkpoint-only now has ordinary17 + Native17 
 
 2026-11-12: the synthetic writer now protects accepted events and original assertions from inconsistent processor results. Recovery requires each commit's newly recorded events to match its receipt in order and rejects undeclared bootstrap checkpoints. Ordinary26 + Native26 + first-slice9 passed; see [bounded validation](docs/storage/phase-2-first-slice.md#event-receipt-and-recorded-history-consistency--2026-11-12).
 
+2026-11-13：单一合成计划现可随原始观察、Core 记录、断点与回执一并保存。写入进程退出后，独立进程可恢复原修订、变更、移除和再入历史。普通与原生校验各 17 项通过。后续还需接通纠正、进度与时间线的完整恢复。见[范围和实测记录](docs/storage/phase-2-first-slice.md#durable-synthetic-plan-revisions--2026-11-13)。
+
 First-slice local checkpoint: `d98aa1f4a9e4c83b26fd6c898c750fdcfa2d0810` (35 reviewed files, no push). The separately authorized [synthetic Host follow-up](docs/storage/phase-2-first-slice.md#host-composition-follow-up--2026-10-19) adds joint Owner/Project process lifetime, concurrent catalog admission and normal handoff tests; actual Driver handle binding remains unavailable. No real-project enablement or Codex Session integration is approved.
 
 ### Historical 2026-10-08 preparation (superseded status/sequence only)

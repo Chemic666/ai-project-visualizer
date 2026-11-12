@@ -3,6 +3,7 @@ import {
   digest,
   encode,
   validateState,
+  validateEvent,
   validateCursor,
   sourceClaim,
   plain,
@@ -10,6 +11,15 @@ import {
   id,
 } from "./codec.mjs";
 import { demand, StorageError } from "./errors.mjs";
+import {
+  appendPlanVersion,
+  emptyPlan,
+  isPlanEvent,
+  observePlanSession,
+  PLAN_TABLE,
+  planCoreOptions,
+  verifyPlanSessions,
+} from "./plan-records.mjs";
 
 export const APPLICATION_ID = 0x41505631;
 export const tables = [
@@ -140,11 +150,66 @@ export function cacheBody(state, cursor, head, scope) {
     processor: scope.processorFingerprint,
   };
 }
+function restorePlan(db, before, state, head, scope) {
+  const prior = before ?? emptyPlan(state);
+  let plan = prior;
+  const offset = prior.core.acceptedEvents.length;
+  const sessions = new Map(
+    prior.core.sessions.map((session) => [session.id, session]),
+  );
+  const rows = db
+    .prepare("SELECT * FROM plan_versions WHERE seq=? ORDER BY ordinal")
+    .all(head);
+  let ordinal = 0;
+  for (let index = offset; index < state.acceptedEvents.length; index++) {
+    const event = state.acceptedEvents[index];
+    observePlanSession(sessions, event);
+    if (!isPlanEvent(event)) continue;
+    validateEvent(event, scope.projectId, scope.planScope);
+    const row = rows[ordinal];
+    demand(
+      row?.ordinal === ordinal && row.event_id === event.id,
+      "unavailable",
+    );
+    // A session started later in this batch was unavailable to this observation.
+    const context = {
+      ...state,
+      acceptedEvents: state.acceptedEvents.slice(0, index),
+      sessions: [...sessions.values()],
+    };
+    plan = appendPlanVersion(
+      { ...plan, core: context },
+      event,
+      checkedBody(row),
+      scope,
+    );
+    ordinal++;
+  }
+  demand(ordinal === rows.length, "unavailable");
+  verifyPlanSessions(sessions, state.sessions);
+  return { ...plan, core: state };
+}
+
+export function writePlanVersions(db, records, head) {
+  if (!records.length) return;
+  const insert = db.prepare("INSERT INTO plan_versions VALUES(?,?,?,?,?)");
+  for (const [ordinal, record] of records.entries())
+    insert.run(
+      record.revision.eventId,
+      head,
+      ordinal,
+      encode(record),
+      digest(record),
+    );
+}
+
 export function restore(db, scope) {
   try {
+    const { planScope } = scope;
+    const expectedTables = planScope ? [...tables, PLAN_TABLE] : tables;
     demand(
       db.pragma("application_id", { simple: true }) === APPLICATION_ID &&
-        db.pragma("user_version", { simple: true }) === 1,
+        db.pragma("user_version", { simple: true }) === (planScope ? 2 : 1),
       "unavailable",
     );
     const actual = db
@@ -153,7 +218,15 @@ export function restore(db, scope) {
       )
       .all()
       .map((r) => r.name);
-    demand(encode(actual) === encode([...tables].sort()), "unavailable");
+    demand(
+      encode(actual) === encode([...expectedTables].sort()),
+      "unavailable",
+    );
+    if (planScope)
+      demand(
+        db.prepare("SELECT count(*) AS n FROM snapshots").get().n === 0,
+        "unavailable",
+      );
     demand(
       db
         .prepare(
@@ -168,7 +241,7 @@ export function restore(db, scope) {
     );
     // A cache watermark is not authority. Every authoritative table retains
     // strict FK checking; cache rows are inspected separately after full restore.
-    for (const table of tables.filter((name) => name !== "snapshots"))
+    for (const table of expectedTables.filter((name) => name !== "snapshots"))
       demand(
         db.pragma(`foreign_key_check(${table})`).length === 0,
         "unavailable",
@@ -213,7 +286,7 @@ export function restore(db, scope) {
       closed(intent, [
         ...common,
         ...(i === 0
-          ? ["seedDigest"]
+          ? ["seedDigest", ...(planScope ? ["planScope"] : [])]
           : ["eventClaims", "cursor", "createSnapshot"]),
       ]);
       closed(result, [
@@ -253,8 +326,13 @@ export function restore(db, scope) {
       );
       demand(intent.expectedHead === row.seq - 1, "unavailable");
       const state = stateAt(db, row.seq);
+      const plan = planScope
+        ? restorePlan(db, current?.plan, state, row.seq, scope)
+        : undefined;
       validateState(state, scope.projectId, {
         allowedLocations: [scope.observedRoot],
+        planScope,
+        ...(plan ? planCoreOptions(plan) : {}),
       });
       const cursor = vectorAt(db, row.seq);
       for (const c of cursor)
@@ -265,7 +343,7 @@ export function restore(db, scope) {
             ),
             "unavailable",
           );
-      const stateDigest = digest(state);
+      const stateDigest = digest(plan ?? state);
       demand(
         stateDigest === row.state_digest &&
           result.stateDigest === stateDigest &&
@@ -278,6 +356,7 @@ export function restore(db, scope) {
             intent.seedDigest === stateDigest &&
             row.epoch === 0 &&
             cursor.length === 0 &&
+            (!planScope || encode(intent.planScope) === encode(planScope)) &&
             encode(result.canonicalEventIds) ===
               encode(state.acceptedEvents.map((e) => e.id)),
           "unavailable",
@@ -286,7 +365,8 @@ export function restore(db, scope) {
         demand(
           Array.isArray(intent.eventClaims) &&
             intent.eventClaims.length === result.canonicalEventIds.length &&
-            typeof intent.createSnapshot === "boolean",
+            typeof intent.createSnapshot === "boolean" &&
+            (!planScope || intent.createSnapshot === false),
           "unavailable",
         );
         const priorEvents = current.state.acceptedEvents;
@@ -364,7 +444,13 @@ export function restore(db, scope) {
           );
         });
       }
-      current = { state, cursor, head: row.seq, stateDigest };
+      current = {
+        state,
+        ...(plan ? { plan } : {}),
+        cursor,
+        head: row.seq,
+        stateDigest,
+      };
     }
     demand(current.stateDigest === meta.state_digest, "unavailable");
     return current;
@@ -429,8 +515,8 @@ export function inspectSnapshotCache(db, scope, head) {
     reasons: [...reasons],
   };
 }
-export function logicalBytes(db) {
-  return tables
+export function logicalBytes(db, planScope) {
+  return (planScope ? [...tables, PLAN_TABLE] : tables)
     .filter((t) => !["snapshots", "store_meta"].includes(t))
     .reduce(
       (n, t) =>
@@ -494,11 +580,11 @@ export function writeState(db, state, seq) {
 }
 export function addReceipt(
   db,
-  { state, cursor, head, intent, epoch, canonicalEventIds },
+  { state, plan, cursor, head, intent, epoch, canonicalEventIds },
 ) {
   const result = {
     head,
-    stateDigest: digest(state),
+    stateDigest: digest(plan ?? state),
     canonicalEventIds,
     cursorVectorDigest: digest(cursor),
   };

@@ -116,10 +116,11 @@ function sameClaim(a: NormalizedEvent, b: PlanEvent): boolean {
   );
 }
 
-function validatePlan(
+// The synthetic store verifies the recorded outcome with this same pure rule.
+export function validatePlan(
   event: PlanEvent,
   head: PlanHead | undefined,
-  core: CoreState,
+  core: Pick<CoreState, "sessions" | "acceptedEvents">,
 ): PlanIssue[] {
   const p = event.payload;
   const issues: PlanIssue[] = [];

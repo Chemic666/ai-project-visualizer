@@ -13,40 +13,44 @@ if (args.length === 0) {
     "Storage integration disabled. Explicit synthetic tests: --execute-synthetic --driver-root ABSOLUTE_INSTALLED_DRIVER_ROOT",
   );
 } else {
+  const mode = new Map([
+    ["--execute-synthetic", { test: "integration.test.mjs" }],
+    ["--execute-host-synthetic", { test: "host-integration.test.mjs" }],
+    [
+      "--execute-b1-synthetic",
+      { test: "native-identity.test.mjs", native: true },
+    ],
+    ["--execute-catalog-synthetic", { test: "catalog-quota.test.mjs" }],
+    [
+      "--execute-catalog-native-synthetic",
+      { test: "catalog-quota.test.mjs", native: true },
+    ],
+    ["--execute-cache-synthetic", { test: "snapshot-cache.test.mjs" }],
+    [
+      "--execute-cache-native-synthetic",
+      { test: "snapshot-cache.test.mjs", native: true },
+    ],
+    ["--execute-checkpoint-synthetic", { test: "checkpoint-only.test.mjs" }],
+    [
+      "--execute-checkpoint-native-synthetic",
+      { test: "checkpoint-only.test.mjs", native: true },
+    ],
+    ["--execute-plan-synthetic", { test: "plan-storage.test.mjs" }],
+    [
+      "--execute-plan-native-synthetic",
+      { test: "plan-storage.test.mjs", native: true },
+    ],
+  ]).get(args[0]);
   if (
-    ([
-      "--execute-b1-synthetic",
-      "--execute-catalog-native-synthetic",
-      "--execute-cache-native-synthetic",
-      "--execute-checkpoint-native-synthetic",
-    ].includes(args[0])
-      ? args.length !== 5 ||
-        args[3] !== "--native-manifest" ||
-        !path.isAbsolute(args[4])
-      : args.length !== 3) ||
-    ![
-      "--execute-synthetic",
-      "--execute-host-synthetic",
-      "--execute-b1-synthetic",
-      "--execute-catalog-synthetic",
-      "--execute-catalog-native-synthetic",
-      "--execute-cache-synthetic",
-      "--execute-checkpoint-synthetic",
-      "--execute-cache-native-synthetic",
-      "--execute-checkpoint-native-synthetic",
-    ].includes(args[0]) ||
+    !mode ||
+    args.length !== (mode.native ? 5 : 3) ||
     args[1] !== "--driver-root" ||
-    !path.isAbsolute(args[2])
+    !path.isAbsolute(args[2]) ||
+    (mode.native &&
+      (args[3] !== "--native-manifest" || !path.isAbsolute(args[4])))
   )
     throw new Error("INVALID_TEST_ARGUMENTS");
-  const nativePackage = [
-    "--execute-b1-synthetic",
-    "--execute-catalog-native-synthetic",
-    "--execute-cache-native-synthetic",
-    "--execute-checkpoint-native-synthetic",
-  ].includes(args[0])
-    ? readNativePackage(args[4])
-    : undefined;
+  const nativePackage = mode.native ? readNativePackage(args[4]) : undefined;
   const driverRoot = fs.realpathSync.native(args[2]);
   const driver = JSON.parse(
     fs.readFileSync(path.join(driverRoot, "package.json"), "utf8"),
@@ -65,8 +69,18 @@ if (args.length === 0) {
   const esbuild = require("esbuild");
   const runId = randomUUID(),
     evidence = fs.mkdtempSync(path.join(os.tmpdir(), "apv-storage-evidence-"));
+  const planMode = mode.test === "plan-storage.test.mjs";
   const core = esbuild.buildSync({
-    entryPoints: [path.join(repo, "packages/core/src/index.ts")],
+    ...(planMode
+      ? {
+          stdin: {
+            contents:
+              'export * from "./packages/core/src/index.ts"; export { validatePlan } from "./packages/core/src/plan-engine.ts";',
+            sourcefile: "apv-synthetic-plan.ts",
+            resolveDir: repo,
+          },
+        }
+      : { entryPoints: [path.join(repo, "packages/core/src/index.ts")] }),
     bundle: true,
     platform: "node",
     format: "esm",
@@ -90,35 +104,14 @@ if (args.length === 0) {
   }
   const childArgs = [
     "--test",
-    path.join(
-      repo,
-      [
-        "--execute-checkpoint-synthetic",
-        "--execute-checkpoint-native-synthetic",
-      ].includes(args[0])
-        ? "packages/storage/tests/checkpoint-only.test.mjs"
-        : [
-              "--execute-cache-synthetic",
-              "--execute-cache-native-synthetic",
-            ].includes(args[0])
-          ? "packages/storage/tests/snapshot-cache.test.mjs"
-          : [
-                "--execute-catalog-synthetic",
-                "--execute-catalog-native-synthetic",
-              ].includes(args[0])
-            ? "packages/storage/tests/catalog-quota.test.mjs"
-            : args[0] === "--execute-b1-synthetic"
-              ? "packages/storage/tests/native-identity.test.mjs"
-              : args[0] === "--execute-host-synthetic"
-                ? "packages/storage/tests/host-integration.test.mjs"
-                : "packages/storage/tests/integration.test.mjs",
-    ),
+    path.join(repo, "packages/storage/tests", mode.test),
   ];
   const sources = ["src", "tests", "native"].flatMap((dir) =>
     inventory(path.join(repo, "packages/storage", dir)),
   );
   const driverBinary = path.join(driverRoot, "prebuilds/win32-x64.node");
   const spec = {
+    validationMode: args[0],
     ...(nativePackage ? { nativePackage } : {}),
     runId,
     evidence,

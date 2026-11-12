@@ -118,3 +118,16 @@ Open/read/matching retry do not rewrite bad caches. A new successful transaction
 Existing canonical references can complete a declared fixture consumption unit without a new Core input. This is a bounded eventless API extension, not a new source codec or proof of a real source's complete unit. The original state/provenance is unchanged; receipt, local sequence, Cursor and optional cache share the existing guarded/limited transaction. Recovery checks the prior state and coverage rather than trusting digest agreement alone. Ordinary17 + Native17 cases passed, including controlled Driver-call return-boundary retirement/settlement and strict recorded Writer-epoch recovery checks, with a new two-Worker checkpoint handoff control inside Host8; affected first-slice9/cache11+11/Native8 and five boundary checks passed. Legal fencing gaps and historical receipt epochs remain supported; unrecorded control history and real COMMIT I/O uncertainty are not inferred. Actual installed healthy head2 restart is separate from source checkpoint-only coverage. See [exact runs, failure evidence and remaining limits](../../docs/storage/phase-2-first-slice.md#s09-synthetic-checkpoint-only-follow-up--2026-11-09).
 
 The explicit Native counterpart is `--execute-checkpoint-native-synthetic --driver-root ABS --native-manifest ABS`, requiring the unchanged reviewed Native package described above. Default entry remains disabled; no tests or database opens start without the explicit mode. Complete S09/production/Local/SHM/unknown-COMMIT gates remain unchanged.
+
+## Durable synthetic Plan Engine
+
+`openSyntheticPlanStore` takes the existing development options plus `planScope`, `applyPlanEvent` and `validatePlan` from the same pinned Core bundle. It creates a separate v2 database on explicit synthetic TEMP admission. Its bootstrap is a trusted Core state without prior Plan observations. Reopening uses the same scope and processor fingerprint. `read()` and `commit()` include the recorded `plan` and a digest over the complete Plan Engine state.
+
+Run the same tests with the ordinary Driver or the reviewed Native binding.
+
+```cmd
+node packages\storage\tests\run.mjs --execute-plan-synthetic --driver-root "%APV_DRIVER_ROOT%"
+node packages\storage\tests\run.mjs --execute-plan-native-synthetic --driver-root "%APV_DRIVER_ROOT%" --native-manifest "%APV_NATIVE_MANIFEST%"
+```
+
+The v1 entry continues to serve existing stores. The v2 entry stores revisions and actual change events together with their source observations and receipts. It uses recorded authority without an optional Snapshot cache. See the [verified cases and scope](../../docs/storage/phase-2-first-slice.md#durable-synthetic-plan-revisions--2026-11-13).

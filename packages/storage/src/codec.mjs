@@ -91,9 +91,9 @@ function time(value) {
       Number.isFinite(Date.parse(value)),
   );
 }
-function ids(value, limit = 256) {
+function ids(value, check = id) {
   demand(Array.isArray(value));
-  value.forEach((v) => id(v, limit));
+  value.forEach((v) => check(v));
   demand(new Set(value).size === value.length);
 }
 function optional(object, key, check) {
@@ -107,7 +107,91 @@ function reference(value, namespace) {
   optional(value, "reference", (v) => id(v, 512));
   optional(value, "revision", (v) => id(v, 512));
 }
-function event(value, projectId) {
+export function planGeneratedId(value, kind) {
+  const prefix = "core:plan:" + kind + ":";
+  if (typeof value !== "string" || !value.startsWith(prefix + "[")) return;
+  const wrapperBytes =
+    prefix.length + JSON.stringify(["", Number.MAX_SAFE_INTEGER]).length;
+  demand(Buffer.byteLength(value) <= 256 + wrapperBytes);
+  let parts;
+  try {
+    parts = JSON.parse(value.slice(prefix.length));
+  } catch {
+    demand(false);
+  }
+  demand(
+    Array.isArray(parts) &&
+      parts.length === 2 &&
+      prefix + JSON.stringify(parts) === value,
+  );
+  const [eventId, ordinal] = parts;
+  id(eventId);
+  demand(Number.isSafeInteger(ordinal) && ordinal >= 0);
+  return { eventId, ordinal };
+}
+function entityId(value, kind, planScope) {
+  if (!planScope || !planGeneratedId(value, kind))
+    id(value, kind === "certainty" ? 1024 : 256);
+}
+function planPayload(event, planScope) {
+  const p = event.payload;
+  closed(
+    p,
+    ["completeness", "steps", ...(planScope ? ["planId"] : [])],
+    [
+      "sourceReference",
+      ...(planScope
+        ? ["provenance", "previousEventId", "phases", "deletedSourceItemIds"]
+        : []),
+    ],
+  );
+  if (planScope) {
+    demand(
+      event.sourceId === planScope.sourceId &&
+        event.sessionId === planScope.sessionId &&
+        p.planId === planScope.planId,
+    );
+    optional(p, "provenance", (v) =>
+      demand(v !== "visualizer_inferred" && provenances.includes(v)),
+    );
+    optional(p, "previousEventId", id);
+    optional(p, "phases", (phases) => {
+      demand(Array.isArray(phases) && phases.length <= 4096);
+      for (const phase of phases) {
+        closed(phase, ["sourcePhaseId", "title"]);
+        id(phase.sourcePhaseId);
+        text(phase.title);
+      }
+    });
+    optional(p, "deletedSourceItemIds", (deleted) => {
+      demand(Array.isArray(deleted) && deleted.length <= 4096);
+      for (const item of deleted) id(item);
+    });
+  }
+  demand(["complete", "partial"].includes(p.completeness));
+  demand(Array.isArray(p.steps) && p.steps.length <= 4096);
+  for (const step of p.steps) {
+    closed(
+      step,
+      ["title"],
+      [
+        "sourceReference",
+        ...(planScope ? ["sourceItemId", "sourcePhaseId", "certainty"] : []),
+      ],
+    );
+    text(step.title);
+    if (planScope) {
+      optional(step, "sourceItemId", id);
+      optional(step, "sourcePhaseId", id);
+      optional(step, "certainty", (v) =>
+        demand(["confirmed", "tentative", "idea"].includes(v)),
+      );
+    }
+    optional(step, "sourceReference", (r) => reference(r, event.sourceId));
+  }
+  optional(p, "sourceReference", (r) => reference(r, event.sourceId));
+}
+function event(value, projectId, planScope) {
   closed(
     value,
     [
@@ -159,26 +243,18 @@ function event(value, projectId) {
     demand(value.sessionId === undefined || value.sessionId === p.sessionId);
     optional(p, "sourceSessionReference", (r) => reference(r, value.sourceId));
   } else if (["plan.detected", "plan.updated"].includes(value.type)) {
-    closed(p, ["completeness", "steps"], ["sourceReference"]);
-    demand(["complete", "partial"].includes(p.completeness));
-    demand(Array.isArray(p.steps) && p.steps.length <= 4096);
-    for (const step of p.steps) {
-      closed(step, ["title"], ["sourceReference"]);
-      text(step.title);
-      optional(step, "sourceReference", (r) => reference(r, value.sourceId));
-    }
-    optional(p, "sourceReference", (r) => reference(r, value.sourceId));
+    planPayload(value, planScope);
   } else {
     demand(value.type === "task.status_reported");
     closed(p, ["taskId", "status"]);
-    id(p.taskId);
+    entityId(p.taskId, "task", planScope);
     demand(statuses.includes(p.status));
   }
   demand(Buffer.byteLength(JSON.stringify(value)) <= 1024 * 1024);
 }
-export function validateEvent(value, projectId) {
+export function validateEvent(value, projectId, planScope) {
   plain(value);
-  event(value, projectId);
+  event(value, projectId, planScope);
   return value;
 }
 
@@ -204,10 +280,14 @@ export function validateCursor(value) {
 export function validateState(
   value,
   projectId,
-  { allowedLocations = [] } = {},
+  { allowedLocations = [], planScope, detachedTaskIds } = {},
 ) {
   plain(value);
   closed(value, collections);
+  const phaseId = (v) => entityId(v, "phase", planScope);
+  const taskId = (v) => entityId(v, "task", planScope);
+  const assertionId = (v) => entityId(v, "certainty", planScope);
+  const recordIds = { phases: phaseId, tasks: taskId, assertions: assertionId };
   for (const c of collections) demand(Array.isArray(value[c]));
   demand(value.projects.length === 1 && value.projects[0].id === projectId);
   const maps = Object.fromEntries(
@@ -216,7 +296,7 @@ export function validateState(
       .map((c) => {
         const map = new Map();
         for (const record of value[c]) {
-          id(record.id, c === "assertions" ? 1024 : 256);
+          (recordIds[c] ?? id)(record.id);
           demand(!map.has(record.id));
           map.set(record.id, record);
         }
@@ -234,7 +314,7 @@ export function validateState(
     "currentPhaseAssertionIds",
   ]);
   text(p.name);
-  ids(p.phaseIds);
+  ids(p.phaseIds, phaseId);
   demand(Array.isArray(p.locations) && p.locations.length <= 1);
   p.locations.forEach((loc) =>
     demand(
@@ -244,7 +324,7 @@ export function validateState(
     ),
   );
   const assertionRefs = (list, target, targetId) => {
-    ids(list, 1024);
+    ids(list, assertionId);
     for (const key of list) {
       has("assertions", key);
       const a = maps.assertions.get(key);
@@ -257,7 +337,7 @@ export function validateState(
     closed(ph, ["id", "projectId", "title", "taskIds", "statusAssertionIds"]);
     demand(ph.projectId === projectId && p.phaseIds.includes(ph.id));
     text(ph.title);
-    ids(ph.taskIds);
+    ids(ph.taskIds, taskId);
     assertionRefs(ph.statusAssertionIds, "phase.status", ph.id);
   }
   p.phaseIds.forEach((key) => has("phases", key));
@@ -271,7 +351,10 @@ export function validateState(
       "weightAssertionIds",
     ]);
     has("phases", t.phaseId);
-    demand(maps.phases.get(t.phaseId).taskIds.includes(t.id));
+    demand(
+      maps.phases.get(t.phaseId).taskIds.includes(t.id) ===
+        !detachedTaskIds?.has(t.id),
+    );
     text(t.title);
     assertionRefs(t.statusAssertionIds, "task.status", t.id);
     assertionRefs(t.certaintyAssertionIds, "task.certainty", t.id);
@@ -395,7 +478,7 @@ export function validateState(
     } else demand(a.inference === undefined);
   }
   for (const e of value.acceptedEvents) {
-    event(e, projectId);
+    event(e, projectId, planScope);
     optional(e, "causedBy", (key) => has("acceptedEvents", key));
     optional(e, "relatedEventIds", (keys) =>
       keys.forEach((key) => has("acceptedEvents", key)),
@@ -491,8 +574,8 @@ export function validateState(
       const a = maps.assertions.get(aid);
       demand(a.target === r.target && a.targetId === r.targetId);
     }
-    ids(r.supportingAssertionIds, 1024);
-    ids(r.conflictingAssertionIds, 1024);
+    ids(r.supportingAssertionIds, assertionId);
+    ids(r.conflictingAssertionIds, assertionId);
     closed(r.resolution, ["resolvedAt", "ruleId", "ruleVersion", "reason"]);
     time(r.resolution.resolvedAt);
     text(r.resolution.ruleId);

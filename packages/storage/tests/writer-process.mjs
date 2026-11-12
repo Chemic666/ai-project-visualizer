@@ -5,7 +5,10 @@ import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { admitSyntheticRoot } from "../src/host-admission.mjs";
-import { openSyntheticStore } from "../src/development.mjs";
+import {
+  openSyntheticPlanStore,
+  openSyntheticStore,
+} from "../src/development.mjs";
 import { seed, input, cursor } from "./fixtures.mjs";
 
 const spec = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
@@ -19,13 +22,20 @@ try {
     reopen: true,
     expectedNonce: spec.nonce,
   });
-  const store = openSyntheticStore(cap, {
+  const recoverPlan = spec.mode === "recover-plan";
+  const planMode = recoverPlan || spec.mode === "write-plan";
+  function unexpectedReplay() {
+    throw new Error("UNEXPECTED_PROCESSOR_REPLAY");
+  }
+  const options = {
     Database,
-    applyNormalizedEvent: core.applyNormalizedEvent,
+    applyNormalizedEvent: recoverPlan
+      ? unexpectedReplay
+      : core.applyNormalizedEvent,
     processorFingerprint: spec.processorFingerprint,
     projectId: "PA",
     generation: "G1",
-    bootstrap: seed(),
+    ...(recoverPlan ? {} : { bootstrap: seed() }),
     ...(spec.mode === "rollback"
       ? {
           testHooks: {
@@ -35,9 +45,36 @@ try {
           },
         }
       : {}),
-  });
+  };
+  const store = planMode
+    ? openSyntheticPlanStore(cap, {
+        ...options,
+        planScope: spec.planScope,
+        applyPlanEvent: recoverPlan ? unexpectedReplay : core.applyPlanEvent,
+        validatePlan: core.validatePlan,
+        ...(spec.nativePackage ? { nativePackage: spec.nativePackage } : {}),
+      })
+    : openSyntheticStore(cap, options);
   let result;
-  if (spec.mode === "recover") {
+  if (recoverPlan) {
+    assert.equal(spec.writerSettlement.status, 0);
+    assert.equal(spec.writerSettlement.signal, null);
+    assert.equal(spec.writerSettlement.closed, true);
+    result = {
+      status: "recovered",
+      cut: store.read(),
+      epoch: store.writer().epoch,
+    };
+  } else if (planMode) {
+    result = store.commit({
+      operationId: "op:plan",
+      operationNonce: "nonce:plan",
+      expectedHead: 1,
+      writer: store.writer(),
+      events: spec.planEvents,
+      cursor: cursor(spec.planEvents.map((event) => event.id)),
+    });
+  } else if (spec.mode === "recover") {
     assert.equal(spec.writerSettlement.status, 0);
     assert.equal(spec.writerSettlement.closed, true);
     assert.notEqual(spec.writerSettlement.pid, process.pid);

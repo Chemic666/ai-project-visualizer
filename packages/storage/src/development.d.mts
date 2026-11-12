@@ -1,8 +1,12 @@
 import type {
   CoreState,
   NormalizedEvent,
+  PlanEngineState,
+  PlanScope,
   applyNormalizedEvent,
+  applyPlanEvent,
 } from "../../core/src/index.js";
+import type { validatePlan } from "../../core/src/plan-engine.js";
 import type { SyntheticCapability } from "./host-admission.mjs";
 export {
   admitSyntheticRoot,
@@ -108,25 +112,47 @@ export interface SyntheticStore {
   close(): { status: "closed"; processSettlementRequired: true };
   admission(): { productionWriteEnabled: false; bindingAssurance: string };
 }
+export interface SyntheticStoreOptions {
+  Database: new (
+    filename: string,
+    options?: { readonly?: boolean; fileMustExist?: boolean },
+  ) => SqliteConnection;
+  applyNormalizedEvent: typeof applyNormalizedEvent;
+  processorFingerprint: string;
+  projectId: string;
+  generation: string;
+  bootstrap?: CoreState;
+  nativePackage?: NativePackage;
+  limits?: {
+    catalogBytes?: number;
+    logicalBytes?: number;
+    snapshotBytes?: number;
+    physicalBytes?: number;
+  };
+  testHooks?: { afterRecords?: () => void };
+}
+
 export function openSyntheticStore(
   capability: SyntheticCapability,
-  options: {
-    Database: new (
-      filename: string,
-      options?: { readonly?: boolean; fileMustExist?: boolean },
-    ) => SqliteConnection;
-    applyNormalizedEvent: typeof applyNormalizedEvent;
-    processorFingerprint: string;
-    projectId: string;
-    generation: string;
-    bootstrap?: CoreState;
-    nativePackage?: NativePackage;
-    limits?: {
-      catalogBytes?: number;
-      logicalBytes?: number;
-      snapshotBytes?: number;
-      physicalBytes?: number;
-    };
-    testHooks?: { afterRecords?: () => void };
-  },
+  options: SyntheticStoreOptions,
 ): SyntheticStore;
+
+export interface PlanStorageCut extends StorageCut {
+  plan: PlanEngineState;
+}
+
+export interface SyntheticPlanStore extends SyntheticStore {
+  read(): PlanStorageCut;
+  commit(
+    request: CommitRequest,
+  ): ReturnType<SyntheticStore["commit"]> & { plan: PlanEngineState };
+}
+
+export function openSyntheticPlanStore(
+  capability: SyntheticCapability,
+  options: SyntheticStoreOptions & {
+    planScope: PlanScope;
+    applyPlanEvent: typeof applyPlanEvent;
+    validatePlan: typeof validatePlan;
+  },
+): SyntheticPlanStore;
