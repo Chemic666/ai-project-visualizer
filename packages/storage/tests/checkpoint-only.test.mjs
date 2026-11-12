@@ -361,6 +361,258 @@ test("checkpoint-only recovery: a digest-consistent event commit cannot masquera
   save("checkpoint-forged-eventless-rejected.json", { rows: before });
 });
 
+function refuseRecovery(f) {
+  const metadata = () =>
+    sql(f, (db) => db.prepare("SELECT * FROM store_meta").get());
+  const before = rows(f);
+  const beforeMeta = metadata();
+  assert.throws(() => openSyntheticStore(f.cap, options).close(), {
+    code: "unavailable",
+  });
+  assert.deepEqual(rows(f), before);
+  assert.deepEqual(metadata(), beforeMeta);
+}
+
+for (const scenario of ["omitted", "reordered"]) {
+  test(
+    "ledger recovery: refuses " +
+      scenario +
+      " canonical inputs even when receipt digests agree",
+    () => {
+      const f = fixture();
+      try {
+        f.store.commit(
+          request(f.store, "batch", [input("E3"), input("E2")], null),
+        );
+      } finally {
+        f.store.close();
+      }
+      sql(
+        f,
+        (db) =>
+          reviseReceipt(db, 3, (intent, result) => {
+            if (scenario === "omitted") {
+              intent.eventClaims.pop();
+              result.canonicalEventIds.pop();
+            } else {
+              intent.eventClaims.reverse();
+              result.canonicalEventIds.reverse();
+            }
+          }),
+        false,
+      );
+      refuseRecovery(f);
+    },
+  );
+}
+
+test("ledger recovery: a duplicate-only receipt cannot change the recorded state", () => {
+  const f = fixture();
+  let committed;
+  try {
+    committed = f.store.commit(request(f.store, "duplicate", [input()], null));
+  } finally {
+    f.store.close();
+  }
+  sql(
+    f,
+    (db) => {
+      const state = committed.state;
+      const project = state.projects[0];
+      project.name = "Changed without a new input";
+      db.prepare(
+        "UPDATE entity_versions SET body=?,body_digest=? WHERE seq=3 AND kind='projects' AND id='PA'",
+      ).run(encode(project), digest(project));
+      const changed = digest(state);
+      db.prepare("UPDATE commits SET state_digest=? WHERE seq=3").run(changed);
+      db.prepare("UPDATE store_meta SET state_digest=?").run(changed);
+      reviseReceipt(db, 3, (_, result) => {
+        result.stateDigest = changed;
+      });
+    },
+    false,
+  );
+  refuseRecovery(f);
+});
+
+test("ledger recovery: bootstrap cannot introduce a source checkpoint", () => {
+  const seeded = core.applyNormalizedEvent(seed(), input("E0"));
+  assert.equal(seeded.status, "applied");
+  const f = fixture({ bootstrap: seeded.state }, null);
+  f.store.close();
+  sql(
+    f,
+    (db) => {
+      const undeclared = cursor(["E0"], "bootstrap-position");
+      db.prepare(
+        "INSERT INTO source_checkpoint_versions VALUES(?,?,1,?,?)",
+      ).run(
+        undeclared.sourceId,
+        undeclared.streamId,
+        encode(undeclared),
+        digest(undeclared),
+      );
+      for (const seq of [1, 2])
+        reviseReceipt(db, seq, (_, result) => {
+          result.cursorVectorDigest = digest([undeclared]);
+        });
+    },
+    false,
+  );
+  refuseRecovery(f);
+});
+
+test("ledger commit: a processor cannot add an event outside the request", () => {
+  const f = fixture({
+    applyNormalizedEvent(state, event) {
+      const result = core.applyNormalizedEvent(state, event);
+      if (event.id !== "E2" || result.status !== "applied") return result;
+      return core.applyNormalizedEvent(result.state, input("E3"));
+    },
+  });
+  try {
+    rejected(
+      f,
+      request(
+        f.store,
+        "extra-event",
+        [input("E2")],
+        cursor(["E2"], "batch:2", "batch:1"),
+      ),
+      "admission_rejected",
+    );
+  } finally {
+    f.store.close();
+  }
+});
+
+test("ledger commit: a processor cannot rename an accepted event in place", () => {
+  const bootstrap = seed();
+  bootstrap.acceptedEvents.push({
+    ...input("E0"),
+    type: "plan.detected",
+    payload: { completeness: "complete", steps: [{ title: "Seed task" }] },
+  });
+  const f = fixture({
+    bootstrap,
+    applyNormalizedEvent(state, event) {
+      if (event.id === "E2") {
+        const historical = state.acceptedEvents[0];
+        historical.id = "RenamedEvent";
+        historical.sourceIdentity.sourceEventId = "source:RenamedEvent";
+      }
+      return core.applyNormalizedEvent(state, event);
+    },
+  });
+  try {
+    rejected(
+      f,
+      request(f.store, "rename", [input("E2")], null),
+      "admission_rejected",
+    );
+  } finally {
+    f.store.close();
+  }
+});
+
+test("ledger commit: unverified processor output cannot make a later input a duplicate", () => {
+  const f = fixture({
+    applyNormalizedEvent(state, event) {
+      if (event.id === "E4")
+        state = {
+          ...state,
+          acceptedEvents: state.acceptedEvents.filter(({ id }) => id !== "E3"),
+        };
+      const result = core.applyNormalizedEvent(state, event);
+      if (event.id !== "E2" || result.status !== "applied") return result;
+      return {
+        ...result,
+        state: {
+          ...result.state,
+          acceptedEvents: [...result.state.acceptedEvents, input("E3")],
+        },
+      };
+    },
+  });
+  try {
+    rejected(
+      f,
+      request(
+        f.store,
+        "transient-event",
+        [input("E2"), input("E3"), input("E4")],
+        null,
+      ),
+      "admission_rejected",
+    );
+  } finally {
+    f.store.close();
+  }
+});
+
+test("ledger commit: a processor cannot rename an immutable original assertion", () => {
+  const f = fixture({
+    applyNormalizedEvent(state, event) {
+      if (event.id === "E2") {
+        state.assertions[0].id = "RenamedWeight";
+        state.tasks[0].weightAssertionIds[0] = "RenamedWeight";
+        state.corrections[0].originalAssertionId = "RenamedWeight";
+        state.resolvedConclusions[0].conflictingAssertionIds[0] =
+          "RenamedWeight";
+      }
+      return core.applyNormalizedEvent(state, event);
+    },
+  });
+  try {
+    rejected(
+      f,
+      request(f.store, "rename-weight", [input("E2")], null),
+      "identity_conflict",
+    );
+  } finally {
+    f.store.close();
+  }
+});
+
+test("ledger recovery: aliases and existing events can be interleaved with new inputs", () => {
+  const f = fixture();
+  const batch = [
+    input(),
+    input("E3"),
+    { ...input("E3"), id: "E3Alias" },
+    input(),
+    input("E2"),
+  ];
+  let committed;
+  try {
+    committed = f.store.commit(
+      request(
+        f.store,
+        "mixed",
+        batch,
+        cursor(["E1", "E2", "E3"], "batch:2", "batch:1"),
+      ),
+    );
+  } finally {
+    f.store.close();
+  }
+  const reopened = openSyntheticStore(f.cap, options);
+  try {
+    const cut = reopened.read();
+    assert.equal(cut.head, 3);
+    assert.deepEqual(
+      cut.state.acceptedEvents.map(({ id }) => id),
+      ["E1", "E3", "E2"],
+    );
+    assert.deepEqual(cut.cursor, [
+      cursor(["E1", "E2", "E3"], "batch:2", "batch:1"),
+    ]);
+    assert.equal(cut.stateDigest, committed.receipt.stateDigest);
+  } finally {
+    reopened.close();
+  }
+});
+
 test("checkpoint-only recovery: digest-consistent cursor/receipt cannot revisit an older opaque position", () => {
   const f = fixture();
   try {

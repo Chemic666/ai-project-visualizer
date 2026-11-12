@@ -670,12 +670,17 @@ export function openSyntheticStore(capability, options = {}) {
       demand(meta.head === request.expectedHead, "revision_conflict");
       const before = restore(project, scope);
       let state = before.state;
+      // The processor must not be able to rewrite what we admitted or make
+      // an unchecked event influence deduplication for the rest of the batch.
+      const expectedEvents = copy(state.acceptedEvents);
+      const priorAssertionCount = state.assertions.length;
+      const priorAssertions = encode(state.assertions);
       const canonicalEventIds = [];
       for (const event of request.events) {
-        let old = state.acceptedEvents.find((e) => e.id === event.id);
+        let old = expectedEvents.find((e) => e.id === event.id);
         if (old) demand(encode(old) === encode(event), "identity_conflict");
         else if (event.sourceIdentity?.kind === "source_event") {
-          old = state.acceptedEvents.find(
+          old = expectedEvents.find(
             (e) =>
               e.sourceId === event.sourceId &&
               e.sourceIdentity?.kind === "source_event" &&
@@ -693,15 +698,24 @@ export function openSyntheticStore(capability, options = {}) {
           const result = options.applyNormalizedEvent(state, copy(event));
           demand(result.status === "applied", "admission_rejected");
           state = result.state;
+          expectedEvents.push(event);
           canonicalEventIds.push(event.id);
         }
       }
       validateState(state, scope.projectId, {
         allowedLocations: [scope.observedRoot],
       });
+      // Bind the processor's ordered ledger to the inputs we actually admitted.
       demand(
-        encode(state.assertions.slice(0, before.state.assertions.length)) ===
-          encode(before.state.assertions),
+        state.acceptedEvents.length === expectedEvents.length &&
+          state.acceptedEvents.every(
+            (event, index) => encode(event) === encode(expectedEvents[index]),
+          ),
+        "admission_rejected",
+      );
+      demand(
+        encode(state.assertions.slice(0, priorAssertionCount)) ===
+          priorAssertions,
         "identity_conflict",
       );
       const head = meta.head + 1;

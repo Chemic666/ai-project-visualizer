@@ -391,3 +391,21 @@ The final runtime was also packaged and installed for one fresh **healthy normal
 Independent final read-only review rehashed the same seven inventories and all current source/Driver/Core bytes, inspected both controlled boundary records and the recorded-epoch controls, and confirmed final installed inventory/runtime/archive, exit binding and original Reader cut. No important residual was found within this bounded implementation; no tests or SQL were rerun by the reviewer.
 
 Current implementation work here is complete only for the described synthetic checkpoint API and recorded-epoch recovery invariants. Complete S09, true unknown-COMMIT/control history, Local/SHM/B1, full ProjectEngineState, production/real Adapter intake and the broad acceptance gates remain unverified. No commit/push.
+
+## Event receipt and recorded history consistency — 2026-11-12
+
+The synthetic writer now checks its result against the independently tracked inputs admitted to the batch. An already accepted event or stable source alias can be reused, but processor output cannot introduce another event, rewrite history, or make a later input look like a duplicate. The writer also checks the original assertions against their pre-batch content. Rejected batches keep the prior cut and source checkpoint.
+
+Recovery verifies that each receipt's first mention of each new canonical event matches the recorded events for that commit in order. A commit with no new event cannot change CoreState; bootstrap starts without source checkpoints. A mismatch returns unavailable before writer fencing and keeps the stored records. This checks local recorded order and complete coverage of a stored commit; it does not infer source ordering or replay old inputs.
+
+The initial regressions reproduced five invalid acceptances (`758b8d5e-62fe-419b-908b-5a1a997083cc`), and review-led controls reproduced three processor-output defects in the first revision (`dbba18db-be42-44a1-a4a1-5400f650ced5`). The final suite also verifies that old events and stable aliases can be interleaved with new events and reopened with the original state digest and checkpoint.
+
+| Final validation | Result | RunId | Verified evidence files |
+| --- | --- | --- | --- |
+| Ordinary synthetic SQLite | 26/26 | a2187c15-5032-454f-870f-b821998fedef | 194 |
+| Synthetic SQLite with the reviewed Native binding | 26/26 | e915f9a8-6d01-4390-bfc4-7497da1b61ce | 194 |
+| First slice, including an independent Writer/SQL Reader | 9/9 | 905d8724-435e-4f8a-99c4-7cbe157784a7 | 124 |
+
+All three used Windows x64 Node 24.21.0 and the pinned better-sqlite3 13.0.3. The evidence matched all 50 storage source inputs and the Core and Driver hashes for each run. Original test artifacts stay local. The standard suite (298), storage boundary tests (5), typecheck, lint, and formatting passed. Follow-up static review confirmed the two event-history defects were closed.
+
+This is scoped recovery coverage for S12 and regression evidence for S06–S09 in the existing synthetic store. The schema and production admission remain unchanged. Installed Host recovery on this revision, full ProjectEngineState persistence, real-source coverage and production acceptance remain unverified.

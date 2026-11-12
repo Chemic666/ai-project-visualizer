@@ -277,6 +277,7 @@ export function restore(db, scope) {
           intent.operationId === "bootstrap" &&
             intent.seedDigest === stateDigest &&
             row.epoch === 0 &&
+            cursor.length === 0 &&
             encode(result.canonicalEventIds) ===
               encode(state.acceptedEvents.map((e) => e.id)),
           "unavailable",
@@ -288,18 +289,22 @@ export function restore(db, scope) {
             typeof intent.createSnapshot === "boolean",
           "unavailable",
         );
+        const priorEvents = current.state.acceptedEvents;
+        const priorIds = new Set(priorEvents.map((event) => event.id));
+        // Repeated receipt IDs are valid aliases. Only the first mention of
+        // each newly admitted event belongs to this commit's ordered suffix.
+        const introduced = [...new Set(result.canonicalEventIds)].filter(
+          (eventId) => !priorIds.has(eventId),
+        );
+        const appended = state.acceptedEvents.slice(priorEvents.length);
+        demand(
+          introduced.length === appended.length &&
+            appended.every((event, index) => event.id === introduced[index]) &&
+            (introduced.length > 0 || stateDigest === current.stateDigest),
+          "unavailable",
+        );
         const checkpointOnly = intent.eventClaims.length === 0;
-        if (checkpointOnly)
-          demand(
-            intent.cursor !== null &&
-              encode(state) === encode(current.state) &&
-              db
-                .prepare(
-                  "SELECT count(*) AS n FROM normalized_events WHERE seq=?",
-                )
-                .get(row.seq).n === 0,
-            "unavailable",
-          );
+        if (checkpointOnly) demand(intent.cursor !== null, "unavailable");
         if (intent.cursor !== null) {
           validateCursor(intent.cursor);
           const c = intent.cursor;

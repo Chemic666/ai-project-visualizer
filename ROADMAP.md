@@ -69,6 +69,8 @@ Current work: [first real Storage adapter](packages/storage/README.md), default 
 
 S09 synthetic canonical-reference checkpoint-only now has ordinary17 + Native17 and two-Worker head3/original-receipt subcoverage, including controlled return-boundary settlement and recorded Writer-epoch refusal with legal fencing gaps. Exact prior and known-position refusals do not prove ordering or completeness for a real source; recorded epochs do not reconstruct missing control history. Final current installed healthy TEMP head2 restart passed separately (54535c85-a0f0-4768-ba56-1f4dc2f34e59, inventory313/runtime54); production gates remain open. [Bounded evidence](docs/storage/phase-2-first-slice.md#s09-synthetic-checkpoint-only-follow-up--2026-11-09).
 
+2026-11-12: the synthetic writer now protects accepted events and original assertions from inconsistent processor results. Recovery requires each commit's newly recorded events to match its receipt in order and rejects undeclared bootstrap checkpoints. Ordinary26 + Native26 + first-slice9 passed; see [bounded validation](docs/storage/phase-2-first-slice.md#event-receipt-and-recorded-history-consistency--2026-11-12).
+
 First-slice local checkpoint: `d98aa1f4a9e4c83b26fd6c898c750fdcfa2d0810` (35 reviewed files, no push). The separately authorized [synthetic Host follow-up](docs/storage/phase-2-first-slice.md#host-composition-follow-up--2026-10-19) adds joint Owner/Project process lifetime, concurrent catalog admission and normal handoff tests; actual Driver handle binding remains unavailable. No real-project enablement or Codex Session integration is approved.
 
 ### Historical 2026-10-08 preparation (superseded status/sequence only)
