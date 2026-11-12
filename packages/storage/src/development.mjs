@@ -522,10 +522,7 @@ function openStore(capability, options, planScope) {
           .prepare("INSERT INTO snapshots VALUES(?,?,?)")
           .run(1, encode(snapshot), digest(snapshot));
       }
-      demand(
-        logicalBytes(project, planScope) <= limits.logicalBytes,
-        "quota_exceeded",
-      );
+      logicalBytes(project, planScope, limits.logicalBytes);
       project.exec("COMMIT");
       catalog.exec("BEGIN IMMEDIATE");
       catalog
@@ -847,7 +844,7 @@ function openStore(capability, options, planScope) {
       // Conservative pre-write whole-bundle estimate; exact retained SQL-row
       // accounting below is a second transactional backstop, not a disk guarantee.
       const estimate =
-        logicalBytes(project, planScope) +
+        logicalBytes(project, planScope, limits.logicalBytes) +
         Buffer.byteLength(
           encode({
             state,
@@ -911,10 +908,7 @@ function openStore(capability, options, planScope) {
           context.token,
         );
       demand(changed.changes === 1, "stale_writer");
-      demand(
-        logicalBytes(project, planScope) <= limits.logicalBytes,
-        "quota_exceeded",
-      );
+      logicalBytes(project, planScope, limits.logicalBytes);
       try {
         demand(ownerHeld && owner.open && owner.inTransaction, "unavailable");
         checkBinding();

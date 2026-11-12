@@ -428,3 +428,11 @@ Rollback leaves both the Plan record and its observation, receipt and Cursor unc
 Both Plan runs matched all 52 storage input hashes, the pinned Driver and actual compiled Core. The Native test asserts the loaded project's binding report. Earlier native-named Plan commands ran ordinary SQLite because their mode omitted the Native package. The final runner selects the suite and Native requirement together. Actual normal v1 installed TEMP restart also passed with limitation during this slice (RunId `386e3b23-38c8-42fb-a745-4c2da93af798`, before the final v2 Session check and test-runner changes). Standard tests and type, lint, format and diff checks passed. Private evidence remains local.
 
 The v2 slice covers the Plan Engine and existing Core data on synthetic inputs. Correction commands, Progress and Timeline persistence, v1 migration, real observation, and v2 integration with the installed Host remain open.
+
+## Streaming project quota and Plan transaction checks — 2026-11-13
+
+Catalog and Project now count the same canonical UTF-8 row arrays one row at a time. The project limit includes the recorded Plan versions in v2. Counting stops when the remaining budget is exceeded. A real SQLite fixture with multibyte titles and escaped text matched the exact serialized byte count, accepted the exact limit and refused one byte below it. A subsequent read confirmed the iterator settled.
+
+Five controlled failures ran immediately after SQLite applied the receipt, normalized observation, Plan version, source checkpoint or head update. Each left the complete prior SQL rows and readable state intact. Retrying the same request committed both observations and their Plan records exactly once. These are injected application failures before COMMIT in owned synthetic stores.
+
+Ordinary Plan **23/23** (RunId `f9e8edd1-2080-402e-b91e-e754eadc2361`) and Native Plan **23/23** (RunId `e52932f3-ad74-4055-abb8-21a47eff76d8`) passed. The Catalog regression passed ordinary **3/3** and Native **2/2**, and the v1 first slice passed **9/9**. On a read-only copy of the sealed pre-v2 fixture from `905d8724-435e-4f8a-99c4-7cbe157784a7`, the current decoder recovered the identical head 2, state digest and checkpoint. All three source database files kept their original hashes. The standard suite, types, lint, formatting and diff checks passed.

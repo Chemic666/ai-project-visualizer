@@ -7,6 +7,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as storage from "../src/development.mjs";
+import { logicalBytes } from "../src/records.mjs";
 import { cursor, input, seed, time } from "./fixtures.mjs";
 
 const spec = JSON.parse(
@@ -751,3 +752,130 @@ test("plan store refuses a Session that appeared before its start observation", 
     f.store.close();
   }
 });
+
+test("plan authority quota counts exact UTF-8 bytes with a streaming SQLite reader", () => {
+  const f = fixture();
+  try {
+    const localized = {
+      ...first,
+      payload: {
+        ...first.payload,
+        phases: [{ sourcePhaseId: "delivery", title: "阶段 “甲” \\ 分支" }],
+        steps: [{ ...primary, title: "校验变更" }, secondary],
+      },
+    };
+    f.store.commit(request(f.store, "localized-plan", [localized]));
+    sql(f, (db) => {
+      const tables = db
+        .prepare(
+          "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT IN ('snapshots','store_meta')",
+        )
+        .all()
+        .map(({ name }) => name);
+      assert.ok(tables.includes("plan_versions"));
+      const exact = tables.reduce((bytes, name) => {
+        const rows = db.prepare("SELECT * FROM " + name).all();
+        return bytes + Buffer.byteLength(JSON.stringify(rows), "utf8");
+      }, 0);
+      const iteratorOnly = {
+        prepare(query) {
+          const statement = db.prepare(query);
+          return { iterate: () => statement.iterate() };
+        },
+      };
+      assert.equal(logicalBytes(iteratorOnly, scope, exact), exact);
+      assert.throws(() => logicalBytes(iteratorOnly, scope, exact - 1), {
+        code: "quota_exceeded",
+      });
+      assert.equal(logicalBytes(iteratorOnly, scope, exact), exact);
+    });
+  } finally {
+    f.store.close();
+  }
+});
+
+for (const [barrier, statementPrefix] of [
+  ["receipt", "INSERT INTO commits"],
+  ["normalized observation", "INSERT INTO normalized_events"],
+  ["plan version", "INSERT INTO plan_versions"],
+  ["checkpoint", "INSERT INTO source_checkpoint_versions"],
+  ["head update", "UPDATE store_meta SET head="],
+]) {
+  test(
+    "plan transaction rolls back when the " +
+      barrier +
+      " write fails after SQLite applies it",
+    () => {
+      let armed = false;
+      let injected = 0;
+      class FaultDatabase extends Database {
+        prepare(statement) {
+          const sqlStatement = super.prepare(statement);
+          if (!armed || !statement.startsWith(statementPrefix))
+            return sqlStatement;
+          return {
+            run(...args) {
+              sqlStatement.run(...args);
+              armed = false;
+              injected++;
+              throw new Error("CONTROLLED_PLAN_WRITE_FAILURE");
+            },
+          };
+        }
+      }
+      const f = fixture({ Database: FaultDatabase });
+      try {
+        const before = f.store.read();
+        const checkpoint = cursor(["P1", "P2"]);
+        const candidate = request(
+          f.store,
+          "plan-barrier",
+          [first, second],
+          checkpoint,
+        );
+        const readRows = () =>
+          sql(f, (db) =>
+            Object.fromEntries(
+              [
+                "store_meta",
+                "commits",
+                "normalized_events",
+                "entity_versions",
+                "assertions",
+                "correction_versions",
+                "conclusion_versions",
+                "source_checkpoint_versions",
+                "plan_versions",
+              ].map((name) => [
+                name,
+                db.prepare("SELECT * FROM " + name + " ORDER BY rowid").all(),
+              ]),
+            ),
+          );
+        const originalRows = readRows();
+        armed = true;
+        assert.throws(() => f.store.commit(candidate), { code: "unavailable" });
+        assert.equal(injected, 1);
+        assert.deepEqual(f.store.read(), before);
+        assert.deepEqual(readRows(), originalRows);
+        assert.ok(
+          f.store
+            .evidence()
+            .some(
+              (record) =>
+                record.phase === "rollback" && record.status === "returned",
+            ),
+        );
+        const retry = f.store.commit(candidate);
+        assert.equal(retry.head, 2);
+        assert.deepEqual(
+          retry.plan.revisions.map(({ eventId }) => eventId),
+          ["P1", "P2"],
+        );
+        assert.deepEqual(retry.cursor, [checkpoint]);
+      } finally {
+        f.store.close();
+      }
+    },
+  );
+}

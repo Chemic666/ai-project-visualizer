@@ -11,6 +11,7 @@ import {
   id,
 } from "./codec.mjs";
 import { demand, StorageError } from "./errors.mjs";
+import { countRowArrayBytes } from "./catalog-budget.mjs";
 import {
   appendPlanVersion,
   emptyPlan,
@@ -515,14 +516,17 @@ export function inspectSnapshotCache(db, scope, head) {
     reasons: [...reasons],
   };
 }
-export function logicalBytes(db, planScope) {
-  return (planScope ? [...tables, PLAN_TABLE] : tables)
-    .filter((t) => !["snapshots", "store_meta"].includes(t))
-    .reduce(
-      (n, t) =>
-        n + Buffer.byteLength(encode(db.prepare(`SELECT * FROM ${t}`).all())),
-      0,
+export function logicalBytes(db, planScope, budget = Infinity) {
+  const counted = (planScope ? [...tables, PLAN_TABLE] : tables).filter(
+    (table) => table !== "snapshots" && table !== "store_meta",
+  );
+  let bytes = 0;
+  for (const table of counted)
+    bytes += countRowArrayBytes(
+      () => db.prepare(`SELECT * FROM ${table}`).iterate(),
+      budget - bytes,
     );
+  return bytes;
 }
 export function writeState(db, state, seq) {
   const addEntity = db.prepare(
