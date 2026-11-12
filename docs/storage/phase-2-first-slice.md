@@ -436,3 +436,9 @@ Catalog and Project now count the same canonical UTF-8 row arrays one row at a t
 Five controlled failures ran immediately after SQLite applied the receipt, normalized observation, Plan version, source checkpoint or head update. Each left the complete prior SQL rows and readable state intact. Retrying the same request committed both observations and their Plan records exactly once. These are injected application failures before COMMIT in owned synthetic stores.
 
 Ordinary Plan **23/23** (RunId `f9e8edd1-2080-402e-b91e-e754eadc2361`) and Native Plan **23/23** (RunId `e52932f3-ad74-4055-abb8-21a47eff76d8`) passed. The Catalog regression passed ordinary **3/3** and Native **2/2**, and the v1 first slice passed **9/9**. On a read-only copy of the sealed pre-v2 fixture from `905d8724-435e-4f8a-99c4-7cbe157784a7`, the current decoder recovered the identical head 2, state digest and checkpoint. All three source database files kept their original hashes. The standard suite, types, lint, formatting and diff checks passed.
+
+## Project schema admission — 2026-11-13
+
+Opening and restoring a Project database now checks the stored table definitions for the supported version as well as its application marker. The check runs before changing the Project journal settings or taking a new writer epoch. A synthetic fixture retained every Plan row and passed SQLite integrity and foreign key checks after its table had lost the declared foreign keys. The store refused that fixture and preserved its head and writer metadata.
+
+The final Plan suite passed ordinary **24/24** (RunId `5c90778c-3b2c-443a-a565-1b7dff37b1e0`) and Native **24/24** (RunId `55ebd7a1-e1d8-4e71-a8c9-12dee295c803`). The v1 first slice **9/9** and cache recovery **11/11** passed. The sealed pre-v2 copy again recovered the identical head and state with original file hashes intact.

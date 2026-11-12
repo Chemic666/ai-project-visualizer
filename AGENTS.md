@@ -66,6 +66,7 @@ When discovering an unrelated improvement:
 User instruction, 2026-11-09:
 
 - Every task-completion report uses **V1.0** as the project-progress target. Include a clearly labelled engineering estimate/range, the remaining major work and what this task advanced. Do not switch between V0.1 and V1.0 or increase a percentage merely because tests/commits grew. This delivery estimate is separate from Core's Confirmed Project Progress.
+- Each completion report states what was delivered, which APV capability it advances, and its practical effect on the rest of the project. Distinguish verified results from the gaps that remain.
 - The user has authorized stage-by-stage **commit and push to this project's existing GitHub remote** after the related implementation and required verification pass. This authorization includes the currently completed continuous work and persists until revoked. Do not ask again for ordinary commits/pushes.
 - Inspect the actual diff, staged files, author, branch/upstream and fresh remote state; exclude unrelated work, private data, credentials, raw runtime evidence and temporary artifacts. Preserve unverified/blocked gates in the source and release descriptions. Follow existing branch rules and verify the resulting remote commit.
 - This authorization does not change the existing limits on force-push/history rewriting, merges, tags/Releases, security policy, real Session intake or destructive cleanup.

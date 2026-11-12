@@ -879,3 +879,43 @@ for (const [barrier, statementPrefix] of [
     },
   );
 }
+
+test("plan store refuses a database that lost its table constraints while retaining every recorded row", () => {
+  const f = fixture();
+  try {
+    f.store.commit(request(f.store, "recorded", [first], cursor(["P1"])));
+  } finally {
+    f.store.close();
+  }
+  sql(
+    f,
+    (db) => {
+      const records = db.prepare("SELECT * FROM plan_versions").all();
+      db.exec(
+        "BEGIN IMMEDIATE;" +
+          "ALTER TABLE plan_versions RENAME TO prior_plan_versions;" +
+          "CREATE TABLE plan_versions(event_id TEXT PRIMARY KEY,seq INTEGER NOT NULL,ordinal INTEGER NOT NULL,body TEXT NOT NULL,body_digest TEXT NOT NULL,UNIQUE(seq,ordinal)) STRICT;" +
+          "INSERT INTO plan_versions SELECT * FROM prior_plan_versions;" +
+          "DROP TABLE prior_plan_versions;" +
+          "COMMIT;",
+      );
+      assert.deepEqual(
+        db.prepare("SELECT * FROM plan_versions").all(),
+        records,
+      );
+      assert.deepEqual(db.pragma("integrity_check"), [
+        { integrity_check: "ok" },
+      ]);
+      assert.deepEqual(db.pragma("foreign_key_check"), []);
+    },
+    false,
+  );
+  const before = sql(f, (db) => db.prepare("SELECT * FROM store_meta").get());
+  assert.throws(() => storage.openSyntheticPlanStore(f.cap, options).close(), {
+    code: "unavailable",
+  });
+  assert.deepEqual(
+    sql(f, (db) => db.prepare("SELECT * FROM store_meta").get()),
+    before,
+  );
+});

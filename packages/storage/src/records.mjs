@@ -17,6 +17,7 @@ import {
   emptyPlan,
   isPlanEvent,
   observePlanSession,
+  PLAN_SCHEMA,
   PLAN_TABLE,
   planCoreOptions,
   verifyPlanSessions,
@@ -45,6 +46,33 @@ CREATE TABLE conclusion_versions(id TEXT NOT NULL,seq INTEGER NOT NULL REFERENCE
 CREATE TABLE snapshots(watermark INTEGER PRIMARY KEY REFERENCES commits(seq),body TEXT NOT NULL,body_digest TEXT NOT NULL) STRICT;
 CREATE TABLE source_checkpoint_versions(source_id TEXT NOT NULL,stream_id TEXT NOT NULL,seq INTEGER NOT NULL REFERENCES commits(seq),body TEXT NOT NULL,body_digest TEXT NOT NULL,PRIMARY KEY(source_id,stream_id,seq)) STRICT;
 `;
+// SQLite records these CREATE statements without their final semicolons.
+const schemaDefinitions = schema
+  .trim()
+  .split(/\r?\n/)
+  .map((sql) => sql.trim().replace(/;$/, ""));
+
+export function verifyProjectSchema(db, planScope) {
+  demand(
+    db.pragma("application_id", { simple: true }) === APPLICATION_ID &&
+      db.pragma("user_version", { simple: true }) === (planScope ? 2 : 1),
+    "unavailable",
+  );
+  const objects = db
+    .prepare(
+      "SELECT type,sql FROM sqlite_schema WHERE (type='table' AND name NOT GLOB 'sqlite_*') OR type IN ('trigger','view') OR (type='index' AND sql IS NOT NULL)",
+    )
+    .all();
+  const expected = planScope
+    ? [...schemaDefinitions, PLAN_SCHEMA.replace(/;$/, "")]
+    : [...schemaDefinitions];
+  demand(
+    objects.every(({ type }) => type === "table") &&
+      encode(objects.map(({ sql }) => sql).sort()) === encode(expected.sort()),
+    "unavailable",
+  );
+}
+
 export function checkedBody(row) {
   demand(row && typeof row.body === "string", "unavailable");
   const body = JSON.parse(row.body);
@@ -208,34 +236,12 @@ export function restore(db, scope) {
   try {
     const { planScope } = scope;
     const expectedTables = planScope ? [...tables, PLAN_TABLE] : tables;
-    demand(
-      db.pragma("application_id", { simple: true }) === APPLICATION_ID &&
-        db.pragma("user_version", { simple: true }) === (planScope ? 2 : 1),
-      "unavailable",
-    );
-    const actual = db
-      .prepare(
-        "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
-      )
-      .all()
-      .map((r) => r.name);
-    demand(
-      encode(actual) === encode([...expectedTables].sort()),
-      "unavailable",
-    );
+    verifyProjectSchema(db, planScope);
     if (planScope)
       demand(
         db.prepare("SELECT count(*) AS n FROM snapshots").get().n === 0,
         "unavailable",
       );
-    demand(
-      db
-        .prepare(
-          "SELECT count(*) AS n FROM sqlite_schema WHERE type IN ('trigger','view')",
-        )
-        .get().n === 0,
-      "unavailable",
-    );
     demand(
       db.pragma("integrity_check").every((r) => r.integrity_check === "ok"),
       "unavailable",

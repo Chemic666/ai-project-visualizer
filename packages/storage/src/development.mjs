@@ -30,6 +30,7 @@ import {
   logicalBytes,
   writeState,
   addReceipt,
+  verifyProjectSchema,
   writePlanVersions,
 } from "./records.mjs";
 import {
@@ -456,12 +457,7 @@ function openStore(capability, options, planScope) {
     note("owner-acquired");
     project = new options.Database(paths.project, { fileMustExist: true });
     checkFile(paths.project, identities.project);
-    if (!newBinding)
-      demand(
-        project.pragma("application_id", { simple: true }) === APPLICATION_ID &&
-          project.pragma("user_version", { simple: true }) === schemaVersion,
-        "unavailable",
-      );
+    if (!newBinding) verifyProjectSchema(project, planScope);
     if (native)
       nativeReports.project = native.inspect(
         project,
