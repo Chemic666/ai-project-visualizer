@@ -40,6 +40,11 @@ if (args.length === 0) {
       "--execute-correction-native-synthetic",
       { test: "correction-storage.test.mjs", native: true },
     ],
+    ["--execute-timeline-synthetic", { test: "timeline-storage.test.mjs" }],
+    [
+      "--execute-timeline-native-synthetic",
+      { test: "timeline-storage.test.mjs", native: true },
+    ],
     ["--execute-progress-synthetic", { test: "progress-storage.test.mjs" }],
     [
       "--execute-progress-native-synthetic",
@@ -79,7 +84,9 @@ if (args.length === 0) {
   const esbuild = require("esbuild");
   const runId = randomUUID(),
     evidence = fs.mkdtempSync(path.join(os.tmpdir(), "apv-storage-evidence-"));
+  const timelineMode = mode.test === "timeline-storage.test.mjs";
   const correctionMode =
+    timelineMode ||
     mode.test === "correction-storage.test.mjs" ||
     mode.test === "progress-storage.test.mjs";
   const planMode = correctionMode || mode.test === "plan-storage.test.mjs";
@@ -91,6 +98,9 @@ if (args.length === 0) {
               'export * from "./packages/core/src/index.ts"; export { validatePlan } from "./packages/core/src/plan-engine.ts";' +
               (correctionMode
                 ? ' export { prepareUserCorrection, prepareCorrectionExpiry } from "./packages/core/src/correction-engine.ts";'
+                : "") +
+              (timelineMode
+                ? ' export { describeCorrectionRecord } from "./packages/core/src/correction-engine.ts";'
                 : ""),
             sourcefile: "apv-synthetic-plan.ts",
             resolveDir: repo,

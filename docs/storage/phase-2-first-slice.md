@@ -478,3 +478,22 @@ Both runs matched all 56 Storage source inputs, the compiled Core and the pinned
 The v3 correction **7/7** (`95c2d4b2-f0b1-42b6-af44-8ab0f296bc1f`), v2 Plan **24/24** (`44fec66d-64a5-4eca-87c6-d0de21f77ea7`) and v1 first-slice **9/9** (`bef51218-4788-42b6-bb7f-0cec8649fe39`) regressions passed. Read-only copies of one sealed fixture from each prior schema recovered their exact cuts using the respective original pinned Core builds. All seven original input files kept their hashes. The standard suite **298/298**, storage boundary and validation **40/40**, typecheck, lint and formatting passed.
 
 Timeline and estimated progress are outside this slice. No automatic migration, installed v4 Host run, real source intake, long history performance result, or production gate closure is claimed.
+
+## Durable synthetic timeline — 2026-11-15
+
+The explicit v5 synthetic TEMP store uses Core's Timeline projection over the admitted source events, recorded plan changes, verified correction lifecycle and confirmed progress from each transaction. It stores the ordered additions in a versioned row in the same transaction as the domain images, source checkpoint and receipt. Each addition is checked against a closed projection of the recorded facts and included in quota checks and the cut digest. A retry, stable source alias or checkpoint-only commit retains the existing entries.
+
+Source entries preserve receipt time and source attribution. A plan change uses the receipt time of the observation that caused it. Manual actions and expirations use their recorded effective times. A derived progress change uses the latest explicit time in that cut from the accepted observations, assertions, corrections and resolutions. A late completion report keeps its earlier time while the progress it causes appears at or after the cut's recorded basis. Admission sequence breaks ties. Bootstrap projects previously admitted observations and keeps the untimed initial progress result in the progress history.
+
+Recovery reads the saved Timeline rows and compares the full ordered projection against the pinned Core functions and the recorded inputs for that cut. The saved rows supply the returned history. A missing row or a false timestamp with consistent digests makes recovery unavailable. The development caller supplies trusted Core functions from its pinned build. Verification of the bundle fingerprint is part of the runner.
+
+| Final timeline mode | Result | RunId | Verified inventory |
+| --- | --- | --- | --- |
+| Ordinary SQLite | 9/9 | 43fc774f-8455-43e7-b428-5aac135fb3c5 | 69 |
+| SQLite with the reviewed Native binding | 9/9 | 942ea059-1286-4ac2-9bf5-7b6c85b17821 | 69 |
+
+Both runs matched all 58 Storage source inputs, the compiled Core and the pinned Driver. Separate writer and recovery processes exited successfully. They agreed on all six rows of their Timeline fixture, the source checkpoint and the cut digest. The tests recovered an earlier pagination cursor after a delayed observation, resolved an original source declaration, preserved the 60% to 50% reweighting and checked correction supersession and expiry. The controlled exception after the records were written rolled back the transaction. Physical I/O failure was outside this test.
+
+V4 progress **9/9**, v3 corrections **7/7**, v2 Plan **24/24** and v1 first-slice **9/9** passed. A read-only copy of the sealed v4 fixture from `529b8b90-aef4-4b81-baa5-b11b00cbcc84` recovered the same cut using its original Core bundle. All five original files retained their hashes and the v5 schema check refused that v4 file. The standard suite **298/298**, storage boundary and validation **40/40**, typecheck, lint and formatting passed.
+
+This milestone covers the existing supported Core event categories. Migration, installed v5 Host validation, large-history performance, real source intake, production binding and full privacy acceptance remain pending.

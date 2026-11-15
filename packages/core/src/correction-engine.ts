@@ -166,6 +166,41 @@ function derived(
   };
 }
 
+// Read-only lifecycle projection for a verified historical record. Applying or
+// expiring a correction still goes through the existing policy decisions.
+export function describeCorrectionRecord(
+  record: CorrectionRecord,
+  transition: "applied" | "closed",
+): CorrectionEngineEvent | undefined {
+  if (transition === "applied")
+    return derived(
+      record,
+      "correction.applied",
+      record.effectiveAt,
+      "user_input",
+      record.triggeringEventId,
+    );
+  const lifecycle = record.lifecycle;
+  if (lifecycle.status === "superseded")
+    return derived(
+      record,
+      "correction.superseded",
+      lifecycle.supersededAt,
+      lifecycle.reasonCode,
+      lifecycle.triggeringEventId,
+      lifecycle.supersededBy,
+    );
+  if (lifecycle.status === "expired")
+    return derived(
+      record,
+      "correction.expired",
+      lifecycle.expiredAt,
+      lifecycle.reasonCode,
+      lifecycle.triggeringEventId,
+    );
+  return undefined;
+}
+
 // A pure record decision; durable readers can check recorded images without
 // reapplying the transition or regenerating its derived events.
 export function prepareUserCorrection(

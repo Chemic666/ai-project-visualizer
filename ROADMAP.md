@@ -77,6 +77,8 @@ S09 synthetic canonical-reference checkpoint-only now has ordinary17 + Native17 
 
 2026-11-15：合成存储已可在重启后恢复各次保存的确认进度、旧值、变化原因和原始依据。普通与原生模式各 9 项通过。完整活动时间线和真实项目端到端验收仍待完成。见[进度持久化的范围与证据](docs/storage/phase-2-first-slice.md#durable-synthetic-confirmed-progress--2026-11-15)。
 
+2026-11-15 完成合成活动时间线持久化。计划变化、来源声明、人工修正和进度解释会随同一次提交保存，重启后可以接着旧位置翻页。两种存储模式各 9 项通过。真实项目接入、生产存储和 VS Code 端到端验收仍待完成。[范围和实测记录](docs/storage/phase-2-first-slice.md#durable-synthetic-timeline--2026-11-15)
+
 First-slice local checkpoint: `d98aa1f4a9e4c83b26fd6c898c750fdcfa2d0810` (35 reviewed files, no push). The separately authorized [synthetic Host follow-up](docs/storage/phase-2-first-slice.md#host-composition-follow-up--2026-10-19) adds joint Owner/Project process lifetime, concurrent catalog admission and normal handoff tests; actual Driver handle binding remains unavailable. No real-project enablement or Codex Session integration is approved.
 
 ### Historical 2026-10-08 preparation (superseded status/sequence only)

@@ -39,6 +39,7 @@ import {
   verifyProjectSchema,
   writePlanVersions,
   writeProgressVersion,
+  writeTimelineVersion,
   cutDigest,
 } from "./records.mjs";
 import {
@@ -46,6 +47,7 @@ import {
   PROGRESS_SCHEMA,
   verifyProgressSourceBasis,
 } from "./progress-records.mjs";
+import { evaluateTimeline, TIMELINE_SCHEMA } from "./timeline-records.mjs";
 import {
   emptyPlan,
   isPlanEvent,
@@ -135,11 +137,23 @@ export function openSyntheticCorrectionStore(capability, options) {
 }
 
 export function openSyntheticProgressStore(capability, options) {
+  return openProgressStore(capability, options, 4);
+}
+
+export function openSyntheticTimelineStore(capability, options) {
+  demand(
+    typeof options?.appendTimelineEvents === "function" &&
+      typeof options?.describeCorrectionRecord === "function",
+  );
+  return openProgressStore(capability, options, 5);
+}
+
+function openProgressStore(capability, options, schemaVersion) {
   demand(
     typeof options?.updateProgress === "function" &&
       !Object.hasOwn(options, "verificationSupports"),
   );
-  return openCorrectionStore(capability, options, 4);
+  return openCorrectionStore(capability, options, schemaVersion);
 }
 
 function openCorrectionStore(capability, options, schemaVersion) {
@@ -155,7 +169,7 @@ function openPlanStore(capability, options, schemaVersion) {
   // Core-generated progress IDs include JSON of the scope. Property order
   // must be fixed for this scope across independent process reopenings.
   const planScope =
-    schemaVersion === 4 ? JSON.parse(encode(validated)) : validated;
+    schemaVersion >= 4 ? JSON.parse(encode(validated)) : validated;
   demand(
     typeof options.applyPlanEvent === "function" &&
       typeof options.validatePlan === "function",
@@ -165,7 +179,8 @@ function openPlanStore(capability, options, schemaVersion) {
 
 function openStore(capability, options, planScope, schemaVersion = 1) {
   const correctionsEnabled = schemaVersion >= 3;
-  const progressEnabled = schemaVersion === 4;
+  const progressEnabled = schemaVersion >= 4;
+  const timelineEnabled = schemaVersion === 5;
   const native = options.nativePackage
     ? createAttestor(options.nativePackage)
     : null;
@@ -200,6 +215,13 @@ function openStore(capability, options, planScope, schemaVersion = 1) {
     schemaVersion,
     correctionsEnabled,
     progressEnabled,
+    timelineEnabled,
+    ...(timelineEnabled
+      ? {
+          appendTimelineEvents: options.appendTimelineEvents,
+          describeCorrectionRecord: options.describeCorrectionRecord,
+        }
+      : {}),
     updateProgress: progressEnabled ? options.updateProgress : undefined,
     validatePlan: planScope ? options.validatePlan : undefined,
     prepareUserCorrection: correctionsEnabled
@@ -535,12 +557,16 @@ function openStore(capability, options, planScope, schemaVersion = 1) {
       project.exec(
         schema +
           (planScope ? PLAN_SCHEMA : "") +
-          (progressEnabled ? PROGRESS_SCHEMA : ""),
+          (progressEnabled ? PROGRESS_SCHEMA : "") +
+          (timelineEnabled ? TIMELINE_SCHEMA : ""),
       );
       const initial = copy(options.bootstrap),
         plan = planScope ? emptyPlan(initial) : undefined,
         progressUpdate = progressEnabled
           ? evaluateProgress(undefined, plan, scope)
+          : {},
+        timelineUpdate = timelineEnabled
+          ? evaluateTimeline(undefined, { plan }, scope)
           : {},
         intent = {
           operationId: "bootstrap",
@@ -548,13 +574,19 @@ function openStore(capability, options, planScope, schemaVersion = 1) {
           projectId: scope.projectId,
           generation: scope.generation,
           expectedHead: 0,
-          seedDigest: cutDigest(initial, plan, progressUpdate.progress),
+          seedDigest: cutDigest(
+            initial,
+            plan,
+            progressUpdate.progress,
+            timelineUpdate.timeline,
+          ),
           ...(planScope ? { planScope } : {}),
         };
       addReceipt(project, {
         state: initial,
         plan,
         progress: progressUpdate.progress,
+        timeline: timelineUpdate.timeline,
         cursor: [],
         head: 1,
         intent,
@@ -563,6 +595,7 @@ function openStore(capability, options, planScope, schemaVersion = 1) {
       });
       writeState(project, initial, 1);
       writeProgressVersion(project, progressUpdate.record, 1);
+      writeTimelineVersion(project, timelineUpdate.record, 1);
       project
         .prepare("INSERT INTO store_meta VALUES(1,?,?,?,?,?,0,NULL,?,'active')")
         .run(
@@ -583,7 +616,7 @@ function openStore(capability, options, planScope, schemaVersion = 1) {
           .prepare("INSERT INTO snapshots VALUES(?,?,?)")
           .run(1, encode(snapshot), digest(snapshot));
       }
-      logicalBytes(project, planScope, limits.logicalBytes, progressEnabled);
+      logicalBytes(project, planScope, limits.logicalBytes, scope);
       project.exec("COMMIT");
       catalog.exec("BEGIN IMMEDIATE");
       catalog
@@ -935,6 +968,17 @@ function openStore(capability, options, planScope, schemaVersion = 1) {
       const { progress, record: progressVersion } = progressEnabled
         ? evaluateProgress(before.progress, plan, scope)
         : {};
+      const { timeline, record: timelineVersion } = timelineEnabled
+        ? evaluateTimeline(
+            before,
+            {
+              plan,
+              progressChange: progressVersion?.change,
+              correction: intent.correction,
+            },
+            scope,
+          )
+        : {};
       const snapshot = intent.createSnapshot
         ? cacheBody(state, nextCursor, head, scope)
         : null;
@@ -946,7 +990,7 @@ function openStore(capability, options, planScope, schemaVersion = 1) {
       // Conservative pre-write whole-bundle estimate; exact retained SQL-row
       // accounting below is a second transactional backstop, not a disk guarantee.
       const estimate =
-        logicalBytes(project, planScope, limits.logicalBytes, progressEnabled) +
+        logicalBytes(project, planScope, limits.logicalBytes, scope) +
         Buffer.byteLength(
           encode({
             state,
@@ -954,6 +998,7 @@ function openStore(capability, options, planScope, schemaVersion = 1) {
             nextCursor,
             ...(planRecords.length ? { planRecords } : {}),
             ...(progressVersion ? { progressVersion } : {}),
+            ...(timelineVersion ? { timelineVersion } : {}),
           }),
         ) *
           2 +
@@ -971,6 +1016,7 @@ function openStore(capability, options, planScope, schemaVersion = 1) {
         state,
         plan,
         progress,
+        timeline,
         cursor: nextCursor,
         head,
         intent,
@@ -980,6 +1026,7 @@ function openStore(capability, options, planScope, schemaVersion = 1) {
       writeState(project, state, head);
       writePlanVersions(project, planRecords, head);
       writeProgressVersion(project, progressVersion, head);
+      writeTimelineVersion(project, timelineVersion, head);
       if (request.cursor)
         project
           .prepare("INSERT INTO source_checkpoint_versions VALUES(?,?,?,?,?)")
@@ -1013,7 +1060,7 @@ function openStore(capability, options, planScope, schemaVersion = 1) {
           context.token,
         );
       demand(changed.changes === 1, "stale_writer");
-      logicalBytes(project, planScope, limits.logicalBytes, progressEnabled);
+      logicalBytes(project, planScope, limits.logicalBytes, scope);
       try {
         demand(ownerHeld && owner.open && owner.inTransaction, "unavailable");
         checkBinding();
@@ -1036,6 +1083,7 @@ function openStore(capability, options, planScope, schemaVersion = 1) {
         state: copy(state),
         ...(plan ? { plan: copy(plan) } : {}),
         ...(progress ? { progress: copy(progress) } : {}),
+        ...(timeline ? { timeline: copy(timeline) } : {}),
         cursor: copy(nextCursor),
         head,
         stateDigest: receipt.stateDigest,

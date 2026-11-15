@@ -159,3 +159,16 @@ node packages\storage\tests\run.mjs --execute-progress-native-synthetic --driver
 ```
 
 V4 does not migrate v1–v3 stores. This records progress by committed cut. Timeline persistence, production intake and long history performance are separate work. See the [verified cases and limits](../../docs/storage/phase-2-first-slice.md#durable-synthetic-confirmed-progress--2026-11-15).
+
+## Durable synthetic timeline
+
+`openSyntheticTimelineStore` creates a fresh v5 synthetic TEMP store. It takes the v4 options plus `appendTimelineEvents` and the Core correction module's `describeCorrectionRecord` from the same pinned build. `read()` and `commit()` return the recorded `timeline`. The existing Core `getTimelinePage` can resume an earlier cursor on the restored history. `getTimelineEntryDetails` can resolve a row's direct sources against the matching `plan` and `progress` from the cut.
+
+The store saves admitted Session and task-status observations, actual plan changes, correction lifecycle changes and confirmed progress changes with their evidence. Original observations retain their recorded receipt time. Each derived progress entry uses the latest explicit time in that committed state, so delayed input cannot display newly derived progress before its basis.
+
+```cmd
+node packages\storage\tests\run.mjs --execute-timeline-synthetic --driver-root "%APV_DRIVER_ROOT%"
+node packages\storage\tests\run.mjs --execute-timeline-native-synthetic --driver-root "%APV_DRIVER_ROOT%" --native-manifest "%APV_NATIVE_MANIFEST%"
+```
+
+Reopen older formats with their own entry and pinned processor. Migration, installed v5 validation and real source intake remain separate work. [Verified cases and limits](../../docs/storage/phase-2-first-slice.md#durable-synthetic-timeline--2026-11-15)

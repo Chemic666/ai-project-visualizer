@@ -4,6 +4,8 @@ import type {
   PlanEngineState,
   PlanScope,
   ProgressEngineState,
+  TimelineState,
+  appendTimelineEvents,
   applyNormalizedEvent,
   updateProgress,
   applyPlanEvent,
@@ -11,6 +13,7 @@ import type {
 import type { validatePlan } from "../../core/src/plan-engine.js";
 import type {
   UserCorrectionInput,
+  describeCorrectionRecord,
   prepareUserCorrection,
   prepareCorrectionExpiry,
 } from "../../core/src/correction-engine.js";
@@ -205,9 +208,32 @@ export interface SyntheticProgressStore extends SyntheticCorrectionStore {
   };
 }
 
+interface SyntheticProgressStoreOptions extends SyntheticCorrectionStoreOptions {
+  updateProgress: typeof updateProgress;
+}
+
 export function openSyntheticProgressStore(
   capability: SyntheticCapability,
-  options: SyntheticCorrectionStoreOptions & {
-    updateProgress: typeof updateProgress;
-  },
+  options: SyntheticProgressStoreOptions,
 ): SyntheticProgressStore;
+
+export interface TimelineStorageCut extends ProgressStorageCut {
+  timeline: TimelineState;
+}
+
+export interface SyntheticTimelineStore extends SyntheticProgressStore {
+  read(): TimelineStorageCut;
+  commit(request: CommitRequest | CorrectionCommitRequest): ReturnType<
+    SyntheticProgressStore["commit"]
+  > & {
+    timeline: TimelineState;
+  };
+}
+
+export function openSyntheticTimelineStore(
+  capability: SyntheticCapability,
+  options: SyntheticProgressStoreOptions & {
+    appendTimelineEvents: typeof appendTimelineEvents;
+    describeCorrectionRecord: typeof describeCorrectionRecord;
+  },
+): SyntheticTimelineStore;

@@ -35,6 +35,13 @@ import {
   verifyProgressSourceBasis,
 } from "./progress-records.mjs";
 
+import {
+  appendTimelineRecord,
+  evaluateTimeline,
+  TIMELINE_SCHEMA,
+  TIMELINE_TABLE,
+} from "./timeline-records.mjs";
+
 export const APPLICATION_ID = 0x41505631;
 export const tables = [
   "store_meta",
@@ -66,7 +73,7 @@ const schemaDefinitions = schema
 
 export function verifyProjectSchema(
   db,
-  { planScope, schemaVersion, progressEnabled },
+  { planScope, schemaVersion, progressEnabled, timelineEnabled },
 ) {
   demand(
     db.pragma("application_id", { simple: true }) === APPLICATION_ID &&
@@ -82,6 +89,7 @@ export function verifyProjectSchema(
     ...schemaDefinitions,
     ...(planScope ? [PLAN_SCHEMA.replace(/;$/, "")] : []),
     ...(progressEnabled ? [PROGRESS_SCHEMA.replace(/;$/, "")] : []),
+    ...(timelineEnabled ? [TIMELINE_SCHEMA.replace(/;$/, "")] : []),
   ];
   demand(
     objects.every(({ type }) => type === "table") &&
@@ -295,18 +303,45 @@ function restoreProgress(select, prior, plan, head, scope) {
   return appendProgressVersion(prior, saved);
 }
 
-export function cutDigest(state, plan, progress) {
+export function writeTimelineVersion(db, record, head) {
+  if (record !== undefined)
+    db.prepare("INSERT INTO timeline_versions VALUES(?,?,?)").run(
+      head,
+      encode(record),
+      digest(record),
+    );
+}
+
+function restoreTimeline(select, prior, update, head, scope) {
+  const { record } = evaluateTimeline(prior, update, scope);
+  const row = select.get(head);
+  if (record === undefined) {
+    demand(row === undefined, "unavailable");
+    return appendTimelineRecord(prior?.timeline);
+  }
+  const saved = checkedBody(row);
+  demand(encode(saved) === encode(record), "unavailable");
+  return appendTimelineRecord(prior?.timeline, saved);
+}
+
+export function cutDigest(state, plan, progress, timeline) {
+  if (timeline) return digest({ plan, progress, timeline });
   return digest(progress ? { plan, progress } : (plan ?? state));
+}
+
+function projectTables({ planScope, progressEnabled, timelineEnabled }) {
+  return [
+    ...tables,
+    ...(planScope ? [PLAN_TABLE] : []),
+    ...(progressEnabled ? [PROGRESS_TABLE] : []),
+    ...(timelineEnabled ? [TIMELINE_TABLE] : []),
+  ];
 }
 
 export function restore(db, scope) {
   try {
-    const { planScope, progressEnabled } = scope;
-    const expectedTables = [
-      ...tables,
-      ...(planScope ? [PLAN_TABLE] : []),
-      ...(progressEnabled ? [PROGRESS_TABLE] : []),
-    ];
+    const { planScope, progressEnabled, timelineEnabled } = scope;
+    const expectedTables = projectTables(scope);
     verifyProjectSchema(db, scope);
     if (planScope)
       demand(
@@ -340,6 +375,9 @@ export function restore(db, scope) {
     demand(commits.length > 0 && commits.length === meta.head, "unavailable");
     const progressRows = progressEnabled
       ? db.prepare("SELECT body,body_digest FROM progress_versions WHERE seq=?")
+      : undefined;
+    const timelineRows = timelineEnabled
+      ? db.prepare("SELECT body,body_digest FROM timeline_versions WHERE seq=?")
       : undefined;
     let current;
     for (const [i, row] of commits.entries()) {
@@ -435,7 +473,23 @@ export function restore(db, scope) {
       const progress = progressRows
         ? restoreProgress(progressRows, current?.progress, plan, row.seq, scope)
         : undefined;
-      const stateDigest = cutDigest(state, plan, progress);
+      const timeline = timelineRows
+        ? restoreTimeline(
+            timelineRows,
+            current,
+            {
+              plan,
+              progressChange:
+                current && progress !== current.progress
+                  ? progress.changes.at(-1)
+                  : undefined,
+              correction: intent.correction,
+            },
+            row.seq,
+            scope,
+          )
+        : undefined;
+      const stateDigest = cutDigest(state, plan, progress, timeline);
       demand(
         stateDigest === row.state_digest &&
           result.stateDigest === stateDigest &&
@@ -552,6 +606,7 @@ export function restore(db, scope) {
         state,
         ...(plan ? { plan } : {}),
         ...(progress ? { progress } : {}),
+        ...(timeline ? { timeline } : {}),
         cursor,
         head: row.seq,
         stateDigest,
@@ -624,15 +679,13 @@ export function logicalBytes(
   db,
   planScope,
   budget = Infinity,
-  progressEnabled = false,
+  { progressEnabled, timelineEnabled } = {},
 ) {
-  const counted = [
-    ...tables.filter(
-      (table) => table !== "snapshots" && table !== "store_meta",
-    ),
-    ...(planScope ? [PLAN_TABLE] : []),
-    ...(progressEnabled ? [PROGRESS_TABLE] : []),
-  ];
+  const counted = projectTables({
+    planScope,
+    progressEnabled,
+    timelineEnabled,
+  }).filter((table) => table !== "snapshots" && table !== "store_meta");
   let bytes = 0;
   for (const table of counted)
     bytes += countRowArrayBytes(
@@ -697,11 +750,21 @@ export function writeState(db, state, seq) {
 }
 export function addReceipt(
   db,
-  { state, plan, progress, cursor, head, intent, epoch, canonicalEventIds },
+  {
+    state,
+    plan,
+    progress,
+    timeline,
+    cursor,
+    head,
+    intent,
+    epoch,
+    canonicalEventIds,
+  },
 ) {
   const result = {
     head,
-    stateDigest: cutDigest(state, plan, progress),
+    stateDigest: cutDigest(state, plan, progress, timeline),
     canonicalEventIds,
     cursorVectorDigest: digest(cursor),
   };

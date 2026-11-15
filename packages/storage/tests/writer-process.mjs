@@ -9,6 +9,7 @@ import {
   openSyntheticCorrectionStore,
   openSyntheticPlanStore,
   openSyntheticProgressStore,
+  openSyntheticTimelineStore,
   openSyntheticStore,
 } from "../src/development.mjs";
 import { seed, input, cursor } from "./fixtures.mjs";
@@ -24,8 +25,12 @@ try {
     reopen: true,
     expectedNonce: spec.nonce,
   });
+  const timelineMode =
+    spec.mode === "write-timeline" || spec.mode === "recover-timeline";
   const progressMode =
-    spec.mode === "write-progress" || spec.mode === "recover-progress";
+    timelineMode ||
+    spec.mode === "write-progress" ||
+    spec.mode === "recover-progress";
   const correctionMode =
     progressMode ||
     spec.mode === "write-correction" ||
@@ -33,7 +38,8 @@ try {
   const recoverPlan =
     spec.mode === "recover-plan" ||
     spec.mode === "recover-correction" ||
-    spec.mode === "recover-progress";
+    spec.mode === "recover-progress" ||
+    spec.mode === "recover-timeline";
   const planMode = recoverPlan || spec.mode === "write-plan" || correctionMode;
   function unexpectedReplay() {
     throw new Error("UNEXPECTED_PROCESSOR_REPLAY");
@@ -59,11 +65,13 @@ try {
         }
       : {}),
   };
-  const openPlan = progressMode
-    ? openSyntheticProgressStore
-    : correctionMode
-      ? openSyntheticCorrectionStore
-      : openSyntheticPlanStore;
+  const openPlan = timelineMode
+    ? openSyntheticTimelineStore
+    : progressMode
+      ? openSyntheticProgressStore
+      : correctionMode
+        ? openSyntheticCorrectionStore
+        : openSyntheticPlanStore;
   const store = planMode
     ? openPlan(cap, {
         ...options,
@@ -71,6 +79,12 @@ try {
         applyPlanEvent: recoverPlan ? unexpectedReplay : core.applyPlanEvent,
         validatePlan: core.validatePlan,
         ...(progressMode ? { updateProgress: core.updateProgress } : {}),
+        ...(timelineMode
+          ? {
+              appendTimelineEvents: core.appendTimelineEvents,
+              describeCorrectionRecord: core.describeCorrectionRecord,
+            }
+          : {}),
         ...(correctionMode
           ? {
               prepareUserCorrection: core.prepareUserCorrection,
