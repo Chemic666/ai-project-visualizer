@@ -40,6 +40,11 @@ if (args.length === 0) {
       "--execute-correction-native-synthetic",
       { test: "correction-storage.test.mjs", native: true },
     ],
+    ["--execute-progress-synthetic", { test: "progress-storage.test.mjs" }],
+    [
+      "--execute-progress-native-synthetic",
+      { test: "progress-storage.test.mjs", native: true },
+    ],
     ["--execute-plan-synthetic", { test: "plan-storage.test.mjs" }],
     [
       "--execute-plan-native-synthetic",
@@ -74,7 +79,9 @@ if (args.length === 0) {
   const esbuild = require("esbuild");
   const runId = randomUUID(),
     evidence = fs.mkdtempSync(path.join(os.tmpdir(), "apv-storage-evidence-"));
-  const correctionMode = mode.test === "correction-storage.test.mjs";
+  const correctionMode =
+    mode.test === "correction-storage.test.mjs" ||
+    mode.test === "progress-storage.test.mjs";
   const planMode = correctionMode || mode.test === "plan-storage.test.mjs";
   const core = esbuild.buildSync({
     ...(planMode

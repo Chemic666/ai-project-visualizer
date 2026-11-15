@@ -146,3 +146,16 @@ node packages\storage\tests\run.mjs --execute-correction-native-synthetic --driv
 ```
 
 This v3 entry is isolated from v1 and v2. Reopening them still uses their original pinned processor builds. No migration, production enablement, Progress or Timeline persistence is provided by this slice. See the [verified cases and scope](../../docs/storage/phase-2-first-slice.md#durable-synthetic-user-corrections--2026-11-15).
+
+## Durable synthetic confirmed progress
+
+`openSyntheticProgressStore` uses the correction options plus `updateProgress`. The development caller must provide the genuine Core functions from the same pinned bundle. The explicit test runner checks the compiled bundle's fingerprint. Use a fresh synthetic TEMP store. Independent verification supports are outside this entry's admitted inputs.
+
+Each successful commit evaluates the final cut. When the result or its evidence changes, the store saves the Core change record with its previous and current result, source references and correction history. An unchanged result needs no new record, even if a checkpoint advances. Missing weights stay unavailable. The ordered records are part of the receipt's state digest and quota, and `read()` returns them as `progress`. Recovery checks the records against the fixed Core evaluation. Missing or inconsistent authority makes the store unavailable.
+
+```cmd
+node packages\storage\tests\run.mjs --execute-progress-synthetic --driver-root "%APV_DRIVER_ROOT%"
+node packages\storage\tests\run.mjs --execute-progress-native-synthetic --driver-root "%APV_DRIVER_ROOT%" --native-manifest "%APV_NATIVE_MANIFEST%"
+```
+
+V4 does not migrate v1–v3 stores. This records progress by committed cut. Timeline persistence, production intake and long history performance are separate work. See the [verified cases and limits](../../docs/storage/phase-2-first-slice.md#durable-synthetic-confirmed-progress--2026-11-15).

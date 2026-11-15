@@ -8,6 +8,7 @@ import { admitSyntheticRoot } from "../src/host-admission.mjs";
 import {
   openSyntheticCorrectionStore,
   openSyntheticPlanStore,
+  openSyntheticProgressStore,
   openSyntheticStore,
 } from "../src/development.mjs";
 import { seed, input, cursor } from "./fixtures.mjs";
@@ -23,10 +24,16 @@ try {
     reopen: true,
     expectedNonce: spec.nonce,
   });
+  const progressMode =
+    spec.mode === "write-progress" || spec.mode === "recover-progress";
   const correctionMode =
-    spec.mode === "write-correction" || spec.mode === "recover-correction";
+    progressMode ||
+    spec.mode === "write-correction" ||
+    spec.mode === "recover-correction";
   const recoverPlan =
-    spec.mode === "recover-plan" || spec.mode === "recover-correction";
+    spec.mode === "recover-plan" ||
+    spec.mode === "recover-correction" ||
+    spec.mode === "recover-progress";
   const planMode = recoverPlan || spec.mode === "write-plan" || correctionMode;
   function unexpectedReplay() {
     throw new Error("UNEXPECTED_PROCESSOR_REPLAY");
@@ -52,15 +59,18 @@ try {
         }
       : {}),
   };
-  const openPlan = correctionMode
-    ? openSyntheticCorrectionStore
-    : openSyntheticPlanStore;
+  const openPlan = progressMode
+    ? openSyntheticProgressStore
+    : correctionMode
+      ? openSyntheticCorrectionStore
+      : openSyntheticPlanStore;
   const store = planMode
     ? openPlan(cap, {
         ...options,
         planScope: spec.planScope,
         applyPlanEvent: recoverPlan ? unexpectedReplay : core.applyPlanEvent,
         validatePlan: core.validatePlan,
+        ...(progressMode ? { updateProgress: core.updateProgress } : {}),
         ...(correctionMode
           ? {
               prepareUserCorrection: core.prepareUserCorrection,

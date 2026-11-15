@@ -45,9 +45,12 @@ function dataKey(value: unknown): string {
 function uniqueRefs(
   refs: readonly ProgressEvidenceReference[],
 ): ProgressEvidenceReference[] {
-  return [...new Map(refs.map((ref) => [dataKey(ref), ref])).entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, ref]) => ref);
+  return (
+    [...new Map(refs.map((ref) => [dataKey(ref), ref])).entries()]
+      // Persisted progress evidence order must not depend on the host locale.
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([, ref]) => ref)
+  );
 }
 
 function sourceRefValid(reference: SourceReference): boolean {

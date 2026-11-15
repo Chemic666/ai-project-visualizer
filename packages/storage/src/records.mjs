@@ -27,6 +27,13 @@ import {
   planCoreOptions,
   verifyPlanSessions,
 } from "./plan-records.mjs";
+import {
+  appendProgressVersion,
+  evaluateProgress,
+  PROGRESS_SCHEMA,
+  PROGRESS_TABLE,
+  verifyProgressSourceBasis,
+} from "./progress-records.mjs";
 
 export const APPLICATION_ID = 0x41505631;
 export const tables = [
@@ -57,7 +64,10 @@ const schemaDefinitions = schema
   .split(/\r?\n/)
   .map((sql) => sql.trim().replace(/;$/, ""));
 
-export function verifyProjectSchema(db, { planScope, schemaVersion }) {
+export function verifyProjectSchema(
+  db,
+  { planScope, schemaVersion, progressEnabled },
+) {
   demand(
     db.pragma("application_id", { simple: true }) === APPLICATION_ID &&
       db.pragma("user_version", { simple: true }) === schemaVersion,
@@ -68,9 +78,11 @@ export function verifyProjectSchema(db, { planScope, schemaVersion }) {
       "SELECT type,sql FROM sqlite_schema WHERE (type='table' AND name NOT GLOB 'sqlite_*') OR type IN ('trigger','view') OR (type='index' AND sql IS NOT NULL)",
     )
     .all();
-  const expected = planScope
-    ? [...schemaDefinitions, PLAN_SCHEMA.replace(/;$/, "")]
-    : [...schemaDefinitions];
+  const expected = [
+    ...schemaDefinitions,
+    ...(planScope ? [PLAN_SCHEMA.replace(/;$/, "")] : []),
+    ...(progressEnabled ? [PROGRESS_SCHEMA.replace(/;$/, "")] : []),
+  ];
   demand(
     objects.every(({ type }) => type === "table") &&
       encode(objects.map(({ sql }) => sql).sort()) === encode(expected.sort()),
@@ -260,10 +272,41 @@ export function writePlanVersions(db, records, head) {
     );
 }
 
+export function writeProgressVersion(db, record, head) {
+  if (record !== undefined)
+    db.prepare("INSERT INTO progress_versions VALUES(?,?,?)").run(
+      head,
+      encode(record),
+      digest(record),
+    );
+}
+
+function restoreProgress(select, prior, plan, head, scope) {
+  const { record } = evaluateProgress(prior, plan, scope);
+  const row = select.get(head);
+  if (record === undefined) {
+    demand(row === undefined, "unavailable");
+    return prior;
+  }
+  const saved = checkedBody(row);
+  demand(encode(saved) === encode(record), "unavailable");
+  // Restored history is assembled from recorded rows. An evaluation never
+  // substitutes for a missing or inconsistent record.
+  return appendProgressVersion(prior, saved);
+}
+
+export function cutDigest(state, plan, progress) {
+  return digest(progress ? { plan, progress } : (plan ?? state));
+}
+
 export function restore(db, scope) {
   try {
-    const { planScope } = scope;
-    const expectedTables = planScope ? [...tables, PLAN_TABLE] : tables;
+    const { planScope, progressEnabled } = scope;
+    const expectedTables = [
+      ...tables,
+      ...(planScope ? [PLAN_TABLE] : []),
+      ...(progressEnabled ? [PROGRESS_TABLE] : []),
+    ];
     verifyProjectSchema(db, scope);
     if (planScope)
       demand(
@@ -295,6 +338,9 @@ export function restore(db, scope) {
     );
     const commits = db.prepare("SELECT * FROM commits ORDER BY seq").all();
     demand(commits.length > 0 && commits.length === meta.head, "unavailable");
+    const progressRows = progressEnabled
+      ? db.prepare("SELECT body,body_digest FROM progress_versions WHERE seq=?")
+      : undefined;
     let current;
     for (const [i, row] of commits.entries()) {
       demand(
@@ -384,7 +430,12 @@ export function restore(db, scope) {
             ),
             "unavailable",
           );
-      const stateDigest = digest(plan ?? state);
+      if (progressRows && current && !manual)
+        verifyProgressSourceBasis(current.state, state);
+      const progress = progressRows
+        ? restoreProgress(progressRows, current?.progress, plan, row.seq, scope)
+        : undefined;
+      const stateDigest = cutDigest(state, plan, progress);
       demand(
         stateDigest === row.state_digest &&
           result.stateDigest === stateDigest &&
@@ -500,6 +551,7 @@ export function restore(db, scope) {
       current = {
         state,
         ...(plan ? { plan } : {}),
+        ...(progress ? { progress } : {}),
         cursor,
         head: row.seq,
         stateDigest,
@@ -568,10 +620,19 @@ export function inspectSnapshotCache(db, scope, head) {
     reasons: [...reasons],
   };
 }
-export function logicalBytes(db, planScope, budget = Infinity) {
-  const counted = (planScope ? [...tables, PLAN_TABLE] : tables).filter(
-    (table) => table !== "snapshots" && table !== "store_meta",
-  );
+export function logicalBytes(
+  db,
+  planScope,
+  budget = Infinity,
+  progressEnabled = false,
+) {
+  const counted = [
+    ...tables.filter(
+      (table) => table !== "snapshots" && table !== "store_meta",
+    ),
+    ...(planScope ? [PLAN_TABLE] : []),
+    ...(progressEnabled ? [PROGRESS_TABLE] : []),
+  ];
   let bytes = 0;
   for (const table of counted)
     bytes += countRowArrayBytes(
@@ -636,11 +697,11 @@ export function writeState(db, state, seq) {
 }
 export function addReceipt(
   db,
-  { state, plan, cursor, head, intent, epoch, canonicalEventIds },
+  { state, plan, progress, cursor, head, intent, epoch, canonicalEventIds },
 ) {
   const result = {
     head,
-    stateDigest: digest(plan ?? state),
+    stateDigest: cutDigest(state, plan, progress),
     canonicalEventIds,
     cursorVectorDigest: digest(cursor),
   };

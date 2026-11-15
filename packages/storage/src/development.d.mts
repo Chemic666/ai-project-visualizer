@@ -3,7 +3,9 @@ import type {
   NormalizedEvent,
   PlanEngineState,
   PlanScope,
+  ProgressEngineState,
   applyNormalizedEvent,
+  updateProgress,
   applyPlanEvent,
 } from "../../core/src/index.js";
 import type { validatePlan } from "../../core/src/plan-engine.js";
@@ -180,10 +182,32 @@ export interface SyntheticCorrectionStore extends SyntheticPlanStore {
   ): ReturnType<SyntheticPlanStore["commit"]>;
 }
 
+interface SyntheticCorrectionStoreOptions extends SyntheticPlanStoreOptions {
+  prepareUserCorrection: typeof prepareUserCorrection;
+  prepareCorrectionExpiry: typeof prepareCorrectionExpiry;
+}
+
 export function openSyntheticCorrectionStore(
   capability: SyntheticCapability,
-  options: SyntheticPlanStoreOptions & {
-    prepareUserCorrection: typeof prepareUserCorrection;
-    prepareCorrectionExpiry: typeof prepareCorrectionExpiry;
-  },
+  options: SyntheticCorrectionStoreOptions,
 ): SyntheticCorrectionStore;
+
+export interface ProgressStorageCut extends PlanStorageCut {
+  progress: ProgressEngineState;
+}
+
+export interface SyntheticProgressStore extends SyntheticCorrectionStore {
+  read(): ProgressStorageCut;
+  commit(request: CommitRequest | CorrectionCommitRequest): ReturnType<
+    SyntheticCorrectionStore["commit"]
+  > & {
+    progress: ProgressEngineState;
+  };
+}
+
+export function openSyntheticProgressStore(
+  capability: SyntheticCapability,
+  options: SyntheticCorrectionStoreOptions & {
+    updateProgress: typeof updateProgress;
+  },
+): SyntheticProgressStore;

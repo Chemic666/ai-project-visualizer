@@ -459,3 +459,22 @@ Both runs matched all 54 Storage source inputs, the compiled Core and the pinned
 The affected v2 Plan suite passed ordinary **24/24** (`fb1de4cc-27bc-42a9-9ed3-115e457340aa`) and Native **24/24** (`309014d5-f92c-4d62-8c01-672739de9625`). The v1 first slice passed **9/9** (`3a5b91b3-030e-499d-a29a-734e03b99371`). Read-only copies of the sealed v1 `905d8724-435e-4f8a-99c4-7cbe157784a7` and v2 `5c90778c-3b2c-443a-a565-1b7dff37b1e0` recovered their exact original head, state, checkpoint and digest with their original processor builds. All six input database and sidecar file hashes stayed unchanged. The standard suite **298/298**, Storage boundary and validation checks **40/40**, typecheck, lint and formatting passed.
 
 Progress and Timeline are still separate from this recovery boundary. Existing databases are not migrated. Real source intake, installation with v3, production filesystem binding and full privacy and recovery acceptance remain open.
+
+## Durable synthetic confirmed progress — 2026-11-15
+
+The explicit v4 synthetic TEMP store evaluates the final Plan and Correction state of each commit with the pinned Core `updateProgress` function. On a change it saves the actual `progress.changed` record and correction history in a versioned row. The current result, previous result, task basis and change reasons stay visible after reopening. The progress rows, receipt, source observations, corrected domain records and checkpoint share the same transaction and quota. Duplicate and checkpoint-only requests do not add a progress version when the basis is unchanged.
+
+The development caller supplies the real functions from its pinned Core build. The evaluator is not a sandbox for arbitrary callback code. The closed progress codec checks that embedded assertions, plan entries, conclusions and correction references belong to the recorded authority. The v4 source path also binds new task statuses to the actual observations and preserves existing weight links and resolutions. Normalized source inputs admit no new weight claim. The admitted mode has no independent verification support, so a source's `verified` label remains an Agent Reported claim. Missing weights still produce an unavailable result without a number.
+
+Recovery reads the progress rows and checks their exact content against the fixed Core evaluation of each recorded cut. It does not rerun the source or correction transitions to reconstruct that cut. Missing rows and a wrong change reason with matching digests are both refused. Evidence references use deterministic string ordering independent of the host locale. Each transaction yields at most one progress change. In the tested batch that removes and re-adds a task, the former weight expires, the new task has unknown weight and the earlier 60% result stays in history.
+
+| Final progress mode | Result | RunId | Verified inventory |
+| --- | --- | --- | --- |
+| Ordinary SQLite | 9/9 | 529b8b90-aef4-4b81-baa5-b11b00cbcc84 | 69 |
+| SQLite with the reviewed Native binding | 9/9 | ba873fb6-e277-47b7-8e02-66fe6bc42e5e | 69 |
+
+Both runs matched all 56 Storage source inputs, the compiled Core and the pinned Driver. Separate writer and recovery processes exited successfully and agreed on the progress, cut digest and checkpoint. A controlled exception after the progress rows were written rolled back the entire transaction and left the old cut intact. That test does not simulate physical I/O failure.
+
+The v3 correction **7/7** (`95c2d4b2-f0b1-42b6-af44-8ab0f296bc1f`), v2 Plan **24/24** (`44fec66d-64a5-4eca-87c6-d0de21f77ea7`) and v1 first-slice **9/9** (`bef51218-4788-42b6-bb7f-0cec8649fe39`) regressions passed. Read-only copies of one sealed fixture from each prior schema recovered their exact cuts using the respective original pinned Core builds. All seven original input files kept their hashes. The standard suite **298/298**, storage boundary and validation **40/40**, typecheck, lint and formatting passed.
+
+Timeline and estimated progress are outside this slice. No automatic migration, installed v4 Host run, real source intake, long history performance result, or production gate closure is claimed.
