@@ -297,6 +297,8 @@ Confidence
 
 2026-11-09 独立界面首片：复用已经验证的宿主/打包路径，实现可安装的未连接概览及明确进入的合成 Core 示例；实际安装启动、页面切换和 Windows UI 检查已完成受限验证。真实 Adapter 门槛仍未通过，故此进展不关闭 Phase7/10/11，也不启用真实项目。见 [界面实施记录](docs/phase-10-surface.md)。
 
+2026-11-15 可选开发构建已能在 VS Code 打开构建时恢复的合成历史。实际 Webview 已核对 50% 的计算明细、旧的权重变化及原始依据，并验证返回总览和原示例。正式运行时恢复、真实 Codex 接入和生产隐私验收仍待完成。[开发宿主实测](docs/phase-10-surface.md#recovered-synthetic-history-in-the-vs-code-development-surface--2026-11-15)
+
 经 host/runtime/package smoke 验证后实现 Overview、Plan、Timeline、Task Detail/Correction、Why Progress 和必要 Settings。Host 负责组合和生命周期，Surface 不计算业务状态。
 
 Baseline UX 必须包含无 Session/无 Plan/未知/歧义/断连、来源与关联 Confidence、进度解释、计划变化、有效/失效纠正和 Task Weight 编辑。Activity 为 advanced/P1，只展示实际支持的观察；未来 Semantic/Export/多 Session 控件不进入初版设置。

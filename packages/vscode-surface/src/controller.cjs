@@ -9,25 +9,42 @@ function exact(message, keys) {
 }
 exports.createSurfaceController = (
   vscode,
-  { extensionUri, readAsset, randomNonce },
+  {
+    extensionUri,
+    readAsset,
+    randomNonce,
+    recoveredSample = false,
+    onNavigationError = () => {},
+  },
 ) => {
   const media = vscode.Uri.joinPath(extensionUri, "media");
   let panel,
     mode = null,
     generation = null,
     health = "closed";
+  const canOpen = (next) =>
+    next === "overview" ||
+    next === "synthetic" ||
+    (next === "recovered" && recoveredSample === true);
   function open(next) {
-    if (!["overview", "synthetic"].includes(next))
-      throw Error("surface_mode_rejected");
+    if (!canOpen(next)) throw Error("surface_mode_rejected");
     if (panel && mode === next) {
       panel.reveal(vscode.ViewColumn.One);
       return;
     }
+    const names = ["style.css", "surface.css", "bridge.js"];
+    if (next === "synthetic") names.push("app.js");
+    if (next === "recovered") names.push("recovered.js");
     let template;
     try {
       template = readAsset(
         next === "overview" ? "overview.html" : "index.html",
       );
+      if (
+        next === "recovered" &&
+        !names.every((name) => readAsset(name).trim())
+      )
+        throw Error("surface_assets_unavailable");
     } catch {
       throw Error("surface_assets_unavailable");
     }
@@ -51,13 +68,13 @@ exports.createSurfaceController = (
           if (
             exact(message, ["type", "destination", "generation"]) &&
             message.type === "surface.navigate" &&
-            ["overview", "synthetic"].includes(message.destination)
+            canOpen(message.destination)
           ) {
             // Only navigation to these own pages is accepted; no command/path RPC.
             try {
               open(message.destination);
             } catch {
-              health = "failed";
+              onNavigationError();
             }
           } else if (
             exact(message, ["type", "mode", "generation", "ok"]) &&
@@ -83,7 +100,7 @@ exports.createSurfaceController = (
     try {
       const nextGeneration = randomNonce();
       const assets = Object.fromEntries(
-        ["style.css", "surface.css", "bridge.js", "app.js"].map((name) => [
+        names.map((name) => [
           name,
           panel.webview
             .asWebviewUri(vscode.Uri.joinPath(media, name))
@@ -92,6 +109,7 @@ exports.createSurfaceController = (
       );
       const html = renderSurface(template, {
         mode: next,
+        recoveredSample,
         nonce: nextGeneration,
         cspSource: panel.webview.cspSource,
         assets,

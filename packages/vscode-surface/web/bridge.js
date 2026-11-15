@@ -8,6 +8,9 @@
       .getElementById("open-demo")
       ?.addEventListener("click", () => navigate("synthetic"));
     document
+      .getElementById("open-recovered")
+      ?.addEventListener("click", () => navigate("recovered"));
+    document
       .getElementById("back-overview")
       ?.addEventListener("click", () => navigate("overview"));
     // New page navigation starts at its heading, not the first bottom button.
@@ -15,12 +18,21 @@
       .getElementById(mode === "overview" ? "surface-title" : "back-overview")
       ?.focus({ preventScroll: true });
     window.scrollTo(0, 0);
+    const progress = !!document
+      .getElementById("progress-number")
+      ?.textContent?.trim();
     const ok =
       mode === "overview"
         ? !!document.getElementById("unconnected-overview")
-        : document.querySelectorAll("#checkpoint-nav button").length === 8 &&
-          !!document.getElementById("progress-number")?.textContent?.trim() &&
-          !!document.getElementById("checkpoint-label")?.textContent?.trim();
+        : mode === "recovered"
+          ? progress &&
+            document.getElementById("replay-panel")?.hidden === true &&
+            document.getElementById("demo-mode")?.textContent ===
+              "已恢复的合成历史"
+          : mode === "synthetic" &&
+            progress &&
+            document.querySelectorAll("#checkpoint-nav button").length === 8 &&
+            !!document.getElementById("checkpoint-label")?.textContent?.trim();
     api.postMessage({ type: "surface.ready", mode, generation, ok });
   });
 })();

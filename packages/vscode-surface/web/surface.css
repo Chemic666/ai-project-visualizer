@@ -107,6 +107,11 @@ body[data-apv-mode="overview"] {
   font-size: 12px;
   color: var(--vscode-descriptionForeground, #758197);
 }
+.surface-demo-actions {
+  display: grid;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .surface-demo button {
   padding: 12px 18px;
   border-radius: 9px;
@@ -117,6 +122,14 @@ body[data-apv-mode="overview"] {
 }
 .surface-demo button:hover {
   background: #5952b0;
+}
+.surface-demo #open-recovered {
+  color: var(--vscode-editor-foreground, #263349);
+  background: transparent;
+  border: 1px solid var(--vscode-panel-border, #dfe4ee);
+}
+.surface-demo #open-recovered:hover {
+  background: var(--vscode-list-hoverBackground, #eeedfa);
 }
 .surface-footer {
   padding-top: 24px;
@@ -184,7 +197,8 @@ body[data-apv-mode] {
   margin: 0;
   padding: 0;
 }
-body[data-apv-mode="synthetic"] {
+body[data-apv-mode="synthetic"],
+body[data-apv-mode="recovered"] {
   color: var(--ink);
   background: #f3f5f9;
   color-scheme: light;

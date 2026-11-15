@@ -16,4 +16,22 @@ node packages\vscode-surface\validate.mjs
 
 Build prints a fresh TEMP package directory; it refuses to overwrite existing output. Validation is default disabled. The explicit `--execute --code-root ABS` mode uses the existing local VS Code and installed packaging dependency, a fresh TEMP profile/extensions directory and no downloads. It never installs into your normal profile or publishes an extension. Its returned VSIX can be reviewed locally.
 
+## Optional recovered sample
+
+Build this optional Windows x64 development variant from the repository root with the reviewed better-sqlite3 13.0.3 Driver already installed.
+
+```cmd
+set "APV_DRIVER_ROOT=%CD%\experiments\phase-2-sqlite-driver-spike\node_modules\better-sqlite3"
+pnpm.cmd build:surface --recovered-demo-driver "%APV_DRIVER_ROOT%"
+```
+
+The build restores a fixed synthetic database after the writer exits and packages the verified display data as its own asset. The extension opens it from **查看已恢复的合成历史** in the overview or Command Palette. The view labels the data as a sample restored during the build. It shows the recovered progress and the earlier changes with their evidence. **回到项目概览** returns to the disconnected page.
+
+To review the variant in a development window, set `APV_STAGE` to the absolute `outDir` printed by the build and `APV_CODE_EXE` to the existing VS Code executable. Launch it in a fresh temporary profile.
+
+```cmd
+set "APV_TEMP_ROOT=%TEMP%\apv-surface-review-%RANDOM%-%RANDOM%"
+"%APV_CODE_EXE%" --new-window --user-data-dir "%APV_TEMP_ROOT%\profile" --extensions-dir "%APV_TEMP_ROOT%\extensions" --extensionDevelopmentPath "%APV_STAGE%"
+```
+
 Implementation scope, current results and remaining gates are recorded in `docs/phase-10-surface.md` in the source checkout.

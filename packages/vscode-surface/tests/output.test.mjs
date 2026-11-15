@@ -67,3 +67,73 @@ test("surface output: existing output is refused without overwriting its bytes",
   assert.equal(fs.readFileSync(sentinel, "utf8"), "DO_NOT_OVERWRITE");
   assert.deepEqual(fs.readdirSync(outDir), ["keep.txt"]);
 });
+
+test("a requested recovery with no admissible Driver leaves no extension package", async () => {
+  const parent = fs.mkdtempSync(
+    path.join(os.tmpdir(), "apv-surface-recovery-failed-"),
+  );
+  const outDir = path.join(parent, "package");
+  await assert.rejects(
+    () =>
+      build({
+        outDir,
+        recoveryDriverRoot: path.join(parent, "missing-driver"),
+      }),
+    {
+      message: "surface_recovery_unavailable",
+    },
+  );
+  assert.equal(fs.existsSync(outDir), false);
+});
+
+const driverRoot = process.env.APV_SURFACE_TEST_DRIVER_ROOT;
+test(
+  "the explicit recovery package carries the restored display and an optional command",
+  {
+    skip:
+      driverRoot === undefined
+        ? "Set APV_SURFACE_TEST_DRIVER_ROOT to the reviewed installed Driver."
+        : false,
+  },
+  async () => {
+    const parent = fs.mkdtempSync(
+      path.join(os.tmpdir(), "apv-surface-recovered-output-"),
+    );
+    const outDir = path.join(parent, "package");
+    const receipt = await build({ outDir, recoveryDriverRoot: driverRoot });
+    assert.equal(receipt.recoveredSample, true);
+    assert.equal(receipt.files.length, 10);
+    const asset = receipt.files.find(
+      ({ path }) => path === "media/recovered.js",
+    );
+    assert.ok(asset);
+    const file = path.join(outDir, asset.path);
+    assert.equal(asset.sha256, hash(file));
+    const text = fs.readFileSync(file, "utf8").replace(/\\u2192/g, "→");
+    assert.match(text, /60% → 50%/);
+    assert.doesNotMatch(
+      text,
+      /synthetic-marker|processorFingerprint|operationNonce|fixture\.json|apv-recovery-current-claim|apv-storage-slice-/,
+    );
+    const host = fs.readFileSync(
+      path.join(outDir, "dist/extension.cjs"),
+      "utf8",
+    );
+    assert.doesNotMatch(
+      host,
+      /better-sqlite3|recovery-driver|synthetic-marker/,
+    );
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(outDir, "package.json"), "utf8"),
+    );
+    assert.deepEqual(
+      manifest.contributes.commands.map(({ command }) => command),
+      ["apv.open", "apv.openSyntheticDemo", "apv.openRecoveredDemo"],
+    );
+    assert.ok(
+      receipt.sourceInputs.some(({ path }) =>
+        path.endsWith("recovery-case.ts"),
+      ),
+    );
+  },
+);

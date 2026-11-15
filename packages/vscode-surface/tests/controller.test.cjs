@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const filename = path.join(__dirname, "../src/controller.cjs");
 const target = fs.existsSync(filename) ? require(filename) : {};
-function fixture() {
+function fixture({ recoveredSample = false } = {}) {
   assert.equal(
     typeof target.createSurfaceController,
     "function",
@@ -13,7 +13,7 @@ function fixture() {
   const panels = [],
     reads = [];
   let serial = 0,
-    fail = false;
+    fail;
   const uri = (value) => ({
     value,
     toString() {
@@ -68,14 +68,18 @@ function fixture() {
     },
   };
   const template =
-    '<html><head><link rel="stylesheet" href="style.css" /><script src="bridge.js" defer></script></head><body><main id="unconnected-overview">尚未连接会话</main></body></html>';
+    '<html><head><link rel="stylesheet" href="style.css" /><script src="bridge.js" defer></script></head><body><main id="unconnected-overview">尚未连接会话<!-- recovered-sample-entry --></main></body></html>';
   const demo =
     '<html><head><link rel="stylesheet" href="style.css" /><script src="app.js" defer></script></head><body><div class="app-shell">仅合成数据</div></body></html>';
+  const reported = [];
   const controller = target.createSurfaceController(vscode, {
+    recoveredSample,
+    onNavigationError: () => reported.push("unavailable"),
     extensionUri: uri("extension-root"),
     readAsset: (name) => {
       reads.push(name);
-      if (fail) throw Error("PRIVATE_PATH");
+      if (fail === "*" || name === fail) throw Error("PRIVATE_PATH");
+      if (name === "recovered.js") return "/* bundled recovered app */";
       return name === "overview.html" ? template : demo;
     },
     randomNonce: () => String(++serial).padStart(32, "a"),
@@ -87,8 +91,9 @@ function fixture() {
     panels,
     reads,
     generation,
-    setFail: () => {
-      fail = true;
+    reported,
+    setFail: (asset = "*") => {
+      fail = asset;
     },
   };
 }
@@ -215,4 +220,108 @@ test("surface controller: missing new asset keeps existing page and exposes no p
   assert.equal(f.panels[0].webview.html, html);
   assert.equal(f.controller.inspect().mode, "overview");
   f.controller.dispose();
+});
+
+test("the recovery entry is only available in an explicit build", () => {
+  const f = fixture();
+  f.controller.open("overview");
+  const p = f.panels[0];
+  assert.ok(!p.webview.html.includes('id="open-recovered"'));
+  assert.throws(() => f.controller.open("recovered"), {
+    message: "surface_mode_rejected",
+  });
+  p.send({
+    type: "surface.navigate",
+    destination: "recovered",
+    generation: f.generation(),
+  });
+  assert.equal(f.controller.inspect().mode, "overview");
+  assert.deepEqual(f.reads, ["overview.html"]);
+  f.controller.dispose();
+});
+
+test("recovered sample has its own asset and same-panel return navigation", () => {
+  const f = fixture({ recoveredSample: true });
+  f.controller.open("overview");
+  const p = f.panels[0],
+    original = f.generation();
+  assert.match(p.webview.html, /id="open-recovered"/);
+  p.send({
+    type: "surface.navigate",
+    destination: "recovered",
+    generation: original,
+    path: "extra",
+  });
+  assert.equal(f.controller.inspect().mode, "overview");
+  p.send({
+    type: "surface.navigate",
+    destination: "recovered",
+    generation: original,
+  });
+  assert.equal(f.controller.inspect().mode, "recovered");
+  assert.equal(f.panels.length, 1);
+  assert.notEqual(f.generation(), original);
+  assert.match(p.webview.html, /id="back-overview"/);
+  assert.match(
+    p.webview.html,
+    /src="webview:\/\/extension-root\/media\/recovered\.js"/,
+  );
+  assert.doesNotMatch(p.webview.html, /src="[^"]+\/app\.js"/);
+  p.send({
+    type: "surface.ready",
+    mode: "recovered",
+    generation: original,
+    ok: true,
+  });
+  assert.equal(f.controller.inspect().health, "loading");
+  p.send({
+    type: "surface.ready",
+    mode: "recovered",
+    generation: f.generation(),
+    ok: true,
+  });
+  assert.equal(f.controller.inspect().health, "ready");
+  p.send({
+    type: "surface.navigate",
+    destination: "overview",
+    generation: f.generation(),
+  });
+  assert.equal(f.controller.inspect().mode, "overview");
+  assert.equal(f.panels.length, 1);
+  f.controller.dispose();
+});
+
+test("a missing recovery asset leaves a ready overview visible and reports a safe error", () => {
+  for (const asset of [
+    "recovered.js",
+    "bridge.js",
+    "style.css",
+    "surface.css",
+  ]) {
+    const f = fixture({ recoveredSample: true });
+    f.controller.open("overview");
+    const p = f.panels[0],
+      original = f.generation(),
+      oldHtml = p.webview.html;
+    p.send({
+      type: "surface.ready",
+      mode: "overview",
+      generation: original,
+      ok: true,
+    });
+    f.setFail(asset);
+    p.send({
+      type: "surface.navigate",
+      destination: "recovered",
+      generation: original,
+    });
+    assert.deepEqual(f.controller.inspect(), {
+      mode: "overview",
+      health: "ready",
+    });
+    assert.deepEqual(f.reported, ["unavailable"]);
+    assert.equal(p.webview.html, oldHtml);
+    assert.equal(f.generation(), original);
+    f.controller.dispose();
+  }
 });

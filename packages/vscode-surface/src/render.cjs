@@ -8,8 +8,12 @@ function once(template, marker, replacement) {
     throw Error("surface_template_rejected");
   return template.replace(marker, replacement);
 }
-exports.renderSurface = (template, { mode, nonce, cspSource, assets }) => {
-  if (!["overview", "synthetic"].includes(mode))
+exports.renderSurface = (
+  template,
+  { mode, nonce, cspSource, assets, recoveredSample = false },
+) => {
+  const recovered = mode === "recovered" && recoveredSample === true;
+  if (mode !== "overview" && mode !== "synthetic" && !recovered)
     throw Error("surface_mode_rejected");
   if (!/^[A-Za-z0-9_-]{24,64}$/.test(nonce))
     throw Error("surface_nonce_rejected");
@@ -31,23 +35,35 @@ exports.renderSurface = (template, { mode, nonce, cspSource, assets }) => {
   );
   const script = (name) =>
     `<script nonce="${nonce}" src="${escape(assets[name])}" defer></script>`;
-  if (mode === "synthetic") {
+  if (mode !== "overview") {
+    const client = recovered ? "recovered.js" : "app.js";
+    if (typeof assets[client] !== "string")
+      throw Error("surface_assets_unavailable");
     html = once(
       html,
       '<script src="app.js" defer></script>',
-      script("bridge.js") + "\n" + script("app.js"),
+      script("bridge.js") + "\n" + script(client),
     );
     html = once(
       html,
       '<div class="app-shell">',
-      '<nav class="surface-switcher" aria-label="示例导航"><button id="back-overview" type="button">← 回到项目概览</button><span>内置合成示例</span></nav>\n<div class="app-shell">',
+      '<nav class="surface-switcher" aria-label="示例导航"><button id="back-overview" type="button">← 回到项目概览</button><span>' +
+        (recovered ? "构建时恢复的合成样例" : "内置合成示例") +
+        '</span></nav>\n<div class="app-shell">',
     );
-  } else
+  } else {
     html = once(
       html,
       '<script src="bridge.js" defer></script>',
       script("bridge.js"),
     );
+    if (recoveredSample === true)
+      html = once(
+        html,
+        "<!-- recovered-sample-entry -->",
+        '<button id="open-recovered" type="button">查看已恢复的合成历史 →</button>',
+      );
+  }
   return once(
     html,
     "<body>",
