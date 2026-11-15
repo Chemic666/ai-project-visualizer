@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { admitSyntheticRoot } from "../src/host-admission.mjs";
 import {
+  openSyntheticCorrectionStore,
   openSyntheticPlanStore,
   openSyntheticStore,
 } from "../src/development.mjs";
@@ -22,8 +23,11 @@ try {
     reopen: true,
     expectedNonce: spec.nonce,
   });
-  const recoverPlan = spec.mode === "recover-plan";
-  const planMode = recoverPlan || spec.mode === "write-plan";
+  const correctionMode =
+    spec.mode === "write-correction" || spec.mode === "recover-correction";
+  const recoverPlan =
+    spec.mode === "recover-plan" || spec.mode === "recover-correction";
+  const planMode = recoverPlan || spec.mode === "write-plan" || correctionMode;
   function unexpectedReplay() {
     throw new Error("UNEXPECTED_PROCESSOR_REPLAY");
   }
@@ -35,7 +39,9 @@ try {
     processorFingerprint: spec.processorFingerprint,
     projectId: "PA",
     generation: "G1",
-    ...(recoverPlan ? {} : { bootstrap: seed() }),
+    ...(recoverPlan
+      ? {}
+      : { bootstrap: correctionMode ? spec.bootstrap : seed() }),
     ...(spec.mode === "rollback"
       ? {
           testHooks: {
@@ -46,12 +52,21 @@ try {
         }
       : {}),
   };
+  const openPlan = correctionMode
+    ? openSyntheticCorrectionStore
+    : openSyntheticPlanStore;
   const store = planMode
-    ? openSyntheticPlanStore(cap, {
+    ? openPlan(cap, {
         ...options,
         planScope: spec.planScope,
         applyPlanEvent: recoverPlan ? unexpectedReplay : core.applyPlanEvent,
         validatePlan: core.validatePlan,
+        ...(correctionMode
+          ? {
+              prepareUserCorrection: core.prepareUserCorrection,
+              prepareCorrectionExpiry: core.prepareCorrectionExpiry,
+            }
+          : {}),
         ...(spec.nativePackage ? { nativePackage: spec.nativePackage } : {}),
       })
     : openSyntheticStore(cap, options);
@@ -74,6 +89,14 @@ try {
       events: spec.planEvents,
       cursor: cursor(spec.planEvents.map((event) => event.id)),
     });
+    if (correctionMode)
+      result = store.commit({
+        operationId: "op:correction",
+        operationNonce: "nonce:correction",
+        expectedHead: result.head,
+        writer: store.writer(),
+        correction: spec.correction,
+      });
   } else if (spec.mode === "recover") {
     assert.equal(spec.writerSettlement.status, 0);
     assert.equal(spec.writerSettlement.closed, true);

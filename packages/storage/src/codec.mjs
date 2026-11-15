@@ -412,7 +412,8 @@ export function validateState(
         typeof a.value === "number" && Number.isFinite(a.value) && a.value > 0,
       );
     else {
-      id(a.value);
+      if (a.target === "project.currentTask") taskId(a.value);
+      else id(a.value);
       has(
         a.target === "project.currentTask"
           ? "tasks"

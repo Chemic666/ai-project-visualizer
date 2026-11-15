@@ -73,6 +73,8 @@ S09 synthetic canonical-reference checkpoint-only now has ordinary17 + Native17 
 
 2026-11-13：单一合成计划现可随原始观察、Core 记录、断点与回执一并保存。写入进程退出后，独立进程可恢复原修订、变更、移除和再入历史。普通与原生校验各 17 项通过。后续还需接通纠正、进度与时间线的完整恢复。见[范围和实测记录](docs/storage/phase-2-first-slice.md#durable-synthetic-plan-revisions--2026-11-13)。
 
+2026-11-15：合成存储已可恢复人工选定的当前任务、人工权重、原断言和纠正的替代与失效记录。两种验证模式各 7 项通过，包括进程退出后恢复与事务回滚。完整进度、时间线和真实项目启用仍待验证。见[纠正持久化的范围与证据](docs/storage/phase-2-first-slice.md#durable-synthetic-user-corrections--2026-11-15)。
+
 First-slice local checkpoint: `d98aa1f4a9e4c83b26fd6c898c750fdcfa2d0810` (35 reviewed files, no push). The separately authorized [synthetic Host follow-up](docs/storage/phase-2-first-slice.md#host-composition-follow-up--2026-10-19) adds joint Owner/Project process lifetime, concurrent catalog admission and normal handoff tests; actual Driver handle binding remains unavailable. No real-project enablement or Codex Session integration is approved.
 
 ### Historical 2026-10-08 preparation (superseded status/sequence only)

@@ -131,3 +131,18 @@ node packages\storage\tests\run.mjs --execute-plan-native-synthetic --driver-roo
 ```
 
 The v1 entry continues to serve existing stores. The v2 entry stores revisions and actual change events together with their source observations and receipts. It uses recorded authority without an optional Snapshot cache. See the [verified cases and scope](../../docs/storage/phase-2-first-slice.md#durable-synthetic-plan-revisions--2026-11-13).
+
+## Durable synthetic user corrections
+
+`openSyntheticCorrectionStore` uses the same Plan options plus `prepareUserCorrection` and `prepareCorrectionExpiry` from the pinned Core correction engine. Use a fresh synthetic TEMP store. Bootstrap cannot contain prior corrections or manual task selections and weights without their own commands.
+
+To record a Current Task or Task Weight correction, supply `correction` alongside the operation ID, nonce, expected head and writer capability in `commit()`. This request has no source events, checkpoint or optional cache. Matching retries return the original receipt. `read()` returns the plan, original and corrected assertions, and lifecycle history as part of the recorded Core state.
+
+A source batch can expire a correction under the existing Core rules. Expiry uses the observation's recorded receipt time and the plan as it stood at that input. The new lifecycle, observation, revised plan, checkpoint and receipt are saved together. Recovery compares the recorded images with the same pure decisions, without reapplying the source transitions.
+
+```cmd
+node packages\storage\tests\run.mjs --execute-correction-synthetic --driver-root "%APV_DRIVER_ROOT%"
+node packages\storage\tests\run.mjs --execute-correction-native-synthetic --driver-root "%APV_DRIVER_ROOT%" --native-manifest "%APV_NATIVE_MANIFEST%"
+```
+
+This v3 entry is isolated from v1 and v2. Reopening them still uses their original pinned processor builds. No migration, production enablement, Progress or Timeline persistence is provided by this slice. See the [verified cases and scope](../../docs/storage/phase-2-first-slice.md#durable-synthetic-user-corrections--2026-11-15).

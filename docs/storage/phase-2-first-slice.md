@@ -442,3 +442,20 @@ Ordinary Plan **23/23** (RunId `f9e8edd1-2080-402e-b91e-e754eadc2361`) and Nativ
 Opening and restoring a Project database now checks the stored table definitions for the supported version as well as its application marker. The check runs before changing the Project journal settings or taking a new writer epoch. A synthetic fixture retained every Plan row and passed SQLite integrity and foreign key checks after its table had lost the declared foreign keys. The store refused that fixture and preserved its head and writer metadata.
 
 The final Plan suite passed ordinary **24/24** (RunId `5c90778c-3b2c-443a-a565-1b7dff37b1e0`) and Native **24/24** (RunId `55ebd7a1-e1d8-4e71-a8c9-12dee295c803`). The v1 first slice **9/9** and cache recovery **11/11** passed. The sealed pre-v2 copy again recovered the identical head and state with original file hashes intact.
+
+## Durable synthetic user corrections — 2026-11-15
+
+V3 adds an explicit correction operation to a fresh synthetic TEMP Plan store. It reuses the versioned Core tables and the existing guarded transaction. A manual operation records its input, original and corrected assertion references, supersession and receipt without moving the source checkpoint. The Core applies the same correction eligibility and lifetime rules used by the in-memory engine. Bootstrap and source events cannot create a manual task selection or weight without a linked correction record.
+
+A source batch checks expiry at each accepted input, using the plan at that point in the batch and the input's recorded receipt time. When a partial revision explicitly removes a Task Weight target and a later revision adds the same source item back, the weight expires at the removal and stays attached to the old Task ID. Current Task follows its separate lifetime rule. Reopening reads the authority records and compares them with the same pure record decisions, without rerunning source transitions. A deliberately altered synthetic correction that was left active after removal was refused even with matching row and state digests and passing SQLite integrity checks.
+
+| Final correction mode | Result | RunId | Verified inventory |
+| --- | --- | --- | --- |
+| Ordinary SQLite | 7/7 | b63ef555-9d23-4f5a-b81e-dbf536a832bc | 69 |
+| SQLite with the reviewed Native binding | 7/7 | 09df807f-86b5-4ffc-8177-91a2ae193bf0 | 69 |
+
+Both runs matched all 54 Storage source inputs, the compiled Core and the pinned Driver. In each run, a new process recovered the correction, full Plan state and original checkpoint after the writer process closed and exited successfully. The controlled failures before COMMIT left the entire prior cut intact, including the manual assertion and correction or the source observation and expiry. Retrying each request committed it once. These faults were application exceptions, not physical I/O failures.
+
+The affected v2 Plan suite passed ordinary **24/24** (`fb1de4cc-27bc-42a9-9ed3-115e457340aa`) and Native **24/24** (`309014d5-f92c-4d62-8c01-672739de9625`). The v1 first slice passed **9/9** (`3a5b91b3-030e-499d-a29a-734e03b99371`). Read-only copies of the sealed v1 `905d8724-435e-4f8a-99c4-7cbe157784a7` and v2 `5c90778c-3b2c-443a-a565-1b7dff37b1e0` recovered their exact original head, state, checkpoint and digest with their original processor builds. All six input database and sidecar file hashes stayed unchanged. The standard suite **298/298**, Storage boundary and validation checks **40/40**, typecheck, lint and formatting passed.
+
+Progress and Timeline are still separate from this recovery boundary. Existing databases are not migrated. Real source intake, installation with v3, production filesystem binding and full privacy and recovery acceptance remain open.

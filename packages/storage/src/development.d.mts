@@ -7,6 +7,11 @@ import type {
   applyPlanEvent,
 } from "../../core/src/index.js";
 import type { validatePlan } from "../../core/src/plan-engine.js";
+import type {
+  UserCorrectionInput,
+  prepareUserCorrection,
+  prepareCorrectionExpiry,
+} from "../../core/src/correction-engine.js";
 import type { SyntheticCapability } from "./host-admission.mjs";
 export {
   admitSyntheticRoot,
@@ -148,11 +153,37 @@ export interface SyntheticPlanStore extends SyntheticStore {
   ): ReturnType<SyntheticStore["commit"]> & { plan: PlanEngineState };
 }
 
+interface SyntheticPlanStoreOptions extends SyntheticStoreOptions {
+  planScope: PlanScope;
+  applyPlanEvent: typeof applyPlanEvent;
+  validatePlan: typeof validatePlan;
+}
+
 export function openSyntheticPlanStore(
   capability: SyntheticCapability,
-  options: SyntheticStoreOptions & {
-    planScope: PlanScope;
-    applyPlanEvent: typeof applyPlanEvent;
-    validatePlan: typeof validatePlan;
-  },
+  options: SyntheticPlanStoreOptions,
 ): SyntheticPlanStore;
+
+export interface CorrectionCommitRequest extends Pick<
+  CommitRequest,
+  "operationId" | "operationNonce" | "expectedHead" | "writer"
+> {
+  correction: UserCorrectionInput;
+  events?: never;
+  cursor?: never;
+  createSnapshot?: never;
+}
+
+export interface SyntheticCorrectionStore extends SyntheticPlanStore {
+  commit(
+    request: CommitRequest | CorrectionCommitRequest,
+  ): ReturnType<SyntheticPlanStore["commit"]>;
+}
+
+export function openSyntheticCorrectionStore(
+  capability: SyntheticCapability,
+  options: SyntheticPlanStoreOptions & {
+    prepareUserCorrection: typeof prepareUserCorrection;
+    prepareCorrectionExpiry: typeof prepareCorrectionExpiry;
+  },
+): SyntheticCorrectionStore;

@@ -82,11 +82,22 @@ function canonical(value: unknown): string {
     .map(([key, v]) => `${JSON.stringify(key)}:${canonical(v)}`)
     .join(",")}}`;
 }
-function reject(
-  state: PlanEngineState,
-  reason: string,
-): CorrectionApplicationResult {
-  return { status: "rejected", state, events: [], reason };
+type CorrectionDecision<T> =
+  | { readonly status: "prepared"; readonly value: T }
+  | { readonly status: "duplicate" }
+  | { readonly status: "rejected"; readonly reason: string };
+
+type PreparedCorrection = {
+  readonly record: CorrectionRecord;
+  readonly previous: CorrectionRecord | undefined;
+  readonly patch: Pick<
+    CoreState,
+    "assertions" | "corrections" | "tasks" | "projects"
+  >;
+};
+
+function reject(reason: string) {
+  return { status: "rejected", reason } as const;
 }
 function sameScope(a: PlanScope, b: PlanScope) {
   return (
@@ -155,11 +166,13 @@ function derived(
   };
 }
 
-export function applyUserCorrection(
+// A pure record decision; durable readers can check recorded images without
+// reapplying the transition or regenerating its derived events.
+export function prepareUserCorrection(
   state: PlanEngineState,
   scope: PlanScope,
   input: UserCorrectionInput,
-): CorrectionApplicationResult {
+): CorrectionDecision<PreparedCorrection> {
   const { assertion, effectiveAt } = input;
   const at = instant(effectiveAt);
   if (
@@ -172,7 +185,7 @@ export function applyUserCorrection(
     instant(assertion.observedAt) > at ||
     (input.scope.kind !== "task_weight" && input.scope.kind !== "current_task")
   )
-    return reject(state, "invalid_input");
+    return reject("invalid_input");
   const prior = state.core.corrections.find((c) => c.id === input.id);
   if (prior !== undefined) {
     const original = state.core.assertions.find(
@@ -187,23 +200,21 @@ export function applyUserCorrection(
       (input.supersedes === undefined ||
         prior.supersedes === input.supersedes) &&
       canonical(original) === canonical(assertion);
-    return same
-      ? { status: "duplicate", state, events: [] }
-      : reject(state, "correction_id_conflict");
+    return same ? { status: "duplicate" } : reject("correction_id_conflict");
   }
   if (state.core.assertions.some((a) => a.id === assertion.id))
-    return reject(state, "assertion_id_conflict");
+    return reject("assertion_id_conflict");
   if (
     scope.projectId !== input.scope.projectId ||
     !state.core.projects.some((p) => p.id === scope.projectId)
   )
-    return reject(state, "project_scope_mismatch");
+    return reject("project_scope_mismatch");
   if (
     input.scope.sessionId !== undefined &&
     scope.sessionId !== undefined &&
     input.scope.sessionId !== scope.sessionId
   )
-    return reject(state, "session_scope_mismatch");
+    return reject("session_scope_mismatch");
   if (input.scope.kind === "task_weight") {
     if (
       assertion.target !== "task.weight" ||
@@ -212,12 +223,12 @@ export function applyUserCorrection(
       !Number.isFinite(assertion.value) ||
       assertion.value <= 0
     )
-      return reject(state, "invalid_weight");
+      return reject("invalid_weight");
   } else if (
     assertion.target !== "project.currentTask" ||
     assertion.targetId !== input.scope.projectId
   )
-    return reject(state, "invalid_current_task");
+    return reject("invalid_current_task");
   const taskId =
     assertion.target === "task.weight" ? assertion.targetId : assertion.value;
   const plan = getPlanSnapshot(state, scope);
@@ -226,7 +237,7 @@ export function applyUserCorrection(
     plan.status !== "available" ||
     !plan.snapshot.entries.some((e) => e.taskId === taskId)
   )
-    return reject(state, "task_not_current_plan_member");
+    return reject("task_not_current_plan_member");
   const headEvent = state.core.acceptedEvents.find(
     (e) => e.id === plan.snapshot.eventId,
   );
@@ -235,7 +246,7 @@ export function applyUserCorrection(
     !Number.isFinite(instant(headEvent.receivedAt)) ||
     instant(headEvent.receivedAt) > at
   )
-    return reject(state, "correction_time_precedes_plan");
+    return reject("correction_time_precedes_plan");
   const reference = assertion.sourceReference;
   if (
     reference !== undefined &&
@@ -244,7 +255,7 @@ export function applyUserCorrection(
       (reference.reference !== undefined && !nonempty(reference.reference)) ||
       (reference.revision !== undefined && !nonempty(reference.revision)))
   )
-    return reject(state, "invalid_source_reference");
+    return reject("invalid_source_reference");
   if (
     assertion.eventId !== undefined &&
     !state.core.acceptedEvents.some(
@@ -255,7 +266,7 @@ export function applyUserCorrection(
         receivedBy(e, instant(assertion.observedAt)),
     )
   )
-    return reject(state, "invalid_assertion_event");
+    return reject("invalid_assertion_event");
   if (
     input.triggeringEventId !== undefined &&
     !state.core.acceptedEvents.some(
@@ -265,7 +276,7 @@ export function applyUserCorrection(
         receivedBy(e, at),
     )
   )
-    return reject(state, "invalid_trigger");
+    return reject("invalid_trigger");
   if (
     input.originalAssertionId !== undefined &&
     !state.core.assertions.some(
@@ -277,7 +288,7 @@ export function applyUserCorrection(
         instant(a.observedAt) <= at,
     )
   )
-    return reject(state, "invalid_original_assertion");
+    return reject("invalid_original_assertion");
   if (input.scope.sessionId !== undefined) {
     const sessionId = input.scope.sessionId;
     const session = state.core.sessions.find((s) => s.id === sessionId);
@@ -292,7 +303,7 @@ export function applyUserCorrection(
           receivedBy(e, at),
       )
     )
-      return reject(state, "session_association_unknown");
+      return reject("session_association_unknown");
     if (
       input.scope.kind === "current_task" &&
       state.core.acceptedEvents.some(
@@ -303,26 +314,26 @@ export function applyUserCorrection(
           e.payload.sessionId === sessionId,
       )
     )
-      return reject(state, "session_ended");
+      return reject("session_ended");
   }
   const active = state.core.corrections.filter(
     (c) => c.lifecycle.status === "active" && overlaps(c.scope, input.scope),
   );
-  if (active.length > 1) return reject(state, "correction_conflict");
+  if (active.length > 1) return reject("correction_conflict");
   const previous = active[0];
   if (
     previous !== undefined &&
     canonical(previous.scope) !== canonical(input.scope)
   )
-    return reject(state, "correction_scope_conflict");
+    return reject("correction_scope_conflict");
   if (input.supersedes !== undefined && previous?.id !== input.supersedes)
-    return reject(state, "invalid_supersession");
+    return reject("invalid_supersession");
   if (
     previous !== undefined &&
     (!Number.isFinite(instant(previous.effectiveAt)) ||
       instant(previous.effectiveAt) > at)
   )
-    return reject(state, "stale_correction");
+    return reject("stale_correction");
   const record: CorrectionRecord = {
     id: input.id,
     scope: input.scope,
@@ -354,8 +365,7 @@ export function applyUserCorrection(
           },
         },
   );
-  const core: CoreState = {
-    ...state.core,
+  const patch: PreparedCorrection["patch"] = {
     assertions: [...state.core.assertions, assertion],
     corrections: [...corrections, record],
     tasks:
@@ -384,9 +394,21 @@ export function applyUserCorrection(
           )
         : state.core.projects,
   };
+  return { status: "prepared", value: { record, previous, patch } };
+}
+
+export function applyUserCorrection(
+  state: PlanEngineState,
+  scope: PlanScope,
+  input: UserCorrectionInput,
+): CorrectionApplicationResult {
+  const prepared = prepareUserCorrection(state, scope, input);
+  if (prepared.status !== "prepared") return { ...prepared, state, events: [] };
+  const { record, previous, patch } = prepared.value;
+  const { effectiveAt } = input;
   return {
     status: "applied",
-    state: { ...state, core },
+    state: { ...state, core: { ...state.core, ...patch } },
     events: [
       ...(previous === undefined
         ? []
@@ -411,23 +433,22 @@ export function applyUserCorrection(
   };
 }
 
-export function expireUserCorrection(
+export function prepareCorrectionExpiry(
   state: PlanEngineState,
   input: CorrectionExpiryInput,
-): CorrectionApplicationResult {
+): CorrectionDecision<CorrectionRecord> {
   const record = state.core.corrections.find(
     (c) => c.id === input.correctionId,
   );
-  if (record === undefined) return reject(state, "correction_not_found");
+  if (record === undefined) return reject("correction_not_found");
   if (record.lifecycle.status === "expired") {
     return record.lifecycle.expiredAt === input.expiredAt &&
       record.lifecycle.triggeringEventId === input.eventId &&
       record.lifecycle.reasonCode === input.reason
-      ? { status: "duplicate", state, events: [] }
-      : reject(state, "correction_closed");
+      ? { status: "duplicate" }
+      : reject("correction_closed");
   }
-  if (record.lifecycle.status !== "active")
-    return reject(state, "correction_closed");
+  if (record.lifecycle.status !== "active") return reject("correction_closed");
   const event = state.core.acceptedEvents.find((e) => e.id === input.eventId);
   const at = instant(input.expiredAt);
   if (
@@ -439,7 +460,7 @@ export function expireUserCorrection(
     instant(event.receivedAt) < instant(record.effectiveAt) ||
     at < instant(event.receivedAt)
   )
-    return reject(state, "invalid_expiry_evidence");
+    return reject("invalid_expiry_evidence");
   let valid = false;
   if (
     input.reason === "session_ended" &&
@@ -509,17 +530,29 @@ export function expireUserCorrection(
           );
     }
   }
-  if (!valid) return reject(state, "invalid_expiry_evidence");
-  const expired: CorrectionRecord = {
-    ...record,
-    lifecycle: {
-      status: "expired",
-      expiredAt: input.expiredAt,
-      reasonCode: input.reason,
-      ...rule,
-      triggeringEventId: input.eventId,
+  if (!valid) return reject("invalid_expiry_evidence");
+  return {
+    status: "prepared",
+    value: {
+      ...record,
+      lifecycle: {
+        status: "expired",
+        expiredAt: input.expiredAt,
+        reasonCode: input.reason,
+        ...rule,
+        triggeringEventId: input.eventId,
+      },
     },
   };
+}
+
+export function expireUserCorrection(
+  state: PlanEngineState,
+  input: CorrectionExpiryInput,
+): CorrectionApplicationResult {
+  const prepared = prepareCorrectionExpiry(state, input);
+  if (prepared.status !== "prepared") return { ...prepared, state, events: [] };
+  const expired = prepared.value;
   return {
     status: "applied",
     state: {
@@ -527,7 +560,7 @@ export function expireUserCorrection(
       core: {
         ...state.core,
         corrections: state.core.corrections.map((c) =>
-          c.id === record.id ? expired : c,
+          c.id === expired.id ? expired : c,
         ),
       },
     },

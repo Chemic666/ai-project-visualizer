@@ -35,6 +35,11 @@ if (args.length === 0) {
       "--execute-checkpoint-native-synthetic",
       { test: "checkpoint-only.test.mjs", native: true },
     ],
+    ["--execute-correction-synthetic", { test: "correction-storage.test.mjs" }],
+    [
+      "--execute-correction-native-synthetic",
+      { test: "correction-storage.test.mjs", native: true },
+    ],
     ["--execute-plan-synthetic", { test: "plan-storage.test.mjs" }],
     [
       "--execute-plan-native-synthetic",
@@ -69,13 +74,17 @@ if (args.length === 0) {
   const esbuild = require("esbuild");
   const runId = randomUUID(),
     evidence = fs.mkdtempSync(path.join(os.tmpdir(), "apv-storage-evidence-"));
-  const planMode = mode.test === "plan-storage.test.mjs";
+  const correctionMode = mode.test === "correction-storage.test.mjs";
+  const planMode = correctionMode || mode.test === "plan-storage.test.mjs";
   const core = esbuild.buildSync({
     ...(planMode
       ? {
           stdin: {
             contents:
-              'export * from "./packages/core/src/index.ts"; export { validatePlan } from "./packages/core/src/plan-engine.ts";',
+              'export * from "./packages/core/src/index.ts"; export { validatePlan } from "./packages/core/src/plan-engine.ts";' +
+              (correctionMode
+                ? ' export { prepareUserCorrection, prepareCorrectionExpiry } from "./packages/core/src/correction-engine.ts";'
+                : ""),
             sourcefile: "apv-synthetic-plan.ts",
             resolveDir: repo,
           },

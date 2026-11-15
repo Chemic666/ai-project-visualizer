@@ -11,6 +11,11 @@ import {
   id,
 } from "./codec.mjs";
 import { demand, StorageError } from "./errors.mjs";
+import {
+  correctionCore,
+  sourceCorrectionVersions,
+  verifyCorrectionLinks,
+} from "./correction-records.mjs";
 import { countRowArrayBytes } from "./catalog-budget.mjs";
 import {
   appendPlanVersion,
@@ -52,10 +57,10 @@ const schemaDefinitions = schema
   .split(/\r?\n/)
   .map((sql) => sql.trim().replace(/;$/, ""));
 
-export function verifyProjectSchema(db, planScope) {
+export function verifyProjectSchema(db, { planScope, schemaVersion }) {
   demand(
     db.pragma("application_id", { simple: true }) === APPLICATION_ID &&
-      db.pragma("user_version", { simple: true }) === (planScope ? 2 : 1),
+      db.pragma("user_version", { simple: true }) === schemaVersion,
     "unavailable",
   );
   const objects = db
@@ -190,30 +195,53 @@ function restorePlan(db, before, state, head, scope) {
     .prepare("SELECT * FROM plan_versions WHERE seq=? ORDER BY ordinal")
     .all(head);
   let ordinal = 0;
+  let correctionVersions = prior.core.corrections;
   for (let index = offset; index < state.acceptedEvents.length; index++) {
     const event = state.acceptedEvents[index];
     observePlanSession(sessions, event);
-    if (!isPlanEvent(event)) continue;
-    validateEvent(event, scope.projectId, scope.planScope);
-    const row = rows[ordinal];
+    if (isPlanEvent(event)) {
+      validateEvent(event, scope.projectId, scope.planScope);
+      const row = rows[ordinal];
+      demand(
+        row?.ordinal === ordinal && row.event_id === event.id,
+        "unavailable",
+      );
+      // A session started later in this batch was unavailable to this observation.
+      const context = {
+        ...state,
+        acceptedEvents: state.acceptedEvents.slice(0, index),
+        sessions: [...sessions.values()],
+      };
+      plan = appendPlanVersion(
+        { ...plan, core: context },
+        event,
+        checkedBody(row),
+        scope,
+      );
+      ordinal++;
+    }
+    if (scope.correctionsEnabled && correctionVersions.length > 0) {
+      correctionVersions = sourceCorrectionVersions(
+        {
+          ...plan,
+          core: {
+            ...state,
+            acceptedEvents: state.acceptedEvents.slice(0, index + 1),
+            sessions: [...sessions.values()],
+            assertions: prior.core.assertions,
+            corrections: correctionVersions,
+          },
+        },
+        event,
+        scope,
+      );
+    }
+  }
+  if (scope.correctionsEnabled && state.acceptedEvents.length > offset)
     demand(
-      row?.ordinal === ordinal && row.event_id === event.id,
+      encode(state.corrections) === encode(correctionVersions),
       "unavailable",
     );
-    // A session started later in this batch was unavailable to this observation.
-    const context = {
-      ...state,
-      acceptedEvents: state.acceptedEvents.slice(0, index),
-      sessions: [...sessions.values()],
-    };
-    plan = appendPlanVersion(
-      { ...plan, core: context },
-      event,
-      checkedBody(row),
-      scope,
-    );
-    ordinal++;
-  }
   demand(ordinal === rows.length, "unavailable");
   verifyPlanSessions(sessions, state.sessions);
   return { ...plan, core: state };
@@ -236,7 +264,7 @@ export function restore(db, scope) {
   try {
     const { planScope } = scope;
     const expectedTables = planScope ? [...tables, PLAN_TABLE] : tables;
-    verifyProjectSchema(db, planScope);
+    verifyProjectSchema(db, scope);
     if (planScope)
       demand(
         db.prepare("SELECT count(*) AS n FROM snapshots").get().n === 0,
@@ -290,12 +318,17 @@ export function restore(db, scope) {
         "generation",
         "expectedHead",
       ];
-      closed(intent, [
-        ...common,
-        ...(i === 0
-          ? ["seedDigest", ...(planScope ? ["planScope"] : [])]
-          : ["eventClaims", "cursor", "createSnapshot"]),
-      ]);
+      closed(
+        intent,
+        [
+          ...common,
+          ...(i === 0
+            ? ["seedDigest", ...(planScope ? ["planScope"] : [])]
+            : ["eventClaims", "cursor", "createSnapshot"]),
+        ],
+        i !== 0 && scope.correctionsEnabled ? ["correction"] : [],
+      );
+      const manual = Object.hasOwn(intent, "correction");
       closed(result, [
         "head",
         "stateDigest",
@@ -341,6 +374,7 @@ export function restore(db, scope) {
         planScope,
         ...(plan ? planCoreOptions(plan) : {}),
       });
+      if (scope.correctionsEnabled) verifyCorrectionLinks(state);
       const cursor = vectorAt(db, row.seq);
       for (const c of cursor)
         for (const id of c.coveredEventIds)
@@ -364,6 +398,7 @@ export function restore(db, scope) {
             row.epoch === 0 &&
             cursor.length === 0 &&
             (!planScope || encode(intent.planScope) === encode(planScope)) &&
+            (!scope.correctionsEnabled || state.corrections.length === 0) &&
             encode(result.canonicalEventIds) ===
               encode(state.acceptedEvents.map((e) => e.id)),
           "unavailable",
@@ -376,6 +411,14 @@ export function restore(db, scope) {
             (!planScope || intent.createSnapshot === false),
           "unavailable",
         );
+        if (manual)
+          demand(
+            intent.eventClaims.length === 0 &&
+              intent.cursor === null &&
+              encode(state) ===
+                encode(correctionCore(current.plan, intent.correction, scope)),
+            "unavailable",
+          );
         const priorEvents = current.state.acceptedEvents;
         const priorIds = new Set(priorEvents.map((event) => event.id));
         // Repeated receipt IDs are valid aliases. Only the first mention of
@@ -387,11 +430,14 @@ export function restore(db, scope) {
         demand(
           introduced.length === appended.length &&
             appended.every((event, index) => event.id === introduced[index]) &&
-            (introduced.length > 0 || stateDigest === current.stateDigest),
+            (introduced.length > 0 ||
+              manual ||
+              stateDigest === current.stateDigest),
           "unavailable",
         );
         const checkpointOnly = intent.eventClaims.length === 0;
-        if (checkpointOnly) demand(intent.cursor !== null, "unavailable");
+        if (checkpointOnly && !manual)
+          demand(intent.cursor !== null, "unavailable");
         if (intent.cursor !== null) {
           validateCursor(intent.cursor);
           const c = intent.cursor;

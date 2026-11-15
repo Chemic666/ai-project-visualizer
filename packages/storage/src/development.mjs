@@ -1,4 +1,10 @@
 import { checkCatalogBudget } from "./catalog-budget.mjs";
+import {
+  correctionCore,
+  sourceCorrectionVersions,
+  validateCorrectionCommand,
+  verifyCorrectionLinks,
+} from "./correction-records.mjs";
 import fs from "node:fs";
 import { createAttestor, stableIdentity } from "./native-attestor.mjs";
 import { inspectConnection } from "./connection-binding.mjs";
@@ -114,16 +120,28 @@ export function openSyntheticStore(capability, options = {}) {
 }
 
 export function openSyntheticPlanStore(capability, options) {
+  return openPlanStore(capability, options, 2);
+}
+
+export function openSyntheticCorrectionStore(capability, options) {
+  demand(
+    typeof options?.prepareUserCorrection === "function" &&
+      typeof options?.prepareCorrectionExpiry === "function",
+  );
+  return openPlanStore(capability, options, 3);
+}
+
+function openPlanStore(capability, options, schemaVersion) {
   const planScope = validatePlanScope(options?.planScope, options?.projectId);
   demand(
     typeof options.applyPlanEvent === "function" &&
       typeof options.validatePlan === "function",
   );
-  return openStore(capability, options, planScope);
+  return openStore(capability, options, planScope, schemaVersion);
 }
 
-function openStore(capability, options, planScope) {
-  const schemaVersion = planScope ? 2 : 1;
+function openStore(capability, options, planScope, schemaVersion = 1) {
+  const correctionsEnabled = schemaVersion === 3;
   const native = options.nativePackage
     ? createAttestor(options.nativePackage)
     : null;
@@ -155,7 +173,15 @@ function openStore(capability, options, planScope) {
     processorFingerprint: options.processorFingerprint,
     observedRoot: admitted.observedRoot,
     planScope,
+    schemaVersion,
+    correctionsEnabled,
     validatePlan: planScope ? options.validatePlan : undefined,
+    prepareUserCorrection: correctionsEnabled
+      ? options.prepareUserCorrection
+      : undefined,
+    prepareCorrectionExpiry: correctionsEnabled
+      ? options.prepareCorrectionExpiry
+      : undefined,
   };
   id(scope.projectId);
   demand(
@@ -172,6 +198,10 @@ function openStore(capability, options, planScope) {
       allowedLocations: [scope.observedRoot],
     });
     if (planScope) emptyPlan(options.bootstrap);
+    if (correctionsEnabled) {
+      demand(options.bootstrap.corrections.length === 0);
+      verifyCorrectionLinks(options.bootstrap);
+    }
   }
   const limits = Object.fromEntries(
     Object.entries(defaults).map(([k, v]) => {
@@ -457,7 +487,7 @@ function openStore(capability, options, planScope) {
     note("owner-acquired");
     project = new options.Database(paths.project, { fileMustExist: true });
     checkFile(paths.project, identities.project);
-    if (!newBinding) verifyProjectSchema(project, planScope);
+    if (!newBinding) verifyProjectSchema(project, scope);
     if (native)
       nativeReports.project = native.inspect(
         project,
@@ -629,10 +659,20 @@ function openStore(capability, options, planScope) {
     try {
       active();
       plain(request);
+      const manual =
+        correctionsEnabled &&
+        request !== null &&
+        Object.hasOwn(request, "correction");
       closed(
         request,
-        ["operationId", "operationNonce", "expectedHead", "writer", "events"],
-        ["cursor", "createSnapshot"],
+        [
+          "operationId",
+          "operationNonce",
+          "expectedHead",
+          "writer",
+          manual ? "correction" : "events",
+        ],
+        manual ? [] : ["cursor", "createSnapshot"],
       );
       id(request.operationId);
       id(request.operationNonce);
@@ -645,13 +685,12 @@ function openStore(capability, options, planScope) {
       demand(
         Number.isSafeInteger(request.writer.epoch) && request.writer.epoch >= 0,
       );
-      demand(Array.isArray(request.events));
-      // Empty input is only a declared synthetic consumption checkpoint over
-      // existing canonical authority, never a fabricated Core event.
-      demand(request.events.length > 0 || request.cursor !== undefined);
-      request.events.forEach((e) =>
-        validateEvent(e, scope.projectId, planScope),
-      );
+      const sourceEvents = manual ? [] : request.events;
+      demand(Array.isArray(sourceEvents));
+      // Correction commands have their own receipt and cannot advance a source.
+      if (manual) validateCorrectionCommand(request.correction);
+      else demand(sourceEvents.length > 0 || request.cursor !== undefined);
+      sourceEvents.forEach((e) => validateEvent(e, scope.projectId, planScope));
       if (request.cursor !== undefined) validateCursor(request.cursor);
       demand(
         request.createSnapshot === undefined ||
@@ -664,12 +703,13 @@ function openStore(capability, options, planScope) {
         projectId: scope.projectId,
         generation: scope.generation,
         expectedHead: request.expectedHead,
-        eventClaims: request.events.map((e) => ({
+        eventClaims: sourceEvents.map((e) => ({
           internalId: e.sourceIdentity?.kind === "source_event" ? null : e.id,
           claim: sourceClaim(e),
         })),
         cursor: request.cursor ?? null,
         createSnapshot: request.createSnapshot ?? !planScope,
+        ...(manual ? { correction: request.correction } : {}),
       };
       phase = "begin";
       project.exec("BEGIN IMMEDIATE");
@@ -716,7 +756,9 @@ function openStore(capability, options, planScope) {
       const priorAssertionCount = state.assertions.length;
       const priorAssertions = encode(state.assertions);
       const canonicalEventIds = [];
-      for (const event of request.events) {
+      let correctionVersions = state.corrections;
+      if (manual) state = correctionCore(plan, request.correction, scope);
+      for (const event of sourceEvents) {
         let old = expectedEvents.find((e) => e.id === event.id);
         if (old) demand(encode(old) === encode(event), "identity_conflict");
         else if (event.sourceIdentity?.kind === "source_event") {
@@ -744,12 +786,35 @@ function openStore(capability, options, planScope) {
             planRecords.push(applied.record);
             state = plan.core;
           } else {
-            const result = options.applyNormalizedEvent(state, copy(event));
+            const result = options.applyNormalizedEvent(
+              correctionsEnabled ? copy(state) : state,
+              copy(event),
+            );
             demand(result.status === "applied", "admission_rejected");
             state = result.state;
           }
           expectedEvents.push(event);
           if (planSessions) observePlanSession(planSessions, event);
+          if (correctionsEnabled) {
+            demand(encode(state.corrections) === encode(correctionVersions));
+            // Lifecycle decisions use the committed assertions and the exact
+            // per-event Plan/Session prefix, including inside multi-event batches.
+            correctionVersions = sourceCorrectionVersions(
+              {
+                ...plan,
+                core: {
+                  ...state,
+                  acceptedEvents: expectedEvents,
+                  sessions: [...planSessions.values()],
+                  assertions: before.state.assertions,
+                  corrections: correctionVersions,
+                },
+              },
+              event,
+              scope,
+            );
+            state = { ...state, corrections: correctionVersions };
+          }
           canonicalEventIds.push(event.id);
         }
       }
@@ -762,6 +827,7 @@ function openStore(capability, options, planScope) {
         planScope,
         ...(plan ? planCoreOptions(plan) : {}),
       });
+      if (correctionsEnabled) verifyCorrectionLinks(state);
       // Bind the processor's ordered ledger to the inputs we actually admitted.
       demand(
         state.acceptedEvents.length === expectedEvents.length &&
