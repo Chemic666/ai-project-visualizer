@@ -18,6 +18,26 @@ pnpm.cmd demo:preview --help
 
 JWT 权重试算调用同一 Core 合成演示重新计算：权重 5 时，第七检查点为 32/42 = 76.2%；默认权重 17 时为 32/54 = 59.3%。每次试算建立一个独立合成案例，不累积保存用户操作历史；恢复默认返回第六检查点的 32/50 = 64%。非法输入保留原案例。
 
+## 查看恢复后的合成历史
+
+在 Windows x64 的仓库根目录运行。`APV_DRIVER_ROOT` 指向已安装并通过文件校验的 better-sqlite3 13.0.3 目录。以下示例使用本仓库已有的验证依赖。
+
+```cmd
+set "APV_DRIVER_ROOT=%CD%\experiments\phase-2-sqlite-driver-spike\node_modules\better-sqlite3"
+pnpm.cmd demo:preview --recover-demo --driver-root "%APV_DRIVER_ROOT%"
+```
+
+命令给出本机预览地址。每次运行都会建立一份新的固定合成案例。专用写入进程保存并退出后，预览进程重新打开同一份临时库，核对记录和来源读取位置，再显示恢复时的总览、计划和活动依据。页面显示 3 / 6 = 50%，时间线可查到早先 60% 降到 50% 的人工调整，以及 Session 结束后失效的当前任务纠正。恢复失败时命令退出并显示固定提示。
+
+运行对应测试。
+
+```cmd
+set "APV_PREVIEW_TEST_DRIVER_ROOT=%APV_DRIVER_ROOT%"
+node --test experiments/core-preview/recovery.test.mjs
+```
+
+恢复模式只使用自己创建的 TEMP 案例，浏览器接收精简展示数据。固定的运行文件来自已审核 Windows x64 Driver，加载前按字节核对。临时样本只用于开发验证。正式 VS Code 接入、生产存储和隐私验收仍分别进行。[恢复预览实测](../../docs/phase-6-timeline.md#合成存储恢复预览2026-11-15)
+
 ## 实现与验证
 
 - [x] 最小 Task/Timeline 阅读投影及未知、来源、独立验证呈现测试。
@@ -41,7 +61,7 @@ pnpm.cmd format:check
 
 ## 运行边界
 
-服务只提供内存中的固定生成资源，URL 不映射文件路径；拒绝非本机 Host/Origin 和写入方法，CSP 禁止外连。页面没有实际会话导入、模型请求、Hook、生产 Storage 或持久化纠正。默认数据也没有从真实项目、日志或私人聊天抽取。
+服务只提供内存中的固定生成资源，URL 不映射文件路径；拒绝非本机 Host/Origin 和写入方法，CSP 禁止外连。浏览器页面只读取生成数据。默认案例的试算在内存执行，显式恢复模式读取本次合成库的展示结果。默认数据也没有从真实项目、日志或私人聊天抽取。
 
 输出程序在写入前检查目录及三个目标，拒绝符号链接、非普通文件和已有硬链接。它适用于可信本地 checkout，不保证抵御并发恶意改名，也不声称生成文件写入具备事务原子性。输出测试留下的独立 output-case-* 合成样本位于被忽略的 dist 下，不作为交付数据或自动删除用户文件。
 

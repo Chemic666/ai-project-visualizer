@@ -1,8 +1,9 @@
 import { runCoreWalkthrough } from "../../packages/core/examples/walkthrough.js";
+import type { Checkpoint } from "../../packages/core/examples/checkpoint.js";
 import { presentTask } from "../../packages/core/examples/preview-presentation.js";
 
 type Report = ReturnType<typeof runCoreWalkthrough>;
-type Checkpoint = Report["checkpoints"][number];
+declare const APV_RECOVERED_CHECKPOINT: Checkpoint | undefined;
 type Tab = "overview" | "plan" | "timeline";
 const reasons: Record<string, string> = {
   plan_unknown: "没有可用的正式计划",
@@ -59,12 +60,14 @@ function describe(codes: readonly string[]) {
   return codes.map((code) => reasons[code] ?? code).join("；");
 }
 
-function start() {
-  let report = runCoreWalkthrough();
+function start(recovered?: Checkpoint) {
+  let report: Report | { checkpoints: Checkpoint[] } = recovered
+    ? { checkpoints: [recovered] }
+    : runCoreWalkthrough();
   let trialWeight = 17;
-  let index = report.checkpoints.findIndex(
-    (row) => row.key === "expansion-weighted",
-  );
+  let index = recovered
+    ? 0
+    : report.checkpoints.findIndex((row) => row.key === "expansion-weighted");
   let selectedTab: Tab = "overview";
   const tabs: readonly Tab[] = ["overview", "plan", "timeline"];
   const nav = element("checkpoint-nav");
@@ -139,61 +142,70 @@ function start() {
   element("close-why").addEventListener("click", () =>
     element<HTMLDialogElement>("why-dialog").close(),
   );
-  element("old-history").textContent =
-    `${report.membershipHistory.removedTask.planVersionCount} 个版本 · ${report.membershipHistory.removedTask.correctionCount} 条纠正`;
-  element("new-history").textContent =
-    `${report.membershipHistory.reenteredTask.planVersionCount} 个版本 · ${report.membershipHistory.reenteredTask.correctionCount} 条旧纠正`;
+  if ("membershipHistory" in report) {
+    element("old-history").textContent =
+      `${report.membershipHistory.removedTask.planVersionCount} 个版本 · ${report.membershipHistory.removedTask.correctionCount} 条纠正`;
+    element("new-history").textContent =
+      `${report.membershipHistory.reenteredTask.planVersionCount} 个版本 · ${report.membershipHistory.reenteredTask.correctionCount} 条旧纠正`;
 
-  element("open-trial").addEventListener("click", () => {
-    element<HTMLInputElement>("trial-weight").value = String(trialWeight);
-    element("trial-error").hidden = true;
-    element<HTMLDialogElement>("trial-dialog").showModal();
-  });
-  element("close-trial").addEventListener("click", () =>
-    element<HTMLDialogElement>("trial-dialog").close(),
-  );
-  element("trial-form").addEventListener("submit", (event) => {
-    event.preventDefault();
-    const input = element<HTMLInputElement>("trial-weight");
-    const value = input.valueAsNumber;
-    const error = element("trial-error");
-    if (!Number.isFinite(value) || value <= 0) {
-      error.textContent = "权重需要是大于 0 的有限数；原案例没有改变。";
-      error.hidden = false;
-      input.focus();
-      return;
-    }
-    let next: Report;
-    try {
-      next = runCoreWalkthrough(value);
-    } catch {
-      error.textContent = "Core 未接受本次试算；原案例没有改变。";
-      error.hidden = false;
-      return;
-    }
-    report = next;
-    trialWeight = value;
-    index = report.checkpoints.findIndex(
-      (row) => row.key === "weight-corrected",
+    element("open-trial").addEventListener("click", () => {
+      element<HTMLInputElement>("trial-weight").value = String(trialWeight);
+      element("trial-error").hidden = true;
+      element<HTMLDialogElement>("trial-dialog").showModal();
+    });
+    element("close-trial").addEventListener("click", () =>
+      element<HTMLDialogElement>("trial-dialog").close(),
     );
-    selectedTab = "overview";
-    render();
-    element("reset-trial").hidden = false;
-    element("trial-notice").hidden = false;
-    element<HTMLDialogElement>("trial-dialog").close();
-  });
-  element("reset-trial").addEventListener("click", () => {
-    report = runCoreWalkthrough();
-    trialWeight = 17;
-    index = report.checkpoints.findIndex(
-      (row) => row.key === "expansion-weighted",
-    );
-    selectedTab = "overview";
-    element("reset-trial").hidden = true;
-    element("trial-notice").hidden = true;
-    render();
-    element("open-trial").focus();
-  });
+    element("trial-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const input = element<HTMLInputElement>("trial-weight");
+      const value = input.valueAsNumber;
+      const error = element("trial-error");
+      if (!Number.isFinite(value) || value <= 0) {
+        error.textContent = "权重需要是大于 0 的有限数；原案例没有改变。";
+        error.hidden = false;
+        input.focus();
+        return;
+      }
+      let next: Report;
+      try {
+        next = runCoreWalkthrough(value);
+      } catch {
+        error.textContent = "Core 未接受本次试算；原案例没有改变。";
+        error.hidden = false;
+        return;
+      }
+      report = next;
+      trialWeight = value;
+      index = report.checkpoints.findIndex(
+        (row) => row.key === "weight-corrected",
+      );
+      selectedTab = "overview";
+      render();
+      element("reset-trial").hidden = false;
+      element("trial-notice").hidden = false;
+      element<HTMLDialogElement>("trial-dialog").close();
+    });
+    element("reset-trial").addEventListener("click", () => {
+      report = runCoreWalkthrough();
+      trialWeight = 17;
+      index = report.checkpoints.findIndex(
+        (row) => row.key === "expansion-weighted",
+      );
+      selectedTab = "overview";
+      element("reset-trial").hidden = true;
+      element("trial-notice").hidden = true;
+      render();
+      element("open-trial").focus();
+    });
+  } else {
+    document.title = "APV · 已恢复的合成历史";
+    element("demo-mode").textContent = "已恢复的合成历史";
+    element("replay-panel").hidden = true;
+    element("independent-history").hidden = true;
+    element("timeline-intro").textContent =
+      "来自同一份恢复记录。展开活动可查看原始声明、人工修正和当时的进度变化。";
+  }
 
   function taskList(
     target: HTMLElement,
@@ -317,7 +329,9 @@ function start() {
               node(
                 "p",
                 "evidence-note",
-                "纠正状态以当前检查点为准；原动作时间保持不变。",
+                recovered
+                  ? "纠正状态以恢复时为准。上方保留原动作时间。"
+                  : "纠正状态以当前检查点为准；原动作时间保持不变。",
               ),
             );
           if (evidence.endedAt !== undefined)
@@ -465,14 +479,20 @@ function start() {
   render();
 }
 
+const recovered =
+  typeof APV_RECOVERED_CHECKPOINT === "undefined"
+    ? undefined
+    : APV_RECOVERED_CHECKPOINT;
 try {
-  start();
+  start(recovered);
 } catch {
   document.body.replaceChildren(
     node(
       "main",
       "content",
-      "合成场景未能计算；未显示占位结果。请检查本地 Core 演示。",
+      recovered === undefined
+        ? "合成场景未能计算。请检查本地 Core 演示。"
+        : "已恢复的合成历史未能显示。",
     ),
   );
 }

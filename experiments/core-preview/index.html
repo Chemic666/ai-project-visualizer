@@ -63,7 +63,7 @@
       <main>
         <header class="topbar">
           <span class="breadcrumb">项目 / Authentication</span
-          ><span class="demo-badge">合成演示 · 无真实接入</span>
+          ><span id="demo-mode" class="demo-badge">合成演示 · 无真实接入</span>
         </header>
         <div class="content">
           <div class="page-heading">
@@ -74,7 +74,11 @@
             </div>
             <span id="session-state" class="session-badge"></span>
           </div>
-          <section class="replay-card" aria-label="合成检查点回放">
+          <section
+            id="replay-panel"
+            class="replay-card"
+            aria-label="合成检查点回放"
+          >
             <div class="replay-heading">
               <div>
                 <span class="section-kicker">查看一次开发过程</span>
@@ -186,7 +190,7 @@
               </p>
               <div id="plan-tasks"></div>
             </article>
-            <details class="card history-card">
+            <details id="independent-history" class="card history-card">
               <summary>
                 额外案例：移除任务与重新纳入
                 <span class="tag neutral">独立合成分支</span>
@@ -219,7 +223,7 @@
                 <h2>开发时间线</h2>
                 <span id="timeline-count" class="tiny-label"></span>
               </div>
-              <p class="section-description">
+              <p id="timeline-intro" class="section-description">
                 只显示当前检查点之前的意义事件，不显示原始工具日志。合成时间按北京时间展示。
               </p>
               <ol id="all-events" class="event-list"></ol>
