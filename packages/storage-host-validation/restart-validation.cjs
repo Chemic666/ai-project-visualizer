@@ -24,10 +24,19 @@ exports.run = async function ({
   save,
   load,
   environment,
+  vscode,
 }) {
   validateRuntime(environment);
   assert.match(spec.runId, /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/);
   assert.equal(path.basename(evidence), "apv-b1-host-" + spec.runId);
+  if (
+    (spec.surface !== undefined || spec.surfaceReview !== undefined) &&
+    (spec.surface !== true ||
+      spec.storeModel !== "timeline-v5" ||
+      spec.rootMode !== "temp" ||
+      (spec.surfaceReview !== undefined && spec.surfaceReview !== true))
+  )
+    throw Error("restart_surface_rejected");
   const validationRuntime = profileForRoot(spec.rootMode);
   const fixture = restartFixture(spec);
   const timeline = spec.storeModel === "timeline-v5";
@@ -204,6 +213,14 @@ exports.run = async function ({
         ),
       );
       save("checkpoint-view.json", view);
+      if (recover && spec.surface)
+        await require("./surface/runtime-surface.cjs").verifyRecoverySurface({
+          vscode,
+          surfaceRoot: path.join(resources.base, "surface"),
+          checkpoint: view,
+          review: spec.surfaceReview === true,
+          save,
+        });
     } else assert.deepEqual(cut.state, expected.state);
     save("cut.json", {
       state: cut.state,

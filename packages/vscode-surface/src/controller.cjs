@@ -14,6 +14,7 @@ exports.createSurfaceController = (
     readAsset,
     randomNonce,
     recoveredSample = false,
+    runtimeCheckpoint,
     onNavigationError = () => {},
   },
 ) => {
@@ -34,7 +35,8 @@ exports.createSurfaceController = (
     }
     const names = ["style.css", "surface.css", "bridge.js"];
     if (next === "synthetic") names.push("app.js");
-    if (next === "recovered") names.push("recovered.js");
+    if (next === "recovered")
+      names.push(runtimeCheckpoint === undefined ? "recovered.js" : "app.js");
     let template;
     try {
       template = readAsset(
@@ -110,6 +112,7 @@ exports.createSurfaceController = (
       const html = renderSurface(template, {
         mode: next,
         recoveredSample,
+        runtimeCheckpoint,
         nonce: nextGeneration,
         cspSource: panel.webview.cspSource,
         assets,

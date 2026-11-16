@@ -13,17 +13,20 @@ import { readNativePackage } from "../storage/src/native-attestor.mjs";
 const args = process.argv.slice(2);
 if (!args.length) {
   console.log(
-    "Installed VSIX validation disabled. Choose --execute, --execute-local-validation, --execute-local-restart, --execute-temp-restart or --execute-temp-timeline-restart with --code-root ABS --driver-root ABS --native-manifest ABS.",
+    "Installed VSIX validation disabled. Choose --execute, --execute-local-validation, --execute-local-restart, --execute-temp-restart, --execute-temp-timeline-restart or --execute-temp-timeline-surface-restart with --code-root ABS --driver-root ABS --native-manifest ABS.",
   );
 } else {
+  const surface = args[0] === "--execute-temp-timeline-surface-restart";
+  const surfaceReview = surface && args.length === 8 && args[7] === "--review";
   if (
-    args.length !== 7 ||
+    (args.length !== 7 && !surfaceReview) ||
     ![
       "--execute",
       "--execute-local-validation",
       "--execute-local-restart",
       "--execute-temp-restart",
       "--execute-temp-timeline-restart",
+      "--execute-temp-timeline-surface-restart",
     ].includes(args[0]) ||
     args[1] !== "--code-root" ||
     args[3] !== "--driver-root" ||
@@ -32,7 +35,7 @@ if (!args.length) {
     process.arch !== "x64"
   )
     throw Error("ARGUMENTS_REJECTED");
-  const timeline = args[0] === "--execute-temp-timeline-restart";
+  const timeline = surface || args[0] === "--execute-temp-timeline-restart";
   const restarting =
     timeline ||
     ["--execute-local-restart", "--execute-temp-restart"].includes(args[0]);
@@ -241,6 +244,41 @@ if (!args.length) {
         path.join(runtime, "timeline-sql-reader.mjs"),
         fs.constants.COPYFILE_EXCL,
       );
+    let surfaceBuild;
+    if (surface) {
+      const { buildSurface } = await import("../vscode-surface/build.mjs");
+      const outDir = path.join(evidence, "surface-build");
+      surfaceBuild = await buildSurface({ outDir });
+      const surfaceRoot = path.join(runtime, "surface");
+      fs.mkdirSync(surfaceRoot);
+      fs.mkdirSync(path.join(surfaceRoot, "media"));
+      for (const row of surfaceBuild.files.filter(({ path }) =>
+        path.startsWith("media/"),
+      )) {
+        const target = path.join(surfaceRoot, row.path);
+        fs.copyFileSync(
+          path.join(outDir, row.path),
+          target,
+          fs.constants.COPYFILE_EXCL,
+        );
+        assert.equal(hash(target), row.sha256);
+      }
+      for (const name of ["controller.cjs", "render.cjs"]) {
+        const sourceFile = path.join(repo, "packages/vscode-surface/src", name);
+        const target = path.join(surfaceRoot, name);
+        fs.copyFileSync(sourceFile, target, fs.constants.COPYFILE_EXCL);
+        assert.equal(
+          hash(target),
+          surfaceBuild.sourceInputs.find(({ path }) => path === sourceFile)
+            ?.sha256,
+        );
+      }
+      fs.copyFileSync(
+        path.join(source, "runtime-surface.cjs"),
+        path.join(surfaceRoot, "runtime-surface.cjs"),
+        fs.constants.COPYFILE_EXCL,
+      );
+    }
     const files = inventory(runtime).map((f) => ({
       path: path.relative(runtime, f.path).split(path.sep).join("/"),
       sha256: f.sha256,
@@ -254,6 +292,8 @@ if (!args.length) {
       runId,
       rootMode: localMode ? "local-validation" : "temp",
       ...(timeline ? { storeModel: "timeline-v5", timelineInputs } : {}),
+      ...(surface ? { surface: true } : {}),
+      ...(surfaceReview ? { surfaceReview: true } : {}),
       storeKey: localMode ? randomUUID() : undefined,
       ...(restarting
         ? {
@@ -461,13 +501,33 @@ if (!args.length) {
             path.dirname(phases.write.ready.paths.owner),
           );
         save(phase + ".spec.json", phaseSpec);
-        run(phase + "-extension-host", codeExe, hostArguments, {
-          env: {
-            ...baseHostEnv,
-            APV_B1_HOST_SPEC: path.join(evidence, phase + ".spec.json"),
+        const review = phase === "recover" && surfaceReview;
+        if (review)
+          console.log(
+            JSON.stringify({
+              runId,
+              evidenceRoot: evidence,
+              pendingSurfaceReview: true,
+            }),
+          );
+        run(
+          phase + "-extension-host",
+          codeExe,
+          review
+            ? [
+                ...hostArguments,
+                "--remote-debugging-address=127.0.0.1",
+                "--remote-debugging-port=0",
+              ]
+            : hostArguments,
+          {
+            env: {
+              ...baseHostEnv,
+              APV_B1_HOST_SPEC: path.join(evidence, phase + ".spec.json"),
+            },
+            timeout: 180000,
           },
-          timeout: 180000,
-        });
+        );
         const result = read(phase + "-result.json"),
           environment = read(phase + "-host-environment.json"),
           ready = read(phase + "-ready.json"),
@@ -516,6 +576,22 @@ if (!args.length) {
           read("write-checkpoint-view.json"),
           read("recover-checkpoint-view.json"),
         );
+      if (surface) {
+        assert.deepEqual(read("recover-surface-ready.json"), {
+          mode: "recovered",
+          health: "ready",
+        });
+        assert.deepEqual(read("recover-surface-return.json"), {
+          mode: "overview",
+          health: "ready",
+        });
+        assert.equal(
+          fs.existsSync(path.join(evidence, "write-surface-ready.json")),
+          false,
+        );
+        for (const row of surfaceBuild.sourceInputs)
+          assert.equal(hash(row.path), row.sha256);
+      }
       assert.equal(a.ready.writer.epoch, 1);
       assert.equal(b.ready.writer.epoch, 2);
       save("reader.spec.json", {
@@ -567,6 +643,7 @@ if (!args.length) {
         runId,
         validationMode: "whole-host-restart",
         ...(timeline ? { storeModel: "timeline-v5" } : {}),
+        ...(surface ? { runtimeRecoverySurface: "ready-then-overview" } : {}),
         rootMode: spec.rootMode,
         installationRootAdmitted: localMode,
         installed: true,

@@ -5,7 +5,7 @@ const path = require("node:path");
 const modulePath = path.join(__dirname, "../src/render.cjs");
 const target = fs.existsSync(modulePath) ? require(modulePath) : {};
 const overview =
-  '<!doctype html><html><head><link rel="stylesheet" href="style.css" /><script src="bridge.js" defer></script></head><body><main id="unconnected-overview">尚未连接会话 · 进度未知</main></body></html>';
+  '<!doctype html><html><head><link rel="stylesheet" href="style.css" /><script src="bridge.js" defer></script></head><body><main id="unconnected-overview">尚未连接会话 · 进度未知<!-- recovered-sample-entry --></main></body></html>';
 const synthetic = fs.readFileSync(
   path.join(__dirname, "../../../experiments/core-preview/index.html"),
   "utf8",
@@ -90,4 +90,65 @@ test("surface renderer: invalid nonce cannot add scripts or markup", () => {
   assert.throws(() => render(overview, { nonce: 'x" onload="bad' }), {
     message: "surface_nonce_rejected",
   });
+});
+
+const runtimeCheckpoint = {
+  key: "restored",
+  label: "Recovered </script> & literal $&",
+  progress: {
+    status: "available",
+    completedWeight: 3,
+    totalWeight: 6,
+    percentage: "50%",
+    ratio: 0.5,
+  },
+  progressReasons: [],
+  tasks: [],
+  timeline: [],
+  sessionState: "ended",
+  currentTask: { status: "unknown" },
+};
+test("runtime recovery delivers only the projected checkpoint as inert, literal JSON", () => {
+  const html = render(synthetic, {
+    mode: "recovered",
+    recoveredSample: true,
+    runtimeCheckpoint,
+  });
+  assert.match(html, /data-apv-runtime-recovery="true"/);
+  assert.match(html, /src="webview:\/\/media\/app\.js"/);
+  assert.doesNotMatch(html, /src="[^"]+\/recovered\.js"/);
+  const data = html.match(
+    /<script id="apv-runtime-checkpoint" type="application\/json" nonce="([^"]+)">([^<]*)<\/script>/,
+  );
+  assert.ok(data);
+  assert.equal(data[1], params.nonce);
+  assert.deepEqual(JSON.parse(data[2]), runtimeCheckpoint);
+
+  for (const [mode, template] of [
+    ["overview", overview],
+    ["synthetic", synthetic],
+  ]) {
+    const other = render(template, {
+      mode,
+      recoveredSample: true,
+      runtimeCheckpoint,
+    });
+    assert.doesNotMatch(other, /apv-runtime-(checkpoint|recovery)|Recovered/);
+  }
+});
+
+test("runtime recovery refuses storage state in place of the display projection", () => {
+  assert.throws(
+    () =>
+      render(synthetic, {
+        mode: "recovered",
+        recoveredSample: true,
+        runtimeCheckpoint: {
+          ...runtimeCheckpoint,
+          cursor: [],
+          stateDigest: "fixture",
+        },
+      }),
+    { message: "surface_checkpoint_rejected" },
+  );
 });

@@ -483,16 +483,32 @@ const recovered =
   typeof APV_RECOVERED_CHECKPOINT === "undefined"
     ? undefined
     : APV_RECOVERED_CHECKPOINT;
+const runtimeRecovery = document.body.dataset.apvRuntimeRecovery === "true";
 try {
-  start(recovered);
+  if (runtimeRecovery) {
+    const data = document.getElementById("apv-runtime-checkpoint");
+    if (
+      document.body.dataset.apvMode !== "recovered" ||
+      !(data instanceof HTMLScriptElement) ||
+      data.type !== "application/json" ||
+      data.nonce !== document.body.dataset.apvGeneration
+    )
+      throw new Error("runtime_checkpoint_rejected");
+    const checkpoint = JSON.parse(data.textContent ?? "") as Checkpoint;
+    if (checkpoint?.key !== "restored")
+      throw new Error("runtime_checkpoint_rejected");
+    start(checkpoint);
+  } else {
+    start(recovered);
+  }
 } catch {
   document.body.replaceChildren(
     node(
       "main",
       "content",
-      recovered === undefined
-        ? "合成场景未能计算。请检查本地 Core 演示。"
-        : "已恢复的合成历史未能显示。",
+      runtimeRecovery || recovered !== undefined
+        ? "已恢复的合成历史未能显示。"
+        : "合成场景未能计算。请检查本地 Core 演示。",
     ),
   );
 }

@@ -38,3 +38,30 @@ for (const [label, runId, evidence] of [
     assert.equal(loads, 0);
     assert.equal(saves, 0);
   });
+
+test("restart entry rejects runtime surface outside the isolated timeline run", async () => {
+  for (const fields of [
+    { rootMode: "temp", surface: true },
+    { rootMode: "local-validation", storeModel: "timeline-v5", surface: true },
+    {
+      rootMode: "temp",
+      storeModel: "timeline-v5",
+      surface: "provided-by-caller",
+    },
+  ]) {
+    await assert.rejects(
+      run({
+        spec: { runId: own, phase: "recover", ...fields },
+        evidence: require("node:path").join("synthetic", "apv-b1-host-" + own),
+        environment,
+        load: async () => {
+          throw Error("unexpected_load");
+        },
+        save: () => {
+          throw Error("unexpected_save");
+        },
+      }),
+      { message: "restart_surface_rejected" },
+    );
+  }
+});

@@ -60,3 +60,21 @@ The standard suite passed **303/303** with the reviewed Driver supplied, includi
 The final README was included in a fresh optional build `feda8ae5-f9d7-49f7-a4aa-1903437f6d88`. The nine runtime and manifest files matched the tested development artifact. The local Windows x64 VSIX archive contained the exact twelve expected entries, and the ten packaged file hashes matched the build. Its SHA256 was `e9d201f629b28e84015f948320f32517639d4e128734e755d5b129bc1ec79680`.
 
 This change covers the VS Code presentation of a verified synthetic recovery. Runtime database recovery in the extension, real Codex intake, production storage and full privacy acceptance remain pending.
+
+## Recovered history after an installed VS Code host restart — 2026-11-16
+
+The disposable Windows x64 validation extension now opens a read-only view of the synthetic v5 checkpoint after the second Extension Host and Worker reopen the database. The host compares the recovered cut and original receipt before handing the Core display projection to the Webview. The browser ties the projection to the current recovered document and renders the normal preview client. A separate SQLite reader still checks all twelve tables after the hosts and Workers exit.
+
+Run with the reviewed local VS Code, Driver and Native manifest from the v5 restart validation.
+
+```cmd
+node packages\storage-host-validation\run.mjs --execute-temp-timeline-surface-restart --code-root "%APV_CODE_ROOT%" --driver-root "%APV_DRIVER_ROOT%" --native-manifest "%APV_NATIVE_MANIFEST%"
+```
+
+The unattended run verifies both pages are ready and exits. Add `--review` to inspect the recovered Webview before selecting **回到项目概览**. This option exposes a fresh loopback debugging port during the recovery host for up to 90 seconds after the page is ready. Each run uses a fresh TEMP profile, extension install and database.
+
+- **Unattended run `4177f003-6c73-40c0-864b-2afe1b3986e6`** passed with limitation. The installed extension reported readiness on the recovered page and the disconnected overview. The head stayed at 8, the Writer epoch advanced from 1 to 2, and the original receipt matched.
+- **Automated Webview review `eacacb9c-cb11-4f51-a5e1-0f0bcc8a1e54`** passed with limitation. The browser expanded the **3 / 6 = 50%** calculation, checked all 16 Timeline rows were rendered, opened the historical **60% → 50%** transition and its **User Confirmed** weight evidence, and verified the original **Agent Reported** claim and expired current-task correction. The return button took the same panel to the disconnected overview. The package's 60 listed runtime files matched the staged, archived and installed resources.
+- The earlier automated review `9c82cd47-f7b5-42f8-8ddf-6109403a7f5b` reached the recovered page but timed out before returning after its check used the wrong selector for the provenance label. Its failure record is retained.
+
+The standard suite passed **305/305**, the opt-in recovered preview passed **3/3**, and the storage boundary and validation suites passed **42/42**. Typecheck, lint and formatting checks passed. This run covers normal restart of the isolated Windows validation host. Regular extension startup with real project state, live Codex intake, production storage and privacy acceptance, and human usability acceptance remain open.

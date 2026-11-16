@@ -18,7 +18,10 @@ exports.activate = function (context) {
         vscode = require("vscode");
       const restarting = spec.validationMode === "whole-host-restart";
       if (
-        (spec.validationMode !== undefined || spec.storeModel !== undefined) &&
+        (spec.validationMode !== undefined ||
+          spec.storeModel !== undefined ||
+          spec.surface !== undefined ||
+          spec.surfaceReview !== undefined) &&
         !restarting
       )
         throw Error("validation_mode_rejected");
@@ -78,6 +81,7 @@ exports.activate = function (context) {
             save,
             load,
             environment,
+            vscode,
           },
         );
       const { admitSyntheticRoot } = await load(
