@@ -64,6 +64,34 @@ export interface Checkpoint {
       };
 }
 
+function describeTaskChoice(
+  state: core.CoreState,
+  correctionId: core.CorrectionId,
+  taskNames: ReadonlyMap<core.TaskId, string>,
+) {
+  const correction = state.corrections.find((row) => row.id === correctionId);
+  if (!correction) return undefined;
+  const choice = state.assertions.find(
+    ({ id }) => id === correction.correctedAssertionId,
+  );
+  if (choice?.target !== "project.currentTask") return undefined;
+  const title = taskNames.get(choice.value);
+  if (title === undefined) return undefined;
+  const prior = state.assertions.find(
+    ({ id }) => id === correction.originalAssertionId,
+  );
+  const previousTitle =
+    prior?.target === "project.currentTask"
+      ? taskNames.get(prior.value)
+      : undefined;
+  return {
+    title: `当前任务设为 ${title}`,
+    ...(previousTitle === undefined
+      ? {}
+      : { transition: `${previousTitle} → ${title}` }),
+  };
+}
+
 export function describeCheckpoint(
   state: core.ProjectEngineState,
   {
@@ -216,6 +244,15 @@ export function describeCheckpoint(
         const details = core.getTimelineEntryDetails(state, entry.id);
         if (details.status !== "available")
           throw new Error("synthetic_checkpoint_evidence_missing");
+        const taskChoice =
+          entry.kind === "correction.applied" &&
+          entry.detail.scope.kind === "current_task"
+            ? describeTaskChoice(
+                state.plan.core,
+                entry.detail.correctionId,
+                checkpointTaskNames,
+              )
+            : undefined;
         return {
           kind: entry.kind,
           at: entry.observedAt,
@@ -236,6 +273,7 @@ export function describeCheckpoint(
                 }`,
               }
             : {}),
+          ...taskChoice,
           evidence: details.evidence.map((row) =>
             summarizeSyntheticEvidence(row, checkpointTaskNames),
           ),

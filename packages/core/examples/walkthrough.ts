@@ -20,7 +20,7 @@ export function runCoreWalkthrough(jwtWeight = 17, inspectPosition?: number) {
   return buildWalkthrough(jwtWeight, inspectPosition).report;
 }
 
-export function createTaskWeightWalkthrough() {
+export function createEditableWalkthrough() {
   return buildWalkthrough(17);
 }
 
@@ -139,6 +139,32 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
       },
     };
   }
+
+  function currentTaskChoice(
+    id: string,
+    target: TaskId,
+    minute: number,
+    originalAssertionId?: AssertionId,
+  ): ProjectUpdate {
+    return {
+      kind: "correction",
+      input: {
+        id: id as CorrectionId,
+        scope: { kind: "current_task", projectId, sessionId },
+        effectiveAt: at(minute),
+        ...(originalAssertionId === undefined ? {} : { originalAssertionId }),
+        assertion: {
+          id: `${id}-assertion` as AssertionId,
+          target: "project.currentTask",
+          targetId: projectId,
+          value: target,
+          provenance: "user_confirmed",
+          sourceId: userId,
+          observedAt: at(minute),
+        },
+      },
+    };
+  }
   const steps: readonly PlanStepInput[] = [
     { sourceItemId: "login", title: "Login", certainty: "confirmed" },
     { sourceItemId: "jwt", title: "JWT", certainty: "confirmed" },
@@ -243,23 +269,7 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
   apply(
     "current-task-corrected",
     "用户确认当前任务为 JWT",
-    {
-      kind: "correction",
-      input: {
-        id: "manual-current-task" as CorrectionId,
-        scope: { kind: "current_task", projectId, sessionId },
-        effectiveAt: at(6),
-        assertion: {
-          id: "manual-current-task-assertion" as AssertionId,
-          target: "project.currentTask",
-          targetId: projectId,
-          value: task("jwt"),
-          provenance: "user_confirmed",
-          sourceId: userId,
-          observedAt: at(6),
-        },
-      },
-    },
+    currentTaskChoice("manual-current-task", task("jwt"), 6),
     6,
   );
   const expanded = plan(
@@ -299,47 +309,83 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
     weight("revoke-weight", task("revoke"), 2, 9),
     9,
   );
-  // Work on the baseline as it was at this checkpoint. The replay below
-  // can continue through its original ending independently of user edits.
+
+  // The review uses this checkpoint as its baseline and shares one in-memory
+  // history for both editing actions. The built-in replay continues separately.
   let reviewState = state;
   let reviewCheckpoint = checkpoints.at(-1)!;
-  let nextEdit = 10;
-  const weightReview = {
+  let editMinute = 10;
+  function applyReview(update: ProjectUpdate) {
+    const applied = core.applyProjectUpdate(
+      reviewState,
+      update,
+      at(editMinute),
+    );
+    if (applied.status !== "applied")
+      throw new Error("synthetic_review_rejected");
+    const next = checkpoint(
+      applied.state,
+      "review",
+      "本次调整 · 从第六个检查点开始",
+      reviewState.progress.changes.length,
+    );
+    editMinute++;
+    reviewState = applied.state;
+    reviewCheckpoint = next;
+    return next;
+  }
+  function taskForReview(position: number) {
+    const basis = progressFor(reviewState).tasks[position];
+    if (!basis?.included) throw new Error("synthetic_task_not_editable");
+    return basis;
+  }
+  function currentChoice() {
+    return core.getUserCorrectedCurrentTask(
+      reviewState.plan.core,
+      projectId,
+      sessionId,
+    );
+  }
+  const review = {
     baselineIndex: checkpoints.length - 1,
     get checkpoint() {
       return reviewCheckpoint;
     },
-    edit(position: number, value: number) {
+    get currentTaskPosition() {
+      const selected = currentChoice();
+      if (selected.status !== "available") return -1;
+      return progressFor(reviewState).tasks.findIndex(
+        ({ entry }) => entry.taskId === selected.taskId,
+      );
+    },
+    setWeight(position: number, value: number) {
       if (!Number.isFinite(value) || value <= 0)
         throw new Error("synthetic_weight_invalid");
-      const basis = progressFor(reviewState).tasks[position];
-      if (!basis?.included) throw new Error("synthetic_task_not_editable");
+      const basis = taskForReview(position);
       if (basis.effectiveWeight === value) return reviewCheckpoint;
-
-      const update = weight(
-        `review-weight-${nextEdit}`,
-        basis.entry.taskId,
-        value,
-        nextEdit,
-        basis.selectedWeightAssertionId,
+      return applyReview(
+        weight(
+          `review-weight-${editMinute}`,
+          basis.entry.taskId,
+          value,
+          editMinute,
+          basis.selectedWeightAssertionId,
+        ),
       );
-      const applied = core.applyProjectUpdate(
-        reviewState,
-        update,
-        at(nextEdit),
+    },
+    selectCurrentTask(position: number) {
+      const target = taskForReview(position).entry.taskId;
+      const previous = currentChoice();
+      if (previous.status === "available" && previous.taskId === target)
+        return reviewCheckpoint;
+      return applyReview(
+        currentTaskChoice(
+          `review-task-${editMinute}`,
+          target,
+          editMinute,
+          previous.status === "available" ? previous.assertion.id : undefined,
+        ),
       );
-      if (applied.status !== "applied")
-        throw new Error("synthetic_weight_edit_rejected");
-      const next = checkpoint(
-        applied.state,
-        "weight-review",
-        "从第六个检查点开始的权重调整",
-        reviewState.progress.changes.length,
-      );
-      nextEdit++;
-      reviewState = applied.state;
-      reviewCheckpoint = next;
-      return next;
     },
   };
   const originalJwt = task("jwt");
@@ -566,5 +612,5 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
       .map((entry) => entry.kind),
     timelineEntryCount: state.timeline.entries.length,
   };
-  return { report, weightReview };
+  return { report, review };
 }

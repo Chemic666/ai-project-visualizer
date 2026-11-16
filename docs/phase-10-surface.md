@@ -86,3 +86,11 @@ Task titles in the overview and plan open a detail dialog with the status claim 
 The standard Windows x64 VSIX passed installed validation in Run `9e9dd244-0210-4ff5-8bce-953e454f0cdc` on VS Code 1.144.0. Automated interaction with that package’s Webview confirmed that changing Refresh Token from 3 to 4 and then 6 moved the project from **64% → 62.7% → 60.4%**. The review verified both Timeline changes, historical JWT **13 → 17**, the original Session end, unchanged completion provenance, invalid and duplicate input handling, focus return, reset, and navigation to the disconnected overview.
 
 The standard test suite passed **307/307**, and the opt-in recovery preview passed **3/3**. Typecheck, lint and formatting passed. Edits belong to the current synthetic preview. Real-session correction, persistent user edits and human usability acceptance remain pending.
+
+## Current task correction in the standard extension — 2026-11-16
+
+The editable checkpoint now offers **纠正当前任务** in the overview. Its picker lists formal plan tasks and focuses the active selection. A confirmed choice uses Core’s existing current-task correction, updates the overview with **User Confirmed**, and records the old and new choices and their evidence in Timeline. Current-task selection and weight edits share the history of the current preview. The original checkpoints and restored history remain readable.
+
+The standard Windows x64 VSIX passed installed validation in Run `40e3d5c3-f758-49c0-8467-1d77b4dff2c9` on VS Code 1.144.0. In the installed Webview, the picker changed **JWT → Refresh Token**, retained the prior choice, and kept JWT’s **Agent Reported** status and the **64%** progress figure. A later weight edit changed progress to **62.7%** while retaining Refresh Token. The review also checked cancel, repeat confirmation, focus return, the original Session ending, read-only historical state and reset.
+
+The standard suite passed **309/309**, and the opt-in recovery preview passed **3/3**. Typecheck, lint and formatting passed. Scenario 08 remains open for real Codex input, persistent corrections, stale state on disconnect and later authoritative source choices.

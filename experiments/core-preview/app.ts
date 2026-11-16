@@ -1,4 +1,4 @@
-import { createTaskWeightWalkthrough } from "../../packages/core/examples/walkthrough.js";
+import { createEditableWalkthrough } from "../../packages/core/examples/walkthrough.js";
 import type { Checkpoint } from "../../packages/core/examples/checkpoint.js";
 import { presentTask } from "../../packages/core/examples/preview-presentation.js";
 
@@ -60,12 +60,12 @@ function describe(codes: readonly string[]) {
 }
 
 function start(recovered?: Checkpoint) {
-  let walkthrough = recovered ? undefined : createTaskWeightWalkthrough();
+  let walkthrough = recovered ? undefined : createEditableWalkthrough();
   let checkpoints: readonly Checkpoint[] = recovered
     ? [recovered]
     : walkthrough!.report.checkpoints;
   const checkpointCount = checkpoints.length;
-  let index = walkthrough?.weightReview.baselineIndex ?? 0;
+  let index = walkthrough?.review.baselineIndex ?? 0;
   let selectedTab: Tab = "overview";
   const tabs: readonly Tab[] = ["overview", "plan", "timeline"];
   const nav = element("checkpoint-nav");
@@ -124,7 +124,7 @@ function start(recovered?: Checkpoint) {
     if (index > 0) {
       index =
         index === checkpointCount
-          ? walkthrough!.weightReview.baselineIndex
+          ? walkthrough!.review.baselineIndex
           : index - 1;
       render();
     }
@@ -148,16 +148,16 @@ function start(recovered?: Checkpoint) {
       `${removedTask.planVersionCount} 个版本 · ${removedTask.correctionCount} 条纠正`;
     element("new-history").textContent =
       `${reenteredTask.planVersionCount} 个版本 · ${reenteredTask.correctionCount} 条旧纠正`;
-    element("open-weight-review").addEventListener("click", () => {
+    element("open-review").addEventListener("click", () => {
       if (checkpoints.length === checkpointCount) return;
       index = checkpointCount;
       render();
       element("checkpoint-label").focus();
     });
-    element("reset-weight-review").addEventListener("click", () => {
-      walkthrough = createTaskWeightWalkthrough();
+    element("reset-review").addEventListener("click", () => {
+      walkthrough = createEditableWalkthrough();
       checkpoints = walkthrough.report.checkpoints;
-      index = walkthrough.weightReview.baselineIndex;
+      index = walkthrough.review.baselineIndex;
       render();
       nav.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
     });
@@ -169,6 +169,60 @@ function start(recovered?: Checkpoint) {
     element("timeline-intro").textContent =
       "来自同一份恢复记录。展开活动可查看原始声明、人工修正和当时的进度变化。";
   }
+
+  const taskPicker = element<HTMLDialogElement>("current-task-picker");
+  const pickerTrigger = element<HTMLButtonElement>("correct-current-task");
+  const pickerForm = element<HTMLFormElement>("current-task-form");
+  const pickerError = element("current-task-error");
+  element("close-current-task-picker").addEventListener("click", () =>
+    taskPicker.close(),
+  );
+  pickerTrigger.addEventListener("click", () => {
+    if (!walkthrough || pickerTrigger.hidden) return;
+    const checkpoint = checkpoints[index]!;
+    const selected = walkthrough.review.currentTaskPosition;
+    const options = checkpoint.tasks.flatMap((task, position) => {
+      if (!task.included) return [];
+      const row = node("label", "current-task-option");
+      const option = node("input");
+      option.type = "radio";
+      option.name = "current-task-choice";
+      option.value = String(position);
+      option.checked = position === selected;
+      option.required = true;
+      row.append(option, node("span", "", task.title));
+      return [row];
+    });
+    element("current-task-options").replaceChildren(...options);
+    pickerError.hidden = true;
+    taskPicker.showModal();
+    const selectedOption =
+      pickerForm.querySelector<HTMLInputElement>("input:checked");
+    (
+      selectedOption ??
+      pickerForm.querySelector<HTMLInputElement>("input[type=radio]")
+    )?.focus();
+  });
+
+  pickerForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!walkthrough || pickerTrigger.hidden || !taskPicker.open) return;
+    const selected =
+      pickerForm.querySelector<HTMLInputElement>("input:checked");
+    if (!selected) return;
+    const previous = checkpoints[index]!;
+    let next: Checkpoint;
+    try {
+      next = walkthrough.review.selectCurrentTask(Number(selected.value));
+    } catch {
+      pickerError.textContent = "无法设置这个任务，已保留原选择。";
+      pickerError.hidden = false;
+      return;
+    }
+    if (next !== previous) showReviewCheckpoint(next);
+    taskPicker.close();
+    pickerTrigger.focus();
+  });
 
   const taskDialog = element<HTMLDialogElement>("task-detail");
   const weightForm = element<HTMLFormElement>("task-weight-form");
@@ -210,7 +264,7 @@ function start(recovered?: Checkpoint) {
     );
 
     const editable =
-      checkpoint === walkthrough?.weightReview.checkpoint && task.included;
+      checkpoint === walkthrough?.review.checkpoint && task.included;
     weightForm.hidden = !editable;
     weightInput.value = task.weight === undefined ? "" : String(task.weight);
     weightError.hidden = true;
@@ -249,9 +303,9 @@ function start(recovered?: Checkpoint) {
   weightForm.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!selectedTask || !walkthrough || weightForm.hidden) return;
-    const { weightReview } = walkthrough;
+    const { review } = walkthrough;
     const previous = checkpoints[index]!;
-    if (previous !== weightReview.checkpoint) return;
+    if (previous !== review.checkpoint) return;
     const value = weightInput.valueAsNumber;
     if (!Number.isFinite(value) || value <= 0) {
       weightError.textContent = "输入一个大于 0 的有限数。";
@@ -262,7 +316,7 @@ function start(recovered?: Checkpoint) {
     }
     let next: Checkpoint;
     try {
-      next = weightReview.edit(selectedTask.position, value);
+      next = review.setWeight(selectedTask.position, value);
     } catch {
       weightError.textContent = "这次调整未能应用，原权重已保留。";
       weightError.hidden = false;
@@ -276,9 +330,7 @@ function start(recovered?: Checkpoint) {
       editResult.textContent = "输入与当前权重相同。";
       return;
     }
-    checkpoints = [...walkthrough.report.checkpoints, next];
-    index = checkpointCount;
-    render();
+    showReviewCheckpoint(next);
     renderTaskDetail(next, selectedTask.position);
     const percentage = (row: Checkpoint) =>
       row.progress.status === "available" ? row.progress.percentage : "不可用";
@@ -500,15 +552,21 @@ function start(recovered?: Checkpoint) {
     }
   }
 
+  function showReviewCheckpoint(next: Checkpoint) {
+    checkpoints = [...walkthrough!.report.checkpoints, next];
+    index = checkpointCount;
+    render();
+  }
+
   function render() {
     const checkpoint = checkpoints[index]!;
-    const reviewingWeights = index === checkpointCount;
+    const reviewing = index === checkpointCount;
     if (walkthrough) {
       const edited = checkpoints.length > checkpointCount;
-      element("weight-review-hint").hidden =
-        checkpoint !== walkthrough.weightReview.checkpoint;
-      element("open-weight-review").hidden = !edited || reviewingWeights;
-      element("reset-weight-review").hidden = !edited;
+      element("review-hint").hidden =
+        checkpoint !== walkthrough.review.checkpoint;
+      element("open-review").hidden = !edited || reviewing;
+      element("reset-review").hidden = !edited;
     }
     [...nav.children].forEach((button, rowIndex) => {
       button.setAttribute(
@@ -518,14 +576,14 @@ function start(recovered?: Checkpoint) {
       (button as HTMLButtonElement).title = checkpoints[rowIndex]!.label;
     });
     element("checkpoint-label").textContent = checkpoint.label;
-    element("step-counter").textContent = reviewingWeights
-      ? "权重调整"
+    element("step-counter").textContent = reviewing
+      ? "本次调整"
       : `${index + 1} / ${checkpointCount}`;
     const previousStep = element<HTMLButtonElement>("previous-step");
     previousStep.disabled = index === 0;
     previousStep.setAttribute(
       "aria-label",
-      reviewingWeights ? "返回调整前的检查点" : "上一个检查点",
+      reviewing ? "返回调整前的检查点" : "上一个检查点",
     );
     element<HTMLButtonElement>("next-step").disabled =
       index >= checkpointCount - 1;
@@ -555,6 +613,10 @@ function start(recovered?: Checkpoint) {
     element("unknown-progress").hidden = available;
     element("progress-change").textContent =
       describe(checkpoint.progressReasons) || "保留上一条有依据的计算结果";
+    pickerTrigger.hidden =
+      checkpoint !== walkthrough?.review.checkpoint ||
+      checkpoint.sessionState !== "started" ||
+      !checkpoint.tasks.some((task) => task.included);
     const task = checkpoint.currentTask;
     element("current-task").textContent =
       task.status === "available"

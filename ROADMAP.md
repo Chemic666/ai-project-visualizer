@@ -305,6 +305,8 @@ Confidence
 
 2026-11-16 标准扩展的内置案例已支持点开任务查看状态依据、计划版本及权重历史。可编辑检查点支持逐项调整权重，并保留每次调整的进度和来源。已在安装版实际验证，真实项目上的纠正及持久化仍待接入。[任务详情与权重编辑](docs/phase-10-surface.md#task-details-and-weight-editing-in-the-standard-extension--2026-11-16)
 
+2026-11-16 标准扩展的内置案例已可从总览纠正当前任务。已在安装版验证选择生效、前后选择可追溯，以及后续权重调整保留当前任务。真实会话纠正与持久化仍待接入。[当前任务纠正](docs/phase-10-surface.md#current-task-correction-in-the-standard-extension--2026-11-16)
+
 经 host/runtime/package smoke 验证后实现 Overview、Plan、Timeline、Task Detail/Correction、Why Progress 和必要 Settings。Host 负责组合和生命周期，Surface 不计算业务状态。
 
 Baseline UX 必须包含无 Session/无 Plan/未知/歧义/断连、来源与关联 Confidence、进度解释、计划变化、有效/失效纠正和 Task Weight 编辑。Activity 为 advanced/P1，只展示实际支持的观察；未来 Semantic/Export/多 Session 控件不进入初版设置。

@@ -97,22 +97,17 @@
                 </button>
               </div>
             </div>
-            <div class="weight-review-tools">
-              <button
-                type="button"
-                class="text-button"
-                id="open-weight-review"
-                hidden
-              >
+            <div class="review-tools">
+              <button type="button" class="text-button" id="open-review" hidden>
                 查看本次调整
               </button>
-              <span id="weight-review-hint" class="small-note"
-                >点开任务可查看依据和调整合成权重。</span
+              <span id="review-hint" class="small-note"
+                >可纠正当前任务，或点开任务调整权重。</span
               >
               <button
                 type="button"
                 class="text-button"
-                id="reset-weight-review"
+                id="reset-review"
                 hidden
               >
                 恢复默认案例
@@ -154,9 +149,22 @@
               </article>
               <article class="card context-card">
                 <div class="card-heading"><h2>当前工作上下文</h2></div>
-                <div class="context-label">当前任务</div>
-                <div id="current-task" class="current-task"></div>
-                <div id="current-task-source"></div>
+                <div class="current-task-controls">
+                  <div class="context-label">当前任务</div>
+                  <button
+                    type="button"
+                    class="text-button"
+                    id="correct-current-task"
+                    aria-haspopup="dialog"
+                    hidden
+                  >
+                    纠正当前任务
+                  </button>
+                </div>
+                <div aria-live="polite" aria-atomic="true">
+                  <div id="current-task" class="current-task"></div>
+                  <div id="current-task-source"></div>
+                </div>
                 <div class="context-divider"></div>
                 <div class="context-label">当前阶段</div>
                 <div class="phase-unknown">
@@ -257,6 +265,29 @@
         VERIFIED。当前任务关联不是完成比例。
       </p>
     </dialog>
+    <dialog
+      id="current-task-picker"
+      aria-labelledby="current-task-picker-title"
+    >
+      <div class="dialog-heading">
+        <h2 id="current-task-picker-title">选择当前任务</h2>
+        <button
+          type="button"
+          id="close-current-task-picker"
+          aria-label="关闭当前任务选择"
+        >
+          ×
+        </button>
+      </div>
+      <form id="current-task-form">
+        <fieldset class="current-task-fieldset">
+          <legend>正式计划中的任务</legend>
+          <div id="current-task-options" class="current-task-options"></div>
+        </fieldset>
+        <p id="current-task-error" class="form-error" role="alert" hidden></p>
+        <button type="submit" class="primary-button">确认当前任务</button>
+      </form>
+    </dialog>
     <dialog id="task-detail" aria-labelledby="task-detail-title">
       <div class="dialog-heading">
         <h2 id="task-detail-title"></h2>
@@ -282,12 +313,7 @@
           />
           <button type="submit" class="primary-button">应用权重</button>
         </div>
-        <p
-          id="task-weight-error"
-          class="task-weight-error"
-          role="alert"
-          hidden
-        ></p>
+        <p id="task-weight-error" class="form-error" role="alert" hidden></p>
       </form>
       <p id="task-detail-read-only" class="small-note" hidden></p>
       <p id="task-edit-result" class="task-edit-result" role="status"></p>

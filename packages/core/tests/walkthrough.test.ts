@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import {
-  createTaskWeightWalkthrough,
+  createEditableWalkthrough,
   runCoreWalkthrough,
 } from "../examples/walkthrough.js";
 
@@ -481,8 +481,8 @@ test("checkpoint progress evidence identifies the task behind each weight and co
 });
 
 test("task weight review keeps task-specific evidence and consecutive edits", () => {
-  const { report, weightReview } = createTaskWeightWalkthrough();
-  const original = weightReview.checkpoint;
+  const { report, review } = createEditableWalkthrough();
+  const original = review.checkpoint;
   const refresh = original.tasks.findIndex(
     ({ title }) => title === "Refresh Token",
   );
@@ -493,7 +493,7 @@ test("task weight review keeps task-specific evidence and consecutive edits", ()
   });
   expect(original.tasks[login]?.statusObservedAt).not.toBeUndefined();
 
-  const first = weightReview.edit(refresh, 4);
+  const first = review.setWeight(refresh, 4);
   expect(first.progress).toMatchObject({
     completedWeight: 32,
     totalWeight: 51,
@@ -504,7 +504,7 @@ test("task weight review keeps task-specific evidence and consecutive edits", ()
   ).toBe(true);
   expect(first.tasks[login]).toEqual(original.tasks[login]);
 
-  const second = weightReview.edit(refresh, 6);
+  const second = review.setWeight(refresh, 6);
   expect(second.progress).toMatchObject({ percentage: "60.4%" });
   expect(
     second.timeline
@@ -525,7 +525,7 @@ test("task weight review keeps task-specific evidence and consecutive edits", ()
     },
   ]);
   expect(original.tasks[refresh]?.weight).toBe(3);
-  expect(report.checkpoints[weightReview.baselineIndex]).toBe(original);
+  expect(report.checkpoints[review.baselineIndex]).toBe(original);
   expect(report.checkpoints).toHaveLength(8);
   expect(
     report.checkpoints[6]?.tasks
@@ -539,18 +539,18 @@ test("task weight review keeps task-specific evidence and consecutive edits", ()
 });
 
 test("task weight review rejects unknown targets and invalid values without advancing history", () => {
-  const { weightReview } = createTaskWeightWalkthrough();
-  const before = weightReview.checkpoint;
+  const { review } = createEditableWalkthrough();
+  const before = review.checkpoint;
   const login = before.tasks.findIndex(({ title }) => title === "Login");
-  expect(weightReview.edit(login, before.tasks[login]!.weight!)).toBe(before);
-  expect(() => weightReview.edit(99, 6)).toThrow("synthetic_task_not_editable");
+  expect(review.setWeight(login, before.tasks[login]!.weight!)).toBe(before);
+  expect(() => review.setWeight(99, 6)).toThrow("synthetic_task_not_editable");
   for (const value of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
-    expect(() => weightReview.edit(login, value)).toThrow(
+    expect(() => review.setWeight(login, value)).toThrow(
       "synthetic_weight_invalid",
     );
-    expect(weightReview.checkpoint).toBe(before);
+    expect(review.checkpoint).toBe(before);
   }
-  const after = weightReview.edit(login, 34);
+  const after = review.setWeight(login, 34);
   expect(after.progress).toMatchObject({
     completedWeight: 34,
     totalWeight: 52,
@@ -560,4 +560,75 @@ test("task weight review rejects unknown targets and invalid values without adva
     statusProvenance: "agent_reported",
     weightProvenance: "user_confirmed",
   });
+});
+
+test("current-task review changes the association while preserving status and progress", () => {
+  const { report, review } = createEditableWalkthrough();
+  const before = review.checkpoint;
+  const jwt = before.tasks.findIndex(({ title }) => title === "JWT");
+  const refresh = before.tasks.findIndex(
+    ({ title }) => title === "Refresh Token",
+  );
+  expect(review.currentTaskPosition).toBe(jwt);
+  const changed = review.selectCurrentTask(refresh);
+  expect(changed.currentTask).toEqual({
+    status: "available",
+    title: "Refresh Token",
+    provenance: "user_confirmed",
+  });
+  expect(changed.progress).toEqual(before.progress);
+  expect(changed.tasks[jwt]).toMatchObject({
+    status: "in_progress",
+    statusProvenance: "agent_reported",
+  });
+  expect(changed.tasks[refresh]).toMatchObject({ status: "unknown" });
+  expect(
+    changed.timeline.findLast(({ kind }) => kind === "correction.applied"),
+  ).toMatchObject({
+    title: "当前任务设为 Refresh Token",
+    transition: "JWT → Refresh Token",
+    provenance: "user_confirmed",
+    evidence: expect.arrayContaining([
+      expect.objectContaining({ value: "JWT", provenance: "user_confirmed" }),
+      expect.objectContaining({
+        value: "Refresh Token",
+        provenance: "user_confirmed",
+      }),
+    ]),
+  });
+  expect(
+    changed.timeline.some(({ kind }) => kind === "correction.superseded"),
+  ).toBe(true);
+  expect(report.checkpoints[review.baselineIndex]).toBe(before);
+  expect(report.checkpoints.at(-1)?.currentTask).toEqual({ status: "unknown" });
+});
+
+test("current-task review rejects invalid choices and retains the latest choice across weight edits", () => {
+  const { review } = createEditableWalkthrough();
+  const before = review.checkpoint;
+  for (const invalid of [-1, 99, 0.5, Number.NaN]) {
+    expect(() => review.selectCurrentTask(invalid)).toThrow(
+      "synthetic_task_not_editable",
+    );
+    expect(review.checkpoint).toBe(before);
+  }
+
+  const refresh = before.tasks.findIndex(
+    ({ title }) => title === "Refresh Token",
+  );
+  const revoke = before.tasks.findIndex(
+    ({ title }) => title === "Token Revocation",
+  );
+  const first = review.selectCurrentTask(refresh);
+  expect(review.selectCurrentTask(refresh)).toBe(first);
+  const later = review.selectCurrentTask(revoke);
+  expect(
+    later.timeline
+      .filter(({ transition }) => transition?.includes("Refresh Token"))
+      .map(({ transition }) => transition),
+  ).toEqual(["JWT → Refresh Token", "Refresh Token → Token Revocation"]);
+  expect(review.currentTaskPosition).toBe(revoke);
+  const withWeight = review.setWeight(refresh, 4);
+  expect(withWeight.currentTask).toEqual(later.currentTask);
+  expect(withWeight.progress).toMatchObject({ percentage: "62.7%" });
 });
