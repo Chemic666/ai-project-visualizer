@@ -1,4 +1,6 @@
 import { applyNormalizedEvent } from "./apply-event.js";
+import { getCurrentTaskAssociation } from "./current-task.js";
+import type { CurrentTaskAssociation } from "./current-task.js";
 import {
   applyUserCorrection,
   expireUserCorrection,
@@ -86,6 +88,31 @@ function sourceClaim(event: NormalizedEvent) {
   );
 }
 
+function retainInference(
+  plan: PlanEngineState,
+  assertion: Extract<CurrentTaskAssociation, { status: "likely" }>["assertion"],
+): PlanEngineState {
+  const { core } = plan;
+  return {
+    ...plan,
+    core: {
+      ...core,
+      assertions: [...core.assertions, assertion],
+      projects: core.projects.map((project) =>
+        project.id === assertion.targetId
+          ? {
+              ...project,
+              currentTaskAssertionIds: [
+                ...project.currentTaskAssertionIds,
+                assertion.id,
+              ],
+            }
+          : project,
+      ),
+    },
+  };
+}
+
 export function applyProjectUpdate(
   state: ProjectEngineState,
   update: ProjectUpdate,
@@ -109,6 +136,21 @@ export function applyProjectUpdate(
       update.input.scope.sessionId !== scope.sessionId
     )
       return reject(state, "scope_mismatch");
+    const originalId = update.input.originalAssertionId;
+    if (
+      update.input.scope.kind === "current_task" &&
+      originalId !== undefined &&
+      !plan.core.assertions.some(({ id }) => id === originalId)
+    ) {
+      // Older snapshots may only contain the status report. Bind the exact
+      // current inference atomically with the correction that references it.
+      const association = getCurrentTaskAssociation(plan, scope);
+      if (
+        association.status === "likely" &&
+        association.assertion.id === originalId
+      )
+        plan = retainInference(plan, association.assertion);
+    }
     const applied = applyUserCorrection(plan, scope, update.input);
     if (applied.status === "rejected") return reject(state, applied.reason);
     if (applied.status === "duplicate") return { status: "duplicate", state };
@@ -165,6 +207,21 @@ export function applyProjectUpdate(
           return reject(state, "task_not_current_plan_member");
       }
       plan = { ...plan, core: applied.state };
+      if (
+        event.type === "task.status_reported" &&
+        event.payload.status === "in_progress"
+      ) {
+        const association = getCurrentTaskAssociation(plan, scope);
+        if (
+          association.status === "likely" &&
+          association.reportEventId === event.id
+        ) {
+          const claim = association.assertion;
+          if (plan.core.assertions.some(({ id }) => id === claim.id))
+            return reject(state, "assertion_id_collision");
+          plan = retainInference(plan, claim);
+        }
+      }
     }
     inputs.push({ kind: "source", event });
     const expiryReason =

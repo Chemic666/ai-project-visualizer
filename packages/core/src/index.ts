@@ -122,6 +122,8 @@ export type {
 
 export { getCurrentPhaseFromCorrection } from "./current-phase.js";
 export type { CurrentPhaseResult } from "./current-phase.js";
+export { getCurrentTaskAssociation } from "./current-task.js";
+export type { CurrentTaskAssociation } from "./current-task.js";
 
 export {
   createTimelineState,

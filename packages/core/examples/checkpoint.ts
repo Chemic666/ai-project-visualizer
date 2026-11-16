@@ -105,6 +105,34 @@ type WalkthroughCurrentPhase =
       readonly correctionPosition?: number;
     };
 
+type TaskAssociationReport = {
+  readonly title: string;
+  readonly reportPosition?: number;
+  readonly conflictPosition?: number;
+};
+type WalkthroughCurrentTask =
+  | { readonly status: "unknown" }
+  | {
+      readonly status: "available";
+      readonly title: string;
+      readonly provenance: "user_confirmed";
+    }
+  | (TaskAssociationReport & {
+      readonly status: "likely";
+      readonly provenance: "visualizer_inferred";
+      readonly taskPosition: number;
+      readonly score: number;
+      readonly planPosition?: number;
+    })
+  | {
+      readonly status: "ambiguous";
+      readonly reason: Extract<
+        core.CurrentTaskAssociation,
+        { status: "ambiguous" }
+      >["reason"];
+      readonly candidates: readonly TaskAssociationReport[];
+    };
+
 export interface Checkpoint {
   readonly key: string;
   readonly label: string;
@@ -115,13 +143,7 @@ export interface Checkpoint {
   readonly currentPhase: WalkthroughCurrentPhase;
   readonly timeline: readonly WalkthroughTimeline[];
   readonly sessionState: "started" | "ended";
-  readonly currentTask:
-    | { readonly status: "unknown" | "conflict" }
-    | {
-        readonly status: "available";
-        readonly title: string;
-        readonly provenance: "user_confirmed";
-      };
+  readonly currentTask: WalkthroughCurrentTask;
 }
 
 function describeTaskChoice(
@@ -146,7 +168,7 @@ function describeTaskChoice(
       : undefined;
   return {
     title: `当前任务设为 ${title}`,
-    ...(previousTitle === undefined
+    ...(previousTitle === undefined || previousTitle === title
       ? {}
       : { transition: `${previousTitle} → ${title}` }),
   };
@@ -170,11 +192,7 @@ export function describeCheckpoint(
   if (sessionId === undefined)
     throw new Error("synthetic_checkpoint_session_missing");
   const scope = state.scope;
-  const current = core.getUserCorrectedCurrentTask(
-    state.plan.core,
-    projectId,
-    sessionId,
-  );
+  const current = core.getCurrentTaskAssociation(state.plan, scope);
   const checkpointTaskNames = new Map(
     state.plan.core.tasks.map((task) => [task.id, task.title]),
   );
@@ -249,6 +267,58 @@ export function describeCheckpoint(
           };
         })
       : [];
+
+  function reportPosition(id: core.EventId | undefined) {
+    if (id === undefined) return undefined;
+    const position = timeline.findIndex(
+      (entry) => entry.kind === "task.status_reported" && entry.eventId === id,
+    );
+    return position < 0 ? undefined : position;
+  }
+  function projectReport(
+    candidate: Pick<
+      Extract<core.CurrentTaskAssociation, { status: "likely" }>,
+      "taskTitle" | "reportEventId" | "conflictingEventId"
+    >,
+  ): TaskAssociationReport {
+    const report = reportPosition(candidate.reportEventId);
+    const conflict = reportPosition(candidate.conflictingEventId);
+    return {
+      title: candidate.taskTitle,
+      ...(report === undefined ? {} : { reportPosition: report }),
+      ...(conflict === undefined ? {} : { conflictPosition: conflict }),
+    };
+  }
+  function projectCurrentTask(): WalkthroughCurrentTask {
+    if (current.status === "confirmed")
+      return {
+        status: "available",
+        title: checkpointTaskNames.get(current.taskId)!,
+        provenance: "user_confirmed",
+      };
+    if (current.status === "ambiguous")
+      return {
+        status: current.status,
+        reason: current.reason,
+        candidates: current.candidates.map(projectReport),
+      };
+    if (current.status === "unknown") return { status: "unknown" };
+    const planPosition = timeline.findIndex(
+      (entry) =>
+        entry.kind === "plan.changed" &&
+        entry.eventId === planChangesBySource.get(current.planRevisionEventId),
+    );
+    return {
+      ...projectReport(current),
+      status: "likely",
+      provenance: current.assertion.provenance,
+      score: current.assertion.inference.associationConfidence.heuristicScore,
+      taskPosition: projected.findIndex(
+        ({ entry }) => entry.taskId === current.taskId,
+      ),
+      ...(planPosition < 0 ? {} : { planPosition }),
+    };
+  }
 
   return {
     key,
@@ -466,15 +536,6 @@ export function describeCheckpoint(
     }),
     progress: describeProgress(result),
     progressReasons,
-    currentTask:
-      current.status === "available"
-        ? {
-            status: "available",
-            title: state.plan.core.tasks.find(
-              (task) => task.id === current.taskId,
-            )!.title,
-            provenance: current.provenance,
-          }
-        : { status: current.status },
+    currentTask: projectCurrentTask(),
   };
 }

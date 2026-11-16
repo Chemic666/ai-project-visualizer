@@ -526,10 +526,11 @@ test("task weight review keeps task-specific evidence and consecutive edits", ()
   ]);
   expect(original.tasks[refresh]?.weight).toBe(3);
   expect(report.checkpoints[review.baselineIndex]).toBe(original);
-  expect(report.checkpoints).toHaveLength(8);
+  expect(report.checkpoints).toHaveLength(10);
   expect(
-    report.checkpoints[6]?.tasks
-      .find(({ title }) => title === "JWT")
+    report.checkpoints
+      .find(({ key }) => key === "weight-corrected")
+      ?.tasks.find(({ title }) => title === "JWT")
       ?.weightHistory.at(-1),
   ).toMatchObject({
     previousWeight: 13,
@@ -827,4 +828,81 @@ test("the walkthrough has two plan groups with exact task memberships, totals, a
   expect(report.checkpoints.at(-1)?.phases.some((phase) => phase.current)).toBe(
     false,
   );
+});
+
+test("the user can correct the suggestion without changing progress or the other editable checkpoint", () => {
+  const { report, review, suggestionReview } = createEditableWalkthrough();
+  const starting = suggestionReview.checkpoint;
+  expect(starting.currentTask).toMatchObject({
+    status: "likely",
+    title: "JWT",
+    score: 55,
+    provenance: "visualizer_inferred",
+  });
+  if (starting.currentTask.status !== "likely")
+    throw Error("expected likely task");
+  const { reportPosition, planPosition } = starting.currentTask;
+  expect(starting.timeline[reportPosition!]?.title).toContain("JWT");
+  expect(starting.timeline[planPosition!]?.kind).toBe("plan.changed");
+  expect(starting.currentPhase.status).toBe("unknown");
+  const login = starting.tasks.findIndex(({ title }) => title === "Login");
+  const jwt = starting.tasks.findIndex(({ title }) => title === "JWT");
+  expect(suggestionReview.currentTaskPosition).toBe(jwt);
+  const corrected = suggestionReview.selectCurrentTask(login);
+  expect(corrected.currentTask).toEqual({
+    status: "available",
+    title: "Login",
+    provenance: "user_confirmed",
+  });
+  expect(corrected.currentPhase).toMatchObject({
+    status: "available",
+    title: "Authentication basics",
+  });
+  expect(corrected.progress).toEqual(starting.progress);
+  expect(corrected.tasks[login]?.statusProvenance).toBe("agent_reported");
+  const event = corrected.timeline.find(
+    ({ kind, transition }) =>
+      kind === "correction.applied" && transition === "JWT → Login",
+  );
+  expect(event?.evidence).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        value: "JWT",
+        provenance: "visualizer_inferred",
+        associationScore: 55,
+      }),
+      expect.objectContaining({ value: "Login", provenance: "user_confirmed" }),
+    ]),
+  );
+  expect(report.checkpoints[suggestionReview.baselineIndex]).toBe(starting);
+  expect(review.checkpoint).toBe(report.checkpoints[review.baselineIndex]);
+  expect(review.checkpoint.progress).toMatchObject({ percentage: "64%" });
+
+  const same = createEditableWalkthrough().suggestionReview;
+  expect(same.selectCurrentTask(jwt).currentTask).toEqual({
+    status: "available",
+    title: "JWT",
+    provenance: "user_confirmed",
+  });
+});
+
+test("the competing reports example offers separate evidence without recommending a task", () => {
+  const checkpoint = runCoreWalkthrough().checkpoints.find(
+    ({ key }) => key === "competing-reports",
+  )!;
+  expect(checkpoint.currentTask).toMatchObject({
+    status: "ambiguous",
+    reason: "multiple_in_progress",
+    candidates: [{ title: "Login" }, { title: "JWT" }],
+  });
+  if (checkpoint.currentTask.status !== "ambiguous")
+    throw Error("expected ambiguous tasks");
+  for (const item of checkpoint.currentTask.candidates) {
+    expect(checkpoint.timeline[item.reportPosition!]).toMatchObject({
+      kind: "task.status_reported",
+      title: expect.stringContaining(item.title),
+      provenance: "agent_reported",
+    });
+  }
+  expect(checkpoint.currentPhase.status).toBe("unknown");
 });

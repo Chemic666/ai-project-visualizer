@@ -262,6 +262,8 @@ app-server 仅为候选，不能要求同时实现 Plugin 和 app-server。Read/
 
 # Phase 9 — Current Task Inference
 
+2026-11-16，已实现首个合成规则并接到内置示例。单项正式任务的进行中报告可给出带依据的候选，多个候选或冲突如实显示。安装版已验证人工改选保留原推断及评分。真实活动信号及评分校准仍待 Phase 7–9 验收。[任务判断与纠正](docs/phase-10-surface.md#current-task-suggestion-and-correction-in-the-standard-extension--2026-11-16)
+
 目标：
 
 自动判断：

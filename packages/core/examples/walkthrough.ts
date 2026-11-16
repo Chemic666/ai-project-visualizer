@@ -249,16 +249,51 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
     3,
     false,
   );
-  const completion: NormalizedEvent<"task.status_reported"> = {
-    id: eventId("login-completed"),
-    type: "task.status_reported",
-    schemaVersion: 1,
-    projectId,
-    sourceId,
-    sessionId,
-    receivedAt: at(4),
-    payload: { taskId: task("login"), status: "completed" },
-  };
+  function taskStatus(
+    tag: string,
+    target: TaskId,
+    status: core.WorkStatus,
+    minute: number,
+  ): NormalizedEvent<"task.status_reported"> {
+    return {
+      id: eventId(tag),
+      type: "task.status_reported",
+      schemaVersion: 1,
+      projectId,
+      sourceId,
+      sessionId,
+      receivedAt: at(minute),
+      payload: { taskId: target, status },
+    };
+  }
+
+  // This independent case forks before the completion report.
+  const competing = [
+    taskStatus("competing-login", task("login"), "in_progress", 4),
+    taskStatus("competing-jwt", task("jwt"), "in_progress", 5),
+  ].reduce((previous, event) => {
+    const next = core.applyProjectUpdate(
+      previous,
+      { kind: "source", event },
+      event.receivedAt,
+    );
+    if (next.status !== "applied")
+      throw Error("synthetic_competing_report_rejected");
+    return next.state;
+  }, state);
+  const competingCheckpoint = checkpoint(
+    competing,
+    "competing-reports",
+    "独立案例：两项任务都被报告为进行中",
+    state.progress.changes.length,
+  );
+
+  const completion = taskStatus(
+    "login-completed",
+    task("login"),
+    "completed",
+    4,
+  );
   apply(
     "completed-report",
     "Agent 明确报告 Login 完成",
@@ -267,27 +302,26 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
   );
   apply(
     "jwt-started",
-    "Agent 报告 JWT 进行中",
+    "根据状态报告判断当前任务",
     {
       kind: "source",
-      event: {
-        id: eventId("jwt-started"),
-        type: "task.status_reported",
-        schemaVersion: 1,
-        projectId,
-        sourceId,
-        sessionId,
-        receivedAt: at(5),
-        payload: { taskId: task("jwt"), status: "in_progress" },
-      },
+      event: taskStatus("jwt-started", task("jwt"), "in_progress", 5),
     },
     5,
-    false,
   );
+  const suggestion = core.getCurrentTaskAssociation(state.plan, scope);
+  if (suggestion.status !== "likely")
+    throw Error("synthetic_suggestion_missing");
+  const suggestionReview = editableAt(state, checkpoints.length - 1, 6);
   apply(
     "current-task-corrected",
     "用户确认当前任务为 JWT",
-    currentTaskChoice("manual-current-task", task("jwt"), 6),
+    currentTaskChoice(
+      "manual-current-task",
+      task("jwt"),
+      6,
+      suggestion.assertion.id,
+    ),
     6,
   );
   const expanded = plan(
@@ -330,84 +364,90 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
     9,
   );
 
-  // The review uses this checkpoint as its baseline and shares one in-memory
-  // history for both editing actions. The built-in replay continues separately.
-  let reviewState = state;
-  let reviewCheckpoint = checkpoints.at(-1)!;
-  let editMinute = 10;
-  function applyReview(update: ProjectUpdate) {
-    const applied = core.applyProjectUpdate(
-      reviewState,
-      update,
-      at(editMinute),
-    );
-    if (applied.status !== "applied")
-      throw new Error("synthetic_review_rejected");
-    const next = checkpoint(
-      applied.state,
-      "review",
-      "本次调整 · 从第六个检查点开始",
-      reviewState.progress.changes.length,
-    );
-    editMinute++;
-    reviewState = applied.state;
-    reviewCheckpoint = next;
-    return next;
-  }
-  function taskForReview(position: number) {
-    const basis = progressFor(reviewState).tasks[position];
-    if (!basis?.included) throw new Error("synthetic_task_not_editable");
-    return basis;
-  }
-  function currentChoice() {
-    return core.getUserCorrectedCurrentTask(
-      reviewState.plan.core,
-      projectId,
-      sessionId,
-    );
-  }
-  const review = {
-    baselineIndex: checkpoints.length - 1,
-    get checkpoint() {
-      return reviewCheckpoint;
-    },
-    get currentTaskPosition() {
-      const selected = currentChoice();
-      if (selected.status !== "available") return -1;
-      return progressFor(reviewState).tasks.findIndex(
-        ({ entry }) => entry.taskId === selected.taskId,
+  // Each editable checkpoint keeps its own in-memory history.
+  function editableAt(
+    initial: core.ProjectEngineState,
+    baselineIndex: number,
+    firstEditMinute: number,
+  ) {
+    let reviewState = initial;
+    const base = checkpoints[baselineIndex]!;
+    let reviewCheckpoint = base;
+    let editMinute = firstEditMinute;
+    function applyReview(update: ProjectUpdate) {
+      const applied = core.applyProjectUpdate(
+        reviewState,
+        update,
+        at(editMinute),
       );
-    },
-    setWeight(position: number, value: number) {
-      if (!Number.isFinite(value) || value <= 0)
-        throw new Error("synthetic_weight_invalid");
-      const basis = taskForReview(position);
-      if (basis.effectiveWeight === value) return reviewCheckpoint;
-      return applyReview(
-        weight(
-          `review-weight-${editMinute}`,
-          basis.entry.taskId,
-          value,
-          editMinute,
-          basis.selectedWeightAssertionId,
-        ),
+      if (applied.status !== "applied")
+        throw new Error("synthetic_review_rejected");
+      const next = checkpoint(
+        applied.state,
+        "review",
+        "本次调整 · " + base.label,
+        reviewState.progress.changes.length,
       );
-    },
-    selectCurrentTask(position: number) {
-      const target = taskForReview(position).entry.taskId;
-      const previous = currentChoice();
-      if (previous.status === "available" && previous.taskId === target)
+      editMinute++;
+      reviewState = applied.state;
+      reviewCheckpoint = next;
+      return next;
+    }
+    function taskForReview(position: number) {
+      const basis = progressFor(reviewState).tasks[position];
+      if (!basis?.included) throw new Error("synthetic_task_not_editable");
+      return basis;
+    }
+    function currentChoice() {
+      return core.getCurrentTaskAssociation(reviewState.plan, scope);
+    }
+    return {
+      baselineIndex,
+      get checkpoint() {
         return reviewCheckpoint;
-      return applyReview(
-        currentTaskChoice(
-          `review-task-${editMinute}`,
-          target,
-          editMinute,
-          previous.status === "available" ? previous.assertion.id : undefined,
-        ),
-      );
-    },
-  };
+      },
+      get currentTaskPosition() {
+        const selected = currentChoice();
+        if (selected.status !== "confirmed" && selected.status !== "likely")
+          return -1;
+        return progressFor(reviewState).tasks.findIndex(
+          ({ entry }) => entry.taskId === selected.taskId,
+        );
+      },
+      setWeight(position: number, value: number) {
+        if (!Number.isFinite(value) || value <= 0)
+          throw new Error("synthetic_weight_invalid");
+        const basis = taskForReview(position);
+        if (basis.effectiveWeight === value) return reviewCheckpoint;
+        return applyReview(
+          weight(
+            `review-weight-${editMinute}`,
+            basis.entry.taskId,
+            value,
+            editMinute,
+            basis.selectedWeightAssertionId,
+          ),
+        );
+      },
+      selectCurrentTask(position: number) {
+        const target = taskForReview(position).entry.taskId;
+        const previous = currentChoice();
+        if (previous.status === "confirmed" && previous.taskId === target)
+          return reviewCheckpoint;
+        return applyReview(
+          currentTaskChoice(
+            `review-task-${editMinute}`,
+            target,
+            editMinute,
+            previous.status === "confirmed" || previous.status === "likely"
+              ? previous.assertion.id
+              : undefined,
+          ),
+        );
+      },
+    };
+  }
+  const review = editableAt(state, checkpoints.length - 1, 10);
   const originalJwt = task("jwt");
   const originalJwtWeight = progressFor(state).tasks.find(
     ({ entry }) => entry.taskId === originalJwt,
@@ -505,6 +545,7 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
     weight("invalid-weight", task("jwt"), -1, 11),
     at(11),
   );
+  checkpoints.push(competingCheckpoint);
   const end: NormalizedEvent<"session.ended"> = {
     id: eventId("end"),
     type: "session.ended",
@@ -639,5 +680,5 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
       .map((entry) => entry.kind),
     timelineEntryCount: state.timeline.entries.length,
   };
-  return { report, review };
+  return { report, review, suggestionReview };
 }

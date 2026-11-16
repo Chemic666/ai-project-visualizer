@@ -119,6 +119,23 @@ function start(recovered?: Checkpoint) {
     : walkthrough!.report.checkpoints;
   const checkpointCount = checkpoints.length;
   let index = walkthrough?.review.baselineIndex ?? 0;
+  type EditableReview = NonNullable<typeof walkthrough>["review"];
+  let editedReview: EditableReview | undefined;
+  function editableReview(checkpoint: Checkpoint) {
+    if (!walkthrough) return undefined;
+    return [walkthrough.review, walkthrough.suggestionReview].find(
+      (review) => review.checkpoint === checkpoint,
+    );
+  }
+  function reviewToOpen() {
+    if (!walkthrough) return undefined;
+    const baseline = [walkthrough.review, walkthrough.suggestionReview].find(
+      (review) => review.baselineIndex === index,
+    );
+    if (baseline === undefined) return editedReview;
+    return baseline.checkpoint.key === "review" ? baseline : undefined;
+  }
+
   let selectedTab: Tab = "overview";
   const tabs: readonly Tab[] = ["overview", "plan", "timeline"];
   const nav = element("checkpoint-nav");
@@ -176,9 +193,7 @@ function start(recovered?: Checkpoint) {
   element("previous-step").addEventListener("click", () => {
     if (index > 0) {
       index =
-        index === checkpointCount
-          ? walkthrough!.review.baselineIndex
-          : index - 1;
+        index === checkpointCount ? editedReview!.baselineIndex : index - 1;
       render();
     }
   });
@@ -231,13 +246,14 @@ function start(recovered?: Checkpoint) {
       element("membership-plan-history").append(details);
     }
     element("open-review").addEventListener("click", () => {
-      if (checkpoints.length === checkpointCount) return;
-      index = checkpointCount;
-      render();
+      const review = reviewToOpen();
+      if (!review) return;
+      showReviewCheckpoint(review);
       element("checkpoint-label").focus();
     });
     element("reset-review").addEventListener("click", () => {
       walkthrough = createEditableWalkthrough();
+      editedReview = undefined;
       checkpoints = walkthrough.report.checkpoints;
       index = walkthrough.review.baselineIndex;
       render();
@@ -260,9 +276,10 @@ function start(recovered?: Checkpoint) {
     taskPicker.close(),
   );
   pickerTrigger.addEventListener("click", () => {
-    if (!walkthrough || pickerTrigger.hidden) return;
     const checkpoint = checkpoints[index]!;
-    const selected = walkthrough.review.currentTaskPosition;
+    const review = editableReview(checkpoint);
+    if (!review || pickerTrigger.hidden) return;
+    const selected = review.currentTaskPosition;
     const options = checkpoint.tasks.flatMap((task, position) => {
       if (!task.included) return [];
       const row = node("label", "current-task-option");
@@ -288,20 +305,21 @@ function start(recovered?: Checkpoint) {
 
   pickerForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (!walkthrough || pickerTrigger.hidden || !taskPicker.open) return;
+    const previous = checkpoints[index]!;
+    const review = editableReview(previous);
+    if (!review || pickerTrigger.hidden || !taskPicker.open) return;
     const selected =
       pickerForm.querySelector<HTMLInputElement>("input:checked");
     if (!selected) return;
-    const previous = checkpoints[index]!;
     let next: Checkpoint;
     try {
-      next = walkthrough.review.selectCurrentTask(Number(selected.value));
+      next = review.selectCurrentTask(Number(selected.value));
     } catch {
       pickerError.textContent = "无法设置这个任务，已保留原选择。";
       pickerError.hidden = false;
       return;
     }
-    if (next !== previous) showReviewCheckpoint(next);
+    if (next !== previous) showReviewCheckpoint(review);
     taskPicker.close();
     pickerTrigger.focus();
   });
@@ -341,7 +359,16 @@ function start(recovered?: Checkpoint) {
       ["完成依据", view.detail],
       ["计划", planText],
       ["当前权重", `${view.weightLabel} · ${view.weightSource}`],
-    ] as const;
+    ] as [string, string][];
+    const association = checkpoint.currentTask;
+    if (
+      association.status === "likely" &&
+      association.taskPosition === position
+    )
+      facts.push([
+        "当前任务关联",
+        "Visualizer Inferred · 关联评分 " + association.score + " / 100",
+      ]);
     element("task-detail-facts").replaceChildren(
       ...facts.flatMap(([label, value]) => [
         node("dt", "", label),
@@ -349,8 +376,7 @@ function start(recovered?: Checkpoint) {
       ]),
     );
 
-    const editable =
-      checkpoint === walkthrough?.review.checkpoint && task.included;
+    const editable = editableReview(checkpoint) !== undefined && task.included;
     weightForm.hidden = !editable;
     weightInput.value = task.weight === undefined ? "" : String(task.weight);
     weightError.hidden = true;
@@ -388,10 +414,10 @@ function start(recovered?: Checkpoint) {
 
   weightForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (!selectedTask || !walkthrough || weightForm.hidden) return;
-    const { review } = walkthrough;
+    if (!selectedTask || weightForm.hidden) return;
     const previous = checkpoints[index]!;
-    if (previous !== review.checkpoint) return;
+    const review = editableReview(previous);
+    if (!review) return;
     const value = weightInput.valueAsNumber;
     if (!Number.isFinite(value) || value <= 0) {
       weightError.textContent = "输入一个大于 0 的有限数。";
@@ -416,7 +442,7 @@ function start(recovered?: Checkpoint) {
       editResult.textContent = "输入与当前权重相同。";
       return;
     }
-    showReviewCheckpoint(next);
+    showReviewCheckpoint(review);
     renderTaskDetail(next, selectedTask.position);
     const percentage = (row: Checkpoint) =>
       row.progress.status === "available" ? row.progress.percentage : "不可用";
@@ -720,6 +746,14 @@ function start(recovered?: Checkpoint) {
                 evidence.provenance,
               ),
             );
+          if (evidence.associationScore !== undefined)
+            row.append(
+              node(
+                "p",
+                "evidence-note",
+                "当时的关联评分 " + evidence.associationScore + " / 100",
+              ),
+            );
           if (evidence.at !== undefined)
             row.append(
               node(
@@ -973,8 +1007,77 @@ function start(recovered?: Checkpoint) {
     }
   }
 
-  function showReviewCheckpoint(next: Checkpoint) {
-    checkpoints = [...walkthrough!.report.checkpoints, next];
+  function renderCurrentTask(checkpoint: Checkpoint) {
+    const task = checkpoint.currentTask;
+    const title = element("current-task");
+    const source = element("current-task-source");
+    const links = element("current-task-links");
+    source.replaceChildren();
+    links.replaceChildren();
+    if (task.status === "available") {
+      title.textContent = task.title;
+      source.append(badge("User Confirmed", "user_confirmed"));
+      return;
+    }
+    if (task.status === "likely") {
+      title.textContent = "可能是 " + task.title;
+      source.append(
+        badge("Visualizer Inferred", "visualizer_inferred"),
+        node(
+          "p",
+          "small-note",
+          "关联评分 " +
+            task.score +
+            " / 100 · 计划内唯一被报告为进行中的正式任务",
+        ),
+      );
+      if (task.reportPosition !== undefined)
+        links.append(timelineLink(task.reportPosition, "查看任务报告"));
+      if (task.planPosition !== undefined)
+        links.append(timelineLink(task.planPosition, "查看对应计划"));
+      return;
+    }
+    if (task.status === "ambiguous") {
+      title.textContent = "无法确定";
+      const notes = {
+        correction_conflict: "当前任务的人工选择存在冲突",
+        plan_ambiguous: "当前计划存在歧义",
+        multiple_in_progress: "多项任务都被报告为进行中",
+        conflicting_reports: "同一任务的状态报告存在冲突",
+      };
+      source.append(node("p", "small-note", notes[task.reason]));
+      for (const candidate of task.candidates) {
+        links.append(
+          candidate.reportPosition === undefined
+            ? node("span", "small-note", candidate.title)
+            : timelineLink(
+                candidate.reportPosition,
+                candidate.title,
+                "查看 " + candidate.title + " 的进行中报告",
+              ),
+        );
+        if (candidate.conflictPosition !== undefined)
+          links.append(
+            timelineLink(candidate.conflictPosition, "查看另一条报告"),
+          );
+      }
+      return;
+    }
+    title.textContent = "未知";
+    source.append(
+      node(
+        "p",
+        "small-note",
+        checkpoint.sessionState === "ended"
+          ? "会话已明确结束"
+          : "尚无可判断的任务报告或人工选择",
+      ),
+    );
+  }
+
+  function showReviewCheckpoint(review: EditableReview) {
+    editedReview = review;
+    checkpoints = [...walkthrough!.report.checkpoints, review.checkpoint];
     index = checkpointCount;
     render();
   }
@@ -983,11 +1086,9 @@ function start(recovered?: Checkpoint) {
     const checkpoint = checkpoints[index]!;
     const reviewing = index === checkpointCount;
     if (walkthrough) {
-      const edited = checkpoints.length > checkpointCount;
-      element("review-hint").hidden =
-        checkpoint !== walkthrough.review.checkpoint;
-      element("open-review").hidden = !edited || reviewing;
-      element("reset-review").hidden = !edited;
+      element("review-hint").hidden = editableReview(checkpoint) === undefined;
+      element("open-review").hidden = reviewToOpen() === undefined || reviewing;
+      element("reset-review").hidden = editedReview === undefined;
     }
     [...nav.children].forEach((button, rowIndex) => {
       button.setAttribute(
@@ -1034,27 +1135,10 @@ function start(recovered?: Checkpoint) {
     element("unknown-progress").hidden = available;
     renderRecentChanges(checkpoint);
     pickerTrigger.hidden =
-      checkpoint !== walkthrough?.review.checkpoint ||
+      editableReview(checkpoint) === undefined ||
       checkpoint.sessionState !== "started" ||
       !checkpoint.tasks.some((task) => task.included);
-    const task = checkpoint.currentTask;
-    element("current-task").textContent =
-      task.status === "available"
-        ? task.title
-        : task.status === "conflict"
-          ? "关联存在冲突"
-          : "未知";
-    element("current-task-source").replaceChildren(
-      task.status === "available"
-        ? badge("User Confirmed", "user_confirmed")
-        : node(
-            "span",
-            "small-note",
-            checkpoint.sessionState === "ended"
-              ? "会话已明确结束，当前任务不再有效"
-              : "尚无有效的当前任务人工确认",
-          ),
-    );
+    renderCurrentTask(checkpoint);
     renderCurrentPhase(checkpoint.currentPhase);
     renderTasks(checkpoint);
     events(element("recent-events"), checkpoint.timeline, "recent");

@@ -50,3 +50,35 @@ export function getAssertionsForTarget(
 export function hasProcessedEvent(state: CoreState, id: EventId): boolean {
   return state.acceptedEvents.some((event) => event.id === id);
 }
+
+export function findSessionStart(
+  state: CoreState,
+  projectId: ProjectId,
+  sessionId: SessionId | undefined,
+):
+  | { readonly status: "session_unknown" | "session_ended" }
+  | {
+      readonly status: "started";
+      readonly id: SessionId;
+      readonly index: number;
+    } {
+  const session =
+    sessionId === undefined ? undefined : getSession(state, sessionId);
+  if (session === undefined) return { status: "session_unknown" };
+
+  let index = -1;
+  for (const [position, event] of state.acceptedEvents.entries()) {
+    if (
+      (event.type !== "session.started" && event.type !== "session.ended") ||
+      event.projectId !== projectId ||
+      event.sourceId !== session.sourceId ||
+      event.payload.sessionId !== session.id
+    )
+      continue;
+    if (event.type === "session.ended") return { status: "session_ended" };
+    if (index < 0) index = position;
+  }
+  return index < 0
+    ? { status: "session_unknown" }
+    : { status: "started", id: session.id, index };
+}

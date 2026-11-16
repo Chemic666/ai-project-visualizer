@@ -11,6 +11,7 @@ export interface SyntheticEvidenceSummary {
   readonly label: string;
   readonly value: string | number;
   readonly provenance?: Provenance | "core_derived";
+  readonly associationScore?: number;
   readonly at?: string;
   readonly lifecycle?: "active" | "expired" | "superseded";
   readonly recordVersion?: "current_state";
@@ -98,6 +99,13 @@ export function summarizeSyntheticEvidence(
             : `${taskTitle} · ${fields[claim.target]}`,
         value,
         provenance: claim.provenance,
+        ...(claim.target === "project.currentTask" &&
+        claim.provenance === "visualizer_inferred"
+          ? {
+              associationScore:
+                claim.inference.associationConfidence.heuristicScore,
+            }
+          : {}),
         at: claim.observedAt,
       };
     }

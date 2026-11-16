@@ -52,6 +52,7 @@ test("imports Core without host, storage or network initialization", async () =>
       "getAssertion",
       "getAssertionsForTarget",
       "getCurrentPhaseFromCorrection",
+      "getCurrentTaskAssociation",
       "getPhase",
       "getPlanSnapshot",
       "getProject",

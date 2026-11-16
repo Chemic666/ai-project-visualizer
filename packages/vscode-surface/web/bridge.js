@@ -31,7 +31,9 @@
               "已恢复的合成历史"
           : mode === "synthetic" &&
             progress &&
-            document.querySelectorAll("#checkpoint-nav button").length === 8 &&
+            document.querySelectorAll(
+              '#checkpoint-nav button[aria-pressed="true"]',
+            ).length === 1 &&
             !!document.getElementById("checkpoint-label")?.textContent?.trim();
     api.postMessage({ type: "surface.ready", mode, generation, ok });
   });

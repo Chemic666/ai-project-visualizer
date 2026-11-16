@@ -7,7 +7,7 @@ import type {
 } from "./domain/ids.js";
 import type { PlanEngineState, PlanPhase, PlanScope } from "./domain/plan.js";
 import { getPlanSnapshot } from "./plan-engine.js";
-import { getSession } from "./queries.js";
+import { findSessionStart } from "./queries.js";
 
 export type CurrentPhaseResult =
   | {
@@ -47,22 +47,9 @@ export function getCurrentPhaseFromCorrection(
 ): CurrentPhaseResult {
   const { sessionId, projectId } = scope;
   const core = state.core;
-  const session =
-    sessionId === undefined ? undefined : getSession(core, sessionId);
-  if (session === undefined)
-    return { status: "unknown", reason: "session_unknown" };
-
-  const observations = core.acceptedEvents.filter(
-    (event) =>
-      (event.type === "session.started" || event.type === "session.ended") &&
-      event.projectId === projectId &&
-      event.sourceId === session.sourceId &&
-      event.payload.sessionId === session.id,
-  );
-  if (observations.some((event) => event.type === "session.ended"))
-    return { status: "unknown", reason: "session_ended" };
-  if (!observations.some((event) => event.type === "session.started"))
-    return { status: "unknown", reason: "session_unknown" };
+  const session = findSessionStart(core, projectId, sessionId);
+  if (session.status !== "started")
+    return { status: "unknown", reason: session.status };
 
   const current = getUserCorrectedCurrentTask(core, projectId, session.id);
   if (current.status !== "available")
