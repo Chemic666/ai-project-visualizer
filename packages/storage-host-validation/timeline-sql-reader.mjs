@@ -199,7 +199,34 @@ try {
   const result = JSON.parse(last.result_json);
   assert.equal(last.state_digest, stateDigest);
   assert.equal(result.cursorVectorDigest, digest(cursor));
-  assert.deepEqual(result.canonicalEventIds, cursor[0].coveredEventIds);
+  if (spec.surface === true) {
+    // The final checkpoint covers an already recorded report.
+    const [covered] = cursor[0].coveredEventIds;
+    assert.equal(cursor[0].coveredEventIds.length, 1);
+    const coveredRow = rows.normalized_events.find(
+      ({ event_id }) => event_id === covered,
+    );
+    assert.ok(coveredRow && coveredRow.seq < head);
+    const report = JSON.parse(coveredRow.body);
+    assert.equal(report.type, "task.status_reported");
+    assert.equal(report.sourceId, cursor[0].sourceId);
+    for (const table of [
+      "normalized_events",
+      "assertions",
+      "plan_versions",
+      "progress_versions",
+      "timeline_versions",
+    ])
+      assert.ok(
+        !rows[table].some(({ seq }) => seq === head),
+        table + " changed at checkpoint",
+      );
+    assert.deepEqual(JSON.parse(last.intent_json).eventClaims, []);
+    assert.deepEqual(result.canonicalEventIds, []);
+    assert.equal(last.state_digest, rows.commits.at(-2).state_digest);
+  } else {
+    assert.deepEqual(result.canonicalEventIds, cursor[0].coveredEventIds);
+  }
   const receipt = {
     operationId: last.operation_id,
     operationNonce: last.nonce,

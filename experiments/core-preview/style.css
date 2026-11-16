@@ -499,6 +499,12 @@ progress::-moz-progress-bar {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+.recorded-task {
+  margin: 6px 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 .phase-source,
 .plan-phase-facts,
 .plan-phase-empty {

@@ -1,5 +1,6 @@
 import { getUserCorrectedCurrentTask } from "./correction-engine.js";
 import type { Assertion } from "./domain/assertion.js";
+import type { CorrectionRecord } from "./domain/correction.js";
 import type { AssertionId, EventId, TaskId } from "./domain/ids.js";
 import type { AssociationHeuristicScore } from "./domain/inference.js";
 import type { NormalizedEvent } from "./domain/normalized-event.js";
@@ -40,6 +41,7 @@ export type CurrentTaskAssociation =
       readonly status: "confirmed";
       readonly taskId: TaskId;
       readonly assertion: Assertion<"project.currentTask">;
+      readonly correction: CorrectionRecord;
     }
   | (Candidate & {
       readonly status: "likely";
@@ -85,6 +87,7 @@ export function getCurrentTaskAssociation(
       status: "confirmed",
       taskId: correction.taskId,
       assertion: correction.assertion,
+      correction: correction.correction,
     };
   if (correction.status === "conflict")
     return {

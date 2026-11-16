@@ -154,3 +154,45 @@ test(
     });
   },
 );
+
+test(
+  "a checkpoint-only restart preserves the saved confirmation without adding a Session end",
+  { skip: driverRoot === undefined },
+  async () => {
+    const { loadRecoveredCheckpoint } = await import("./recovery.mjs");
+    const checkpoint = await loadRecoveredCheckpoint(driverRoot, {
+      endSession: false,
+    });
+    assert.equal(checkpoint.sessionState, "started");
+    assert.equal(checkpoint.progress.percentage, "50%");
+    assert.equal(checkpoint.currentTask.status, "available");
+    assert.equal(checkpoint.currentTask.title, "Login");
+    assert.equal(checkpoint.currentTask.provenance, "user_confirmed");
+    assert.equal(
+      checkpoint.currentTask.confirmedAt,
+      "2026-11-15T10:02:00.000Z",
+    );
+    const proof =
+      checkpoint.timeline[checkpoint.currentTask.correctionPosition];
+    assert.equal(proof.kind, "correction.applied");
+    assert.ok(
+      proof.evidence.some(
+        ({ value, provenance }) =>
+          value === "Login" && provenance === "user_confirmed",
+      ),
+    );
+    assert.ok(
+      proof.evidence.some(
+        ({ kind, lifecycle }) =>
+          kind === "correction" && lifecycle === "active",
+      ),
+    );
+    assert.equal(checkpoint.currentPhase.status, "available");
+    assert.equal(checkpoint.currentPhase.title, "Plan tasks");
+    assert.ok(
+      !checkpoint.timeline.some(
+        ({ kind }) => kind === "session.ended" || kind === "correction.expired",
+      ),
+    );
+  },
+);

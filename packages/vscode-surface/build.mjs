@@ -54,7 +54,9 @@ export async function buildSurface({ outDir, recoveryDriverRoot }) {
     try {
       const { loadRecoveredCheckpoint } =
         await import("../../experiments/core-preview/recovery.mjs");
-      checkpoint = await loadRecoveredCheckpoint(recoveryDriverRoot);
+      checkpoint = await loadRecoveredCheckpoint(recoveryDriverRoot, {
+        endSession: false,
+      });
     } catch {
       throw Error("surface_recovery_unavailable");
     }

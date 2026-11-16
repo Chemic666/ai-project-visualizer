@@ -116,6 +116,8 @@ type WalkthroughCurrentTask =
       readonly status: "available";
       readonly title: string;
       readonly provenance: "user_confirmed";
+      readonly confirmedAt: string;
+      readonly correctionPosition?: number;
     }
   | (TaskAssociationReport & {
       readonly status: "likely";
@@ -203,6 +205,13 @@ export function describeCheckpoint(
   const planChangesBySource = new Map(
     state.plan.changes.map((change) => [change.causedBy, change.id]),
   );
+  function confirmationPosition(correctionId: core.CorrectionId) {
+    return timeline.findIndex(
+      (entry) =>
+        entry.kind === "correction.applied" &&
+        entry.detail.correctionId === correctionId,
+    );
+  }
   const derived = core.getCurrentPhaseFromCorrection(state.plan, scope);
   let currentPhase: WalkthroughCurrentPhase;
   if (derived.status === "available") {
@@ -213,11 +222,7 @@ export function describeCheckpoint(
       (entry) =>
         entry.kind === "plan.changed" && entry.eventId === planChangeId,
     );
-    const correctionPosition = timeline.findIndex(
-      (entry) =>
-        entry.kind === "correction.applied" &&
-        entry.detail.correctionId === correctionId,
-    );
+    const correctionPosition = confirmationPosition(correctionId);
     currentPhase = {
       status: "available",
       title: derived.phase.title,
@@ -290,12 +295,16 @@ export function describeCheckpoint(
     };
   }
   function projectCurrentTask(): WalkthroughCurrentTask {
-    if (current.status === "confirmed")
+    if (current.status === "confirmed") {
+      const correctionPosition = confirmationPosition(current.correction.id);
       return {
         status: "available",
         title: checkpointTaskNames.get(current.taskId)!,
         provenance: "user_confirmed",
+        confirmedAt: current.correction.effectiveAt,
+        ...(correctionPosition < 0 ? {} : { correctionPosition }),
       };
+    }
     if (current.status === "ambiguous")
       return {
         status: current.status,
@@ -442,12 +451,10 @@ export function describeCheckpoint(
           history.status === "available" ? history.corrections.length : 0,
       };
     }),
-    sessionState: state.plan.core.acceptedEvents.some(
-      (event) =>
-        event.type === "session.ended" && event.payload.sessionId === sessionId,
-    )
-      ? "ended"
-      : "started",
+    sessionState:
+      current.status === "unknown" && current.reason === "session_ended"
+        ? "ended"
+        : "started",
     timeline: timeline.map((entry) => {
       const planChange =
         entry.kind === "plan.changed"

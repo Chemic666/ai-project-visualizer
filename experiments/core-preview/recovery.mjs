@@ -82,7 +82,7 @@ export async function writeFixture(runtime) {
   const store = openFixture(runtime, spec, core);
   let cut, epoch;
   try {
-    cut = await core.writeScenario(store);
+    cut = await core.writeScenario(store, spec.endSession);
     epoch = store.writer().epoch;
   } finally {
     closeFixture(store);
@@ -99,7 +99,12 @@ export async function writeFixture(runtime) {
   };
 }
 
-export async function loadRecoveredCheckpoint(driverRoot) {
+export async function loadRecoveredCheckpoint(
+  driverRoot,
+  { endSession = true } = {},
+) {
+  if (typeof endSession !== "boolean")
+    throw new Error("synthetic_preview_fixture_unavailable");
   const driverFiles = prepareDriver(driverRoot);
   const temp = fs.realpathSync.native(os.tmpdir());
   const runtime = fs.mkdtempSync(path.join(temp, "apv-preview-runtime-"));
@@ -115,7 +120,7 @@ export async function loadRecoveredCheckpoint(driverRoot) {
   });
   const bytes = result.outputFiles[0].contents;
   const processorFingerprint = sha256(bytes);
-  const spec = { root, processorFingerprint };
+  const spec = { root, processorFingerprint, endSession };
   stageDriver(runtime, driverFiles);
   fs.writeFileSync(path.join(runtime, "core.mjs"), bytes, { flag: "wx" });
   fs.writeFileSync(path.join(runtime, "fixture.json"), JSON.stringify(spec), {

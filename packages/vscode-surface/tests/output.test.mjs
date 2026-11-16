@@ -111,6 +111,7 @@ test(
     assert.equal(asset.sha256, hash(file));
     const text = fs.readFileSync(file, "utf8").replace(/\\u2192/g, "→");
     assert.match(text, /60% → 50%/);
+    assert.match(text, /sessionState\s*:\s*"started"/);
     assert.doesNotMatch(
       text,
       /synthetic-marker|processorFingerprint|operationNonce|fixture\.json|apv-recovery-current-claim|apv-storage-slice-/,

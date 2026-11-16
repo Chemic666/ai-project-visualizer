@@ -572,7 +572,7 @@ test("current-task review changes the association while preserving status and pr
   );
   expect(review.currentTaskPosition).toBe(jwt);
   const changed = review.selectCurrentTask(refresh);
-  expect(changed.currentTask).toEqual({
+  expect(changed.currentTask).toMatchObject({
     status: "available",
     title: "Refresh Token",
     provenance: "user_confirmed",
@@ -849,7 +849,7 @@ test("the user can correct the suggestion without changing progress or the other
   const jwt = starting.tasks.findIndex(({ title }) => title === "JWT");
   expect(suggestionReview.currentTaskPosition).toBe(jwt);
   const corrected = suggestionReview.selectCurrentTask(login);
-  expect(corrected.currentTask).toEqual({
+  expect(corrected.currentTask).toMatchObject({
     status: "available",
     title: "Login",
     provenance: "user_confirmed",
@@ -879,7 +879,7 @@ test("the user can correct the suggestion without changing progress or the other
   expect(review.checkpoint.progress).toMatchObject({ percentage: "64%" });
 
   const same = createEditableWalkthrough().suggestionReview;
-  expect(same.selectCurrentTask(jwt).currentTask).toEqual({
+  expect(same.selectCurrentTask(jwt).currentTask).toMatchObject({
     status: "available",
     title: "JWT",
     provenance: "user_confirmed",

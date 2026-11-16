@@ -55,6 +55,11 @@ const time = new Intl.DateTimeFormat("zh-CN", {
   minute: "2-digit",
   hour12: false,
 });
+const savedTime = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: time.resolvedOptions().timeZone,
+  dateStyle: "short",
+  timeStyle: "short",
+});
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
   if (!found) throw new Error("preview_element_missing");
@@ -160,7 +165,9 @@ function start(recovered?: Checkpoint) {
     }
     element("page-title").textContent =
       tab === "overview"
-        ? "项目现在到哪了？"
+        ? recovered
+          ? "恢复的项目状态"
+          : "项目现在到哪了？"
         : tab === "plan"
           ? "计划与任务依据"
           : "这一路发生了什么？";
@@ -358,7 +365,10 @@ function start(recovered?: Checkpoint) {
       ["状态", `${view.statusLabel} · ${view.statusSource}${statusTime}`],
       ["完成依据", view.detail],
       ["计划", planText],
-      ["当前权重", `${view.weightLabel} · ${view.weightSource}`],
+      [
+        recovered ? "保存时权重" : "当前权重",
+        `${view.weightLabel} · ${view.weightSource}`,
+      ],
     ] as [string, string][];
     const association = checkpoint.currentTask;
     if (
@@ -366,7 +376,7 @@ function start(recovered?: Checkpoint) {
       association.taskPosition === position
     )
       facts.push([
-        "当前任务关联",
+        recovered ? "保存时的任务判断" : "当前任务关联",
         "Visualizer Inferred · 关联评分 " + association.score + " / 100",
       ]);
     element("task-detail-facts").replaceChildren(
@@ -556,10 +566,16 @@ function start(recovered?: Checkpoint) {
       const title = node("h3", "", phase.title);
       title.id = `plan-phase-${index}`;
       heading.append(title);
-      if (phase.current) heading.append(node("span", "tag user", "当前阶段"));
+      if (phase.current) {
+        heading.append(
+          recovered
+            ? node("span", "tag", "最后记录")
+            : node("span", "tag user", "当前阶段"),
+        );
+      }
       const group = node(
         "section",
-        `plan-phase${phase.current ? " current" : ""}`,
+        `plan-phase${phase.current && !recovered ? " current" : ""}`,
       );
       group.setAttribute("aria-labelledby", title.id);
       const source =
@@ -961,7 +977,20 @@ function start(recovered?: Checkpoint) {
     }
   }
 
-  function renderCurrentPhase(phase: Checkpoint["currentPhase"]) {
+  function savedStamp(at: string) {
+    const stamp = node(
+      "time",
+      "phase-source",
+      " · " + savedTime.format(new Date(at)),
+    );
+    stamp.dateTime = at;
+    return stamp;
+  }
+
+  function renderCurrentPhase(
+    phase: Checkpoint["currentPhase"],
+    disconnected: boolean,
+  ) {
     const title = element("current-phase");
     const source = element("current-phase-source");
     const links = element("current-phase-links");
@@ -980,12 +1009,21 @@ function start(recovered?: Checkpoint) {
       source.textContent = explanations[phase.reason];
       return;
     }
-    title.textContent = phase.title;
-    source.textContent =
+    title.textContent = disconnected ? "未知" : phase.title;
+    const groupSource =
       phase.groupProvenance === "visualizer_inferred"
-        ? `依据 ${phase.taskTitle} 的归属 · 自动分组 · Visualizer Inferred`
-        : `依据 ${phase.taskTitle} 所属的计划分组 · ${originText[phase.groupProvenance] ?? "未知来源"}`;
-    if (phase.correctionPosition !== undefined) {
+        ? "自动分组 · Visualizer Inferred"
+        : (originText[phase.groupProvenance] ?? "未知来源");
+    if (disconnected) {
+      source.replaceChildren(
+        "最后记录 · " + phase.title + " · " + groupSource,
+        savedStamp(phase.planObservedAt),
+      );
+    } else {
+      source.textContent =
+        "依据 " + phase.taskTitle + " 的计划归属 · " + groupSource;
+    }
+    if (!disconnected && phase.correctionPosition !== undefined) {
       const confirmed = time.format(new Date(phase.confirmedAt));
       links.append(
         timelineLink(
@@ -1007,13 +1045,28 @@ function start(recovered?: Checkpoint) {
     }
   }
 
-  function renderCurrentTask(checkpoint: Checkpoint) {
+  function renderCurrentTask(checkpoint: Checkpoint, disconnected: boolean) {
     const task = checkpoint.currentTask;
     const title = element("current-task");
     const source = element("current-task-source");
     const links = element("current-task-links");
     source.replaceChildren();
     links.replaceChildren();
+    if (disconnected) {
+      title.textContent = "未知";
+      if (task.status === "available") {
+        source.append(
+          node("p", "recorded-task", "最后确认 · " + task.title),
+          badge("User Confirmed", "user_confirmed"),
+          savedStamp(task.confirmedAt),
+        );
+        if (task.correctionPosition !== undefined)
+          links.append(timelineLink(task.correctionPosition, "查看任务确认"));
+      } else {
+        source.append(node("p", "small-note", "暂无保存的任务确认"));
+      }
+      return;
+    }
     if (task.status === "available") {
       title.textContent = task.title;
       source.append(badge("User Confirmed", "user_confirmed"));
@@ -1112,10 +1165,16 @@ function start(recovered?: Checkpoint) {
     [...nav.children].forEach((button, rowIndex) =>
       button.setAttribute("aria-pressed", String(rowIndex === index)),
     );
-    element("session-state").textContent =
-      checkpoint.sessionState === "ended"
+    const disconnected =
+      recovered !== undefined && checkpoint.sessionState !== "ended";
+    element("session-state").textContent = disconnected
+      ? "合成会话 · 来源未连接"
+      : checkpoint.sessionState === "ended"
         ? "合成 Session · 已明确结束"
         : "合成 Session · 已开始";
+    const progressTitle = recovered ? "最后保存的正式进度" : "正式项目进度";
+    element("progress-title").textContent = progressTitle;
+    element("progress-bar").setAttribute("aria-label", progressTitle);
     const available = checkpoint.progress.status === "available";
     const number = element("progress-number");
     number.classList.toggle("unavailable", !available);
@@ -1138,8 +1197,8 @@ function start(recovered?: Checkpoint) {
       editableReview(checkpoint) === undefined ||
       checkpoint.sessionState !== "started" ||
       !checkpoint.tasks.some((task) => task.included);
-    renderCurrentTask(checkpoint);
-    renderCurrentPhase(checkpoint.currentPhase);
+    renderCurrentTask(checkpoint, disconnected);
+    renderCurrentPhase(checkpoint.currentPhase, disconnected);
     renderTasks(checkpoint);
     events(element("recent-events"), checkpoint.timeline, "recent");
     events(element("all-events"), checkpoint.timeline, "timeline");

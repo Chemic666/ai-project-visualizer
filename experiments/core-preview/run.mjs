@@ -28,7 +28,9 @@ if (
   let historyRecovered = false;
   try {
     const checkpoint = recovery
-      ? await (await import("./recovery.mjs")).loadRecoveredCheckpoint(args[2])
+      ? await (
+          await import("./recovery.mjs")
+        ).loadRecoveredCheckpoint(args[2], { endSession: false })
       : undefined;
     historyRecovered = checkpoint !== undefined;
     const here = fileURLToPath(new URL(".", import.meta.url));

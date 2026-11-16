@@ -58,6 +58,8 @@ export function createBootstrap() {
 const at = (minute: number) =>
   "2026-11-15T10:" + String(minute).padStart(2, "0") + ":00.000Z";
 
+const observationId = (tag: string) => ("apv-recovery-event-" + tag) as EventId;
+
 function observation<Type extends NormalizedEvent["type"]>(
   type: Type,
   tag: string,
@@ -69,7 +71,7 @@ function observation<Type extends NormalizedEvent["type"]>(
     projectId,
     sourceId,
     sessionId,
-    id: ("apv-recovery-event-" + tag) as EventId,
+    id: observationId(tag),
     receivedAt: at(minute),
     sourceIdentity: {
       kind: "source_event",
@@ -133,17 +135,28 @@ function request(
   };
 }
 
-function lastOperation(): Operation {
-  const end = observation("session.ended", "end", 8, { sessionId });
+function lastOperation(
+  endSession: boolean,
+): Omit<
+  CommitRequest,
+  "operationId" | "operationNonce" | "expectedHead" | "writer"
+> {
+  // The disconnected case records only the position through the last report.
+  const events = endSession
+    ? [observation("session.ended", "end", 8, { sessionId })]
+    : [];
+  const coveredEventId = endSession
+    ? observationId("end")
+    : observationId("review-verified");
   return {
-    events: [end],
+    events,
     cursor: {
       sourceId,
       streamId: "apv-recovery-stream",
       codec: "synthetic.v1",
       position: "apv-recovery-final",
       expectedPrevious: null,
-      coveredEventIds: [end.id],
+      coveredEventIds: [coveredEventId],
     },
   };
 }
@@ -151,12 +164,13 @@ function lastOperation(): Operation {
 export function scenarioFinalRequest(
   writer: WriterCapability,
   expectedHead: number,
+  endSession = true,
 ) {
-  return request(writer, expectedHead, lastOperation());
+  return request(writer, expectedHead, lastOperation(endSession));
 }
 
 // Both the local store and its asynchronous Worker Host run this fixed scenario.
-export async function writeScenario(store: ScenarioStore) {
+export async function writeScenario(store: ScenarioStore, endSession = true) {
   let head = (await store.read()).head;
   if (head !== 1) throw new Error("synthetic_fixture_not_fresh");
   async function commit(work: Operation) {
@@ -225,7 +239,7 @@ export async function writeScenario(store: ScenarioStore) {
       originalAssertionId: firstReviewWeight.assertion.id,
     },
   });
-  return commit(lastOperation());
+  return commit(lastOperation(endSession));
 }
 
 export function projectRecoveredCheckpoint(cut: TimelineStorageCut) {

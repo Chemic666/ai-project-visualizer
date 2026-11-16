@@ -315,6 +315,8 @@ Confidence
 
 2026-11-16 标准扩展总览已能从确认任务及当前计划定位阶段、查看依据，计划页按阶段列出任务及 Core 可计算的权重。隔离安装实测了跨阶段切换及重启恢复，真实会话和计划输入仍待验收。[当前阶段与计划分组](docs/phase-10-surface.md#current-phase-and-grouped-plan-in-the-standard-extension--2026-11-16)
 
+2026-11-16 隔离安装的恢复页已可区分来源未连接与会话明确结束。重启后当前任务和阶段显示未知，仍可查看最后确认的任务、计划分组和进度。独立读取核对同一回执，并确认最终保存点只更新了读取位置。[未连接时恢复已保存状态](docs/phase-10-surface.md#recovered-work-context-with-the-source-disconnected--2026-11-16)
+
 经 host/runtime/package smoke 验证后实现 Overview、Plan、Timeline、Task Detail/Correction、Why Progress 和必要 Settings。Host 负责组合和生命周期，Surface 不计算业务状态。
 
 Baseline UX 必须包含无 Session/无 Plan/未知/歧义/断连、来源与关联 Confidence、进度解释、计划变化、有效/失效纠正和 Task Weight 编辑。Activity 为 advanced/P1，只展示实际支持的观察；未来 Semantic/Export/多 Session 控件不进入初版设置。

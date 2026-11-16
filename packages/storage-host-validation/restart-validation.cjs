@@ -40,6 +40,7 @@ exports.run = async function ({
   const validationRuntime = profileForRoot(spec.rootMode);
   const fixture = restartFixture(spec);
   const timeline = spec.storeModel === "timeline-v5";
+  const endSession = spec.surface !== true;
   assert.equal(["write", "recover"].includes(spec.phase), true);
   const recover = spec.phase === "recover";
   const bound = { ...resources, driverBinarySha256: driverPin };
@@ -140,7 +141,7 @@ exports.run = async function ({
     if (spec.rootMode === "local-validation" || recover)
       assert.equal(actualStoreKey, spec.storeKey);
     const request = timeline
-      ? core.scenarioFinalRequest(ready.writer, fixture.head - 1)
+      ? core.scenarioFinalRequest(ready.writer, fixture.head - 1, endSession)
       : {
           operationId: fixture.operationId,
           operationNonce: fixture.operationNonce,
@@ -152,11 +153,14 @@ exports.run = async function ({
     let cut, committed;
     if (!recover) {
       committed = timeline
-        ? await core.writeScenario({
-            read: host.read,
-            commit: host.commit,
-            writer: () => ready.writer,
-          })
+        ? await core.writeScenario(
+            {
+              read: host.read,
+              commit: host.commit,
+              writer: () => ready.writer,
+            },
+            endSession,
+          )
         : await host.commit(request);
       assert.equal(committed.status, "committed");
       noPublication(committed);
@@ -197,13 +201,31 @@ exports.run = async function ({
       assert.ok(
         view.timeline.some(({ transition }) => transition === "60% → 50%"),
       );
-      assert.ok(
+      assert.equal(view.sessionState, endSession ? "ended" : "started");
+      assert.equal(
+        view.timeline.some(({ kind }) => kind === "session.ended"),
+        endSession,
+      );
+      assert.equal(
         view.timeline.some(
           ({ kind, evidence }) =>
             kind === "correction.expired" &&
             evidence.some(({ lifecycle }) => lifecycle === "expired"),
         ),
+        endSession,
       );
+      if (endSession) assert.equal(view.currentTask.status, "unknown");
+      else {
+        const saved = view.currentTask;
+        assert.equal(saved.status, "available");
+        assert.equal(saved.title, "Login");
+        assert.equal(saved.provenance, "user_confirmed");
+        const proof = view.timeline[saved.correctionPosition];
+        assert.equal(proof.kind, "correction.applied");
+        assert.ok(
+          proof.evidence.some(({ lifecycle }) => lifecycle === "active"),
+        );
+      }
       assert.ok(
         view.timeline.some(
           ({ kind, title, provenance }) =>
