@@ -119,8 +119,11 @@ function validateHandoff(handoff, spec, resources) {
   return true;
 }
 
+const privacyProbe = (runId) => "apv-private-probe-" + runId + "-synthetic";
+
 module.exports = {
   runtimeTuple,
+  privacyProbe,
   validateRuntime,
   validateHandoff,
   profileForRoot,

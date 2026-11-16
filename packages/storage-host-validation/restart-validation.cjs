@@ -8,6 +8,7 @@ const {
   validateRuntime,
   profileForRoot,
   restartFixture,
+  privacyProbe,
 } = require("./restart-contract.cjs");
 const driverPin =
   "e21e5efd71fba66578e95b62554d9028064a80dafd7221bf8a8ef155de8d240a";
@@ -150,13 +151,42 @@ exports.run = async function ({
           events: [input()],
           cursor: cursor(["E1"]),
         };
+    async function commitTimeline(operation) {
+      if (spec.surface === true && operation.expectedHead === 1) {
+        const before = await host.read();
+        assert.ok(
+          operation.events.some(({ type }) => type === "plan.detected"),
+        );
+        const unsafe = operation.events.map((event) =>
+          event.type === "plan.detected"
+            ? {
+                ...event,
+                payload: {
+                  ...event.payload,
+                  rawPrompt: privacyProbe(spec.runId),
+                },
+              }
+            : event,
+        );
+        await assert.rejects(host.commit({ ...operation, events: unsafe }), {
+          code: "admission_rejected",
+        });
+        assert.deepEqual(await host.read(), before);
+        save("privacy-rejection.json", {
+          status: "rejected",
+          code: "admission_rejected",
+          head: before.head,
+        });
+      }
+      return host.commit(operation);
+    }
     let cut, committed;
     if (!recover) {
       committed = timeline
         ? await core.writeScenario(
             {
               read: host.read,
-              commit: host.commit,
+              commit: commitTimeline,
               writer: () => ready.writer,
             },
             endSession,

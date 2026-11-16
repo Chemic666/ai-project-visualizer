@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 const hash = (p) =>
   createHash("sha256").update(fs.readFileSync(p)).digest("hex");
-export async function verifyUnavailable(resources, evidence) {
+export async function verifyUnavailable(resources, evidence, processOutcome) {
   assert.equal(process.versions.electron, "43.7.3");
   const results = [];
   let psSeq = 0;
@@ -56,46 +56,38 @@ export async function verifyUnavailable(resources, evidence) {
       );
       fs.writeFileSync(
         path.join(evidence, `permission-api-${++psSeq}.json`),
-        JSON.stringify({
-          args,
-          pid: r.pid,
-          status: r.status,
-          signal: r.signal,
-          error: r.error?.message ?? null,
-          stdout: r.stdout,
-          stderr: r.stderr,
-        }),
+        JSON.stringify({ args, ...processOutcome(r) }),
         { flag: "wx" },
       );
       if (r.status !== 0) throw Error("permission_fixture_failed");
       return r.stdout.trim();
     };
-    if (kind === "permission-denied") {
-      before = {
-        sha256: hash(dll),
-        sddl: ps("([IO.File]::GetAccessControl($env:APV_DENY_FIXTURE)).Sddl"),
-      };
-      denied = ps(
-        "$a=[IO.File]::GetAccessControl($env:APV_DENY_FIXTURE); $r=[Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.WindowsIdentity]::GetCurrent().User,'ReadData','Deny'); $a.AddAccessRule($r); [IO.File]::SetAccessControl($env:APV_DENY_FIXTURE,$a); ([IO.File]::GetAccessControl($env:APV_DENY_FIXTURE)).Sddl",
-      );
-    }
+    const readPermissions =
+      "([IO.File]::GetAccessControl($env:APV_DENY_FIXTURE)).Sddl";
+    const initialPermissions =
+      kind === "permission-denied" ? ps(readPermissions) : undefined;
+    if (initialPermissions !== undefined) before = { sha256: hash(dll) };
     try {
-      if (kind === "permission-denied")
+      if (initialPermissions !== undefined) {
+        const deniedPermissions = ps(
+          "$a=[IO.File]::GetAccessControl($env:APV_DENY_FIXTURE); $r=[Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.WindowsIdentity]::GetCurrent().User,'ReadData','Deny'); $a.AddAccessRule($r); [IO.File]::SetAccessControl($env:APV_DENY_FIXTURE,$a); ([IO.File]::GetAccessControl($env:APV_DENY_FIXTURE)).Sddl",
+        );
+        assert.ok(deniedPermissions !== initialPermissions);
         assert.throws(
           () => fs.readFileSync(dll),
           (e) => ["EACCES", "EPERM"].includes(e.code),
         );
+        denied = { permissionsChanged: true };
+      }
       assert.throws(() => inspectInstalledResources(), { code: "unavailable" });
     } finally {
-      if (before) {
+      if (initialPermissions !== undefined) {
         ps(
           "$a=[IO.File]::GetAccessControl($env:APV_DENY_FIXTURE); $a.SetSecurityDescriptorSddlForm($env:APV_RESTORE_SDDL,[Security.AccessControl.AccessControlSections]::Access); [IO.File]::SetAccessControl($env:APV_DENY_FIXTURE,$a)",
-          { APV_RESTORE_SDDL: before.sddl },
+          { APV_RESTORE_SDDL: initialPermissions },
         );
-        restored = {
-          sha256: hash(dll),
-          sddl: ps("([IO.File]::GetAccessControl($env:APV_DENY_FIXTURE)).Sddl"),
-        };
+        assert.ok(ps(readPermissions) === initialPermissions);
+        restored = { sha256: hash(dll), permissionsMatch: true };
         assert.equal(restored.sha256, before.sha256);
       }
     }

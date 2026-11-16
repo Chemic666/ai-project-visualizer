@@ -146,3 +146,9 @@ Core 应继续使用 Agent-neutral 契约。这些字段仅是未来 Adapter 可
 - [ ] B-06 Technical Verification 通过。
 
 Phase 1 未开始；本报告不自动放行任何实施阶段。独立 Core 的既有 roadmap 顺序不变，但真实 Codex 集成与 v0.1 feasibility 没有获得技术通过证据。完成本次有界执行记录后停止，等待审核。
+
+## Read-only contract recheck — 2026-11-16
+
+The official [App Server documentation](https://learn.chatgpt.com/docs/app-server) documents `thread/read` for stored data without event subscription and separately documents the live `turn/plan/updated` notification. The published thread method list describes `thread/unsubscribe` and resuming threads. It does not establish a standalone read-only subscription to an already-running session in a different client. The official [Hooks documentation](https://learn.chatgpt.com/docs/hooks) continues to describe `update_plan` in local tool coverage and requires review and trust for non-managed project hooks.
+
+The installed npm CLI package metadata reports 0.160.0. The 15 offline checks passed, including byte hashes for 11 retained generated schemas and rejection of cross-project, unscoped and control requests. The current tool inventory did not expose formal `update_plan`. The earlier isolated desktop recording has one delivered `SessionStart` and no observed `update_plan` delivery. These results leave project attribution and passive formal plan capture unverified in an existing client session. User trials are deferred. The remaining technical evidence can use an isolated project once a supported surface can deliver and revise a formal plan through its normal workflow.

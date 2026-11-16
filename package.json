@@ -19,7 +19,7 @@
     "test:storage": "node packages/storage/tests/run.mjs",
     "test:storage:boundaries": "node --test packages/storage/tests/codec.test.mjs packages/storage/tests/host.test.mjs",
     "test:preview": "node --test experiments/core-preview/server.test.mjs experiments/core-preview/output.test.mjs",
-    "test:storage:validation": "node --test packages/storage/tests/runtime-admission.test.mjs packages/storage-host-validation/restart-contract.test.cjs packages/storage-host-validation/archive-inventory.test.mjs packages/storage-host-validation/restart-entry.test.cjs packages/storage-host-validation/process-exit-proof.test.cjs packages/storage/tests/local-root-diagnostics.test.mjs",
+    "test:storage:validation": "node --test packages/storage/tests/runtime-admission.test.mjs packages/storage-host-validation/restart-contract.test.cjs packages/storage-host-validation/archive-inventory.test.mjs packages/storage-host-validation/restart-entry.test.cjs packages/storage-host-validation/process-exit-proof.test.cjs packages/storage/tests/local-root-diagnostics.test.mjs packages/storage-host-validation/diagnostics.test.cjs",
     "test:surface": "node --test packages/vscode-surface/tests/*.test.cjs packages/vscode-surface/tests/*.test.mjs",
     "build:surface": "node packages/vscode-surface/build.mjs",
     "validate:surface": "node packages/vscode-surface/validate.mjs"

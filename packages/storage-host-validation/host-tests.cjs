@@ -1,3 +1,8 @@
+const {
+  diagnostic,
+  safeValidationError,
+} = require("./runtime/diagnostics.cjs");
+
 exports.run = async () => {
   const vscode = require("vscode"),
     fs = require("node:fs"),
@@ -13,16 +18,18 @@ exports.run = async () => {
     const api = await extension.activate();
     await api.validate(spec);
   } catch (error) {
-    if (spec)
-      fs.writeFileSync(
-        path.join(path.dirname(spec), "host-error.json"),
-        JSON.stringify({
-          code: "unavailable",
-          message: String(error.message),
-          stack: String(error.stack),
-        }),
-        { flag: "wx" },
-      );
-    throw error;
+    const report = diagnostic(error);
+    if (spec) {
+      try {
+        fs.writeFileSync(
+          path.join(path.dirname(spec), "host-error.json"),
+          JSON.stringify(report),
+          { flag: "wx" },
+        );
+      } catch (writeError) {
+        throw safeValidationError(diagnostic(writeError).code);
+      }
+    }
+    throw safeValidationError(report.code);
   }
 };

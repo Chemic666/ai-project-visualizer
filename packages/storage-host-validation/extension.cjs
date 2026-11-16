@@ -3,6 +3,7 @@ const fs = require("node:fs"),
   os = require("node:os"),
   crypto = require("node:crypto");
 const { pathToFileURL } = require("node:url");
+const { processOutcome } = require("./runtime/diagnostics.cjs");
 exports.activate = function (context) {
   return {
     async validate(specPath) {
@@ -213,26 +214,14 @@ exports.activate = function (context) {
           },
         );
         save("reader.exit.json", {
-          pid: r.pid,
-          status: r.status,
-          signal: r.signal,
+          ...processOutcome(r),
           args,
           afterBothWriterExits: true,
         });
-        fs.writeFileSync(
-          path.join(evidence, "reader.stdout.txt"),
-          r.stdout ?? "",
-          { flag: "wx" },
-        );
-        fs.writeFileSync(
-          path.join(evidence, "reader.stderr.txt"),
-          r.stderr ?? "",
-          { flag: "wx" },
-        );
         if (r.status !== 0 || r.stderr) throw Error("reader_failed");
         if (spec.rootMode !== "local-validation") {
           const { verifyUnavailable } = await load("negative-tests.mjs");
-          await verifyUnavailable(resources, evidence);
+          await verifyUnavailable(resources, evidence, processOutcome);
         } else {
           const local = await load("storage/src/host-admission.mjs");
           const admitted = local.inspectCapability(cap);

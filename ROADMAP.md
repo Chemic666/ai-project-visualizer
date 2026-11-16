@@ -83,6 +83,8 @@ S09 synthetic canonical-reference checkpoint-only now has ordinary17 + Native17 
 
 2026-11-15 在独立浏览预览中接通合成恢复。写入进程退出后，从同一份库恢复出总览、计划与活动依据。Edge 已验证 50% 的计算明细、原先 60% 到 50% 的变化和窄屏展开。[运行与测试记录](docs/phase-6-timeline.md#合成存储恢复预览2026-11-15)
 
+2026-11-16 实际试用后置，接入、常规恢复与隐私先做工程验证。已复核 Codex 正式只读接口，实时计划仍待隔离实测。安装恢复已新增一项私密字段拒绝和诊断检查，另需验证正式存储目录与其余隐私用例。[Codex 接入核对](docs/spikes/codex-observation-feasibility-results.md#read-only-contract-recheck--2026-11-16) · [隐私验证](docs/storage/phase-2-first-slice.md#privacy-diagnostics-and-an-installed-v5-rejection-check--2026-11-16)
+
 First-slice local checkpoint: `d98aa1f4a9e4c83b26fd6c898c750fdcfa2d0810` (35 reviewed files, no push). The separately authorized [synthetic Host follow-up](docs/storage/phase-2-first-slice.md#host-composition-follow-up--2026-10-19) adds joint Owner/Project process lifetime, concurrent catalog admission and normal handoff tests; actual Driver handle binding remains unavailable. No real-project enablement or Codex Session integration is approved.
 
 ### Historical 2026-10-08 preparation (superseded status/sequence only)

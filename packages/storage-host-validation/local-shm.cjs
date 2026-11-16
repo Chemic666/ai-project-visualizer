@@ -92,7 +92,7 @@ if (require.main === module) {
       waiters = new Map();
     let seq = 0,
       closed = false,
-      stderr = "";
+      stderrPresent = false;
     const child = fork(__filename, [], {
       execArgv: [],
       stdio: ["ignore", "ignore", "pipe", "ipc"],
@@ -108,8 +108,8 @@ if (require.main === module) {
         }),
       },
     });
-    child.stderr.on("data", (s) => {
-      stderr += s;
+    child.stderr.on("data", (chunk) => {
+      stderrPresent ||= chunk.length > 0;
     });
     const exit = new Promise((resolve) =>
       child.on("close", (code, signal) => {
@@ -170,13 +170,13 @@ if (require.main === module) {
         const ended = await exit;
         save("local-shm-lifecycle.json", {
           transcript,
-          stderr,
+          stderrPresent,
           exit: ended,
           actualInternalShmHandle: "unverified",
         });
         assert.equal(ended.code, 0);
         assert.equal(ended.signal, null);
-        assert.equal(stderr, "");
+        assert.equal(stderrPresent, false);
       })());
     try {
       const initial = await startup;

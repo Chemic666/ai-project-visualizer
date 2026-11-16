@@ -1,4 +1,5 @@
 import exitProofApi from "./process-exit-proof.cjs";
+import diagnostics from "./runtime/diagnostics.cjs";
 import assert from "node:assert/strict";
 import { readVsixInventory } from "./archive-inventory.mjs";
 import restartContract from "./restart-contract.cjs";
@@ -10,6 +11,11 @@ import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { readNativePackage } from "../storage/src/native-attestor.mjs";
+const { diagnostic, safeValidationError, processOutcome } = diagnostics;
+function stopRun(code) {
+  fs.writeSync(2, safeValidationError(code).message + "\n");
+  process.exit(1);
+}
 const args = process.argv.slice(2);
 if (!args.length) {
   console.log(
@@ -34,7 +40,7 @@ if (!args.length) {
     process.platform !== "win32" ||
     process.arch !== "x64"
   )
-    throw Error("ARGUMENTS_REJECTED");
+    stopRun("arguments_rejected");
   const timeline = surface || args[0] === "--execute-temp-timeline-restart";
   const restarting =
     timeline ||
@@ -43,24 +49,36 @@ if (!args.length) {
     "--execute-local-validation",
     "--execute-local-restart",
   ].includes(args[0]);
-  const repo = fileURLToPath(new URL("../../", import.meta.url)),
-    source = fileURLToPath(new URL("./", import.meta.url)),
-    codeRoot = fs.realpathSync.native(args[2]),
-    driverRoot = fs.realpathSync.native(args[4]);
-  const approved = readNativePackage(args[6]),
-    build = JSON.parse(fs.readFileSync(approved.manifestPath, "utf8"));
-  const runId = randomUUID(),
-    evidence = path.join(
-      fs.realpathSync.native(os.tmpdir()),
-      "apv-b1-host-" + runId,
-    );
-  fs.mkdirSync(evidence);
-  const save = (name, data) =>
-    fs.writeFileSync(
-      path.join(evidence, name),
-      typeof data === "string" ? data : JSON.stringify(data, null, 2),
-      { flag: "wx" },
-    );
+  const repo = fileURLToPath(new URL("../../", import.meta.url));
+  const source = fileURLToPath(new URL("./", import.meta.url));
+  const { codeRoot, driverRoot, approved, build, runId, evidence } = (() => {
+    try {
+      const codeRoot = fs.realpathSync.native(args[2]);
+      const driverRoot = fs.realpathSync.native(args[4]);
+      const approved = readNativePackage(args[6]);
+      const build = JSON.parse(fs.readFileSync(approved.manifestPath, "utf8"));
+      const runId = randomUUID();
+      const evidence = path.join(
+        fs.realpathSync.native(os.tmpdir()),
+        "apv-b1-host-" + runId,
+      );
+      fs.mkdirSync(evidence);
+      return { codeRoot, driverRoot, approved, build, runId, evidence };
+    } catch (error) {
+      stopRun(diagnostic(error).code);
+    }
+  })();
+  const save = (name, data) => {
+    try {
+      fs.writeFileSync(
+        path.join(evidence, name),
+        typeof data === "string" ? data : JSON.stringify(data, null, 2),
+        { flag: "wx" },
+      );
+    } catch (error) {
+      throw safeValidationError(diagnostic(error).code);
+    }
+  };
   const hash = (p) =>
     createHash("sha256").update(fs.readFileSync(p)).digest("hex");
   function inventory(dir) {
@@ -94,14 +112,7 @@ if (!args.length) {
       maxBuffer: 8 * 1024 * 1024,
       ...options,
     });
-    save(label + ".stdout.txt", r.stdout ?? "");
-    save(label + ".stderr.txt", r.stderr ?? "");
-    save(label + ".exit.json", {
-      pid: r.pid,
-      status: r.status,
-      signal: r.signal,
-      error: r.error ? String(r.error.message) : null,
-    });
+    save(label + ".exit.json", processOutcome(r));
     if (r.status !== 0 || r.signal || r.error) throw Error(label + "_FAILED");
     return r;
   }
@@ -138,6 +149,11 @@ if (!args.length) {
     }
     const runtime = path.join(stage, "runtime");
     fs.mkdirSync(runtime);
+    fs.copyFileSync(
+      path.join(source, "runtime/diagnostics.cjs"),
+      path.join(runtime, "diagnostics.cjs"),
+      fs.constants.COPYFILE_EXCL,
+    );
     fs.mkdirSync(path.join(runtime, "storage"));
     fs.cpSync(
       path.join(repo, "packages/storage/src"),
@@ -206,6 +222,7 @@ if (!args.length) {
       platform: "node",
       format: "esm",
       write: false,
+      logLevel: "silent",
     });
     fs.writeFileSync(
       path.join(runtime, "core.mjs"),
@@ -359,6 +376,16 @@ if (!args.length) {
       );
       if (entry?.sha256 !== f.sha256) throw Error("VSIX_CONTENT_MISMATCH");
     }
+    const entryFiles = ["extension.cjs", "host-tests.cjs"].map((name) => ({
+      name,
+      sha256: hash(path.join(stage, name)),
+    }));
+    for (const entry of entryFiles)
+      if (
+        contents.find(({ path }) => path === "extension/" + entry.name)
+          ?.sha256 !== entry.sha256
+      )
+        throw Error("VSIX_CONTENT_MISMATCH");
     save("package-binding.json", {
       vsixSha256: hash(vsix),
       runtimeFilesMatched: files.length,
@@ -430,8 +457,12 @@ if (!args.length) {
         f.sha256
       )
         throw Error("INSTALLED_HASH");
+    for (const entry of entryFiles)
+      if (hash(path.join(installedRoot, entry.name)) !== entry.sha256)
+        throw Error("INSTALLED_HASH");
     save("installed-binding.json", {
       installedRoot,
+      entryFilesMatched: entryFiles.length,
       runtimeFilesMatched: files.length,
       vsixSha256: hash(vsix),
     });
@@ -638,6 +669,39 @@ if (!args.length) {
       );
       for (const row of timelineInputs)
         assert.equal(hash(row.path), row.sha256);
+      if (surface) {
+        assert.deepEqual(read("write-privacy-rejection.json"), {
+          status: "rejected",
+          code: "admission_rejected",
+          head: 1,
+        });
+        const root = read("write-synthetic-root.json").root;
+        assert.equal(
+          root,
+          path.join(
+            fs.realpathSync.native(os.tmpdir()),
+            "apv-storage-slice-" + runId,
+          ),
+        );
+        const marker = restartContract.privacyProbe(runId);
+        const signatures = [
+          Buffer.from(marker),
+          Buffer.from(marker, "utf16le"),
+        ];
+        const checked = [...inventory(evidence), ...inventory(root)];
+        for (const file of checked) {
+          const bytes = fs.readFileSync(file.path);
+          assert.ok(
+            signatures.every((signature) => !bytes.includes(signature)),
+          );
+        }
+        save("privacy-result.json", {
+          status: "PASS WITH LIMITATION",
+          rejectedBeforeAdvance: true,
+          checkedFiles: checked.length,
+          syntheticMarkerAbsent: true,
+        });
+      }
       save("host-result.json", {
         status: "PASS WITH LIMITATION",
         runId,
@@ -663,26 +727,27 @@ if (!args.length) {
       status = "PASS WITH LIMITATION";
     }
   } catch (error) {
-    save("failure.json", {
-      status: "unavailable",
-      error: String(error.message),
-    });
+    save("failure.json", diagnostic(error));
     process.exitCode = 1;
   } finally {
-    const files = inventory(evidence);
-    const rootFile = path.join(
-      evidence,
-      restarting ? "write-synthetic-root.json" : "synthetic-root.json",
-    );
-    if (fs.existsSync(rootFile))
-      files.push(
-        ...inventory(JSON.parse(fs.readFileSync(rootFile, "utf8")).root),
+    try {
+      const files = inventory(evidence);
+      const rootFile = path.join(
+        evidence,
+        restarting ? "write-synthetic-root.json" : "synthetic-root.json",
       );
-    save("inventory.json", {
-      runId,
-      scope: "post-process file bytes; inventory excludes itself",
-      files,
-    });
+      if (fs.existsSync(rootFile))
+        files.push(
+          ...inventory(JSON.parse(fs.readFileSync(rootFile, "utf8")).root),
+        );
+      save("inventory.json", {
+        runId,
+        scope: "post-process file bytes; inventory excludes itself",
+        files,
+      });
+    } catch (error) {
+      stopRun(diagnostic(error).code);
+    }
     console.log(JSON.stringify({ runId, evidenceRoot: evidence, status }));
   }
 }
