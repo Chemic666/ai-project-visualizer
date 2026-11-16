@@ -632,3 +632,67 @@ test("current-task review rejects invalid choices and retains the latest choice 
   expect(withWeight.currentTask).toEqual(later.currentTask);
   expect(withWeight.progress).toMatchObject({ percentage: "62.7%" });
 });
+
+test("plan history presents the two recorded snapshots and the immediate progress effect", () => {
+  const { checkpoints } = runCoreWalkthrough();
+  const started = checkpoints.find(({ key }) => key === "session-started")!;
+  const weighted = checkpoints.find(({ key }) => key === "expansion-weighted")!;
+  expect(
+    started.timeline.some(({ planChange }) => planChange !== undefined),
+  ).toBe(false);
+  const revisions = weighted.timeline.flatMap(({ planChange }) =>
+    planChange ? [planChange] : [],
+  );
+  expect(revisions).toHaveLength(2);
+  const [initial, expanded] = revisions;
+  expect(initial!.before).toBeUndefined();
+  expect(initial!.after.tasks.map(({ title }) => title)).toEqual([
+    "Login",
+    "JWT",
+  ]);
+  expect(expanded!.before?.tasks.map(({ title }) => title)).toEqual([
+    "Login",
+    "JWT",
+  ]);
+  expect(expanded!.after.tasks.map(({ title }) => title)).toEqual([
+    "Login",
+    "JWT",
+    "Refresh Token",
+    "Token Revocation",
+  ]);
+  expect(expanded!.changes.filter(({ kind }) => kind === "task.added")).toEqual(
+    [
+      { kind: "task.added", description: "Refresh Token" },
+      { kind: "task.added", description: "Token Revocation" },
+    ],
+  );
+  expect(expanded!.source).toMatchObject({ provenance: "agent_reported" });
+  expect(expanded!.progress).toMatchObject({
+    before: "32 / 45 = 71.1%",
+    after: "不可用",
+    reasons: expect.arrayContaining(["plan_expanded"]),
+    issueCodes: expect.arrayContaining(["weight_unknown"]),
+  });
+  expect(weighted.progress).toMatchObject({ percentage: "64%" });
+});
+
+test("the independent plan history shows a removal, rename, and reentry without rewriting older names", () => {
+  const report = runCoreWalkthrough();
+  const [removal, reentry] = report.membershipPlanChanges;
+  expect(removal!.before?.tasks.map(({ title }) => title)).toContain("Login");
+  expect(removal!.after.tasks.map(({ title }) => title)).not.toContain("JWT");
+  expect(removal!.changes).toEqual(
+    expect.arrayContaining([
+      { kind: "task.removed", description: "JWT" },
+      { kind: "task.changed", description: "名称 Login → Login API" },
+    ]),
+  );
+  expect(reentry!.before?.tasks.map(({ title }) => title)).toContain(
+    "Login API",
+  );
+  expect(reentry!.changes).toEqual(
+    expect.arrayContaining([{ kind: "task.added", description: "JWT" }]),
+  );
+  expect(reentry!.progress?.after).toBe("不可用");
+  expect(JSON.stringify(report.checkpoints)).not.toContain("Login API");
+});

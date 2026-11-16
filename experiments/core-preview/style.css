@@ -986,6 +986,62 @@ dialog::backdrop {
   overflow-wrap: anywhere;
 }
 
+.plan-history {
+  margin-top: 18px;
+}
+.plan-change {
+  padding: 4px 0 12px;
+}
+.plan-change h4 {
+  margin: 0;
+  font-size: 13px;
+}
+.plan-snapshots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.plan-snapshot {
+  padding: 12px;
+  border-radius: 7px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.plan-snapshot p {
+  margin: 5px 0;
+}
+.plan-snapshot-tasks,
+.plan-diff {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 12px;
+}
+.plan-snapshot-tasks li,
+.plan-diff li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 5px 0;
+  overflow-wrap: anywhere;
+}
+.plan-snapshot-tasks li {
+  justify-content: space-between;
+}
+.plan-progress-effect {
+  margin: 12px 0 8px;
+  padding: 10px 12px;
+  border-left: 2px solid #a6a0e4;
+  background: #f3f1f9;
+}
+.plan-change .small-note {
+  margin-block: 4px;
+}
+@media (max-width: 540px) {
+  .plan-snapshots {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .event-evidence {
   margin-top: 10px;
   border: 1px solid #e7eaf2;

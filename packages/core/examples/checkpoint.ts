@@ -1,4 +1,5 @@
 import * as core from "../src/index.js";
+import { describePlanChange, type PlanChangeView } from "./plan-inspection.js";
 import {
   summarizeSyntheticEvidence,
   type SyntheticEvidenceSummary,
@@ -41,6 +42,7 @@ export interface WalkthroughTask {
 }
 interface WalkthroughTimeline {
   readonly transition?: string;
+  readonly planChange?: PlanChangeView;
   readonly evidence: readonly SyntheticEvidenceSummary[];
   readonly kind: core.TimelineKind;
   readonly at: string;
@@ -205,6 +207,10 @@ export function describeCheckpoint(
     timeline: core
       .getTimelineEntries(state.timeline, { projectId, sessionId })
       .map((entry) => {
+        const planChange =
+          entry.kind === "plan.changed"
+            ? describePlanChange(state, entry.eventId)
+            : undefined;
         let title: string;
         if (entry.kind === "task.status_reported") {
           const taskTitle =
@@ -220,7 +226,7 @@ export function describeCheckpoint(
           };
           title = `${taskTitle} · ${statusNames[entry.detail.reportedStatus]}`;
         } else if (entry.kind === "plan.changed") {
-          title = `计划更新 · 新增 ${entry.detail.changes.filter((change) => change.kind === "task.added").length} 项`;
+          title = planChange?.title ?? "计划更新";
         } else if (entry.kind === "progress.changed") {
           title =
             entry.detail.after.status === "available"
@@ -274,6 +280,7 @@ export function describeCheckpoint(
               }
             : {}),
           ...taskChoice,
+          ...(planChange === undefined ? {} : { planChange }),
           evidence: details.evidence.map((row) =>
             summarizeSyntheticEvidence(row, checkpointTaskNames),
           ),

@@ -1,4 +1,5 @@
 import { describeCheckpoint, type Checkpoint } from "./checkpoint.js";
+import { describePlanChange } from "./plan-inspection.js";
 import { summarizeSyntheticEvidence } from "./timeline-inspection.js";
 export type { WalkthroughTask } from "./checkpoint.js";
 import * as core from "../src/index.js";
@@ -408,9 +409,12 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
   );
   // Independent branch before Session end; does not alter the main progress story.
   const oldJwtId = task("jwt");
+  const branchSteps = expanded.payload.steps.map((entry) =>
+    entry.sourceItemId === "login" ? { ...entry, title: "Login API" } : entry,
+  );
   const removal = plan(
     "history-removal",
-    expanded.payload.steps.filter((entry) => entry.sourceItemId !== "jwt"),
+    branchSteps.filter((entry) => entry.sourceItemId !== "jwt"),
     11,
     expanded.id,
   );
@@ -421,12 +425,7 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
   );
   if (removed.status !== "applied")
     throw new Error("synthetic_history_removal_failed");
-  const reentry = plan(
-    "history-reentry",
-    expanded.payload.steps,
-    12,
-    removal.id,
-  );
+  const reentry = plan("history-reentry", branchSteps, 12, removal.id);
   const reentered = core.applyProjectUpdate(
     removed.state,
     { kind: "source", event: reentry },
@@ -459,6 +458,14 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
     reenteredTask: historySummary(newJwtId),
     reentryProgress: core.calculateProgress(reentered.state.plan, scope).status,
   };
+  const membershipPlanChanges = [removal, reentry].map(({ id }) => {
+    const change = reentered.state.plan.changes.find(
+      ({ causedBy }) => causedBy === id,
+    );
+    const view = change && describePlanChange(reentered.state, change.id);
+    if (!view) throw new Error("synthetic_plan_history_missing");
+    return view;
+  });
   if (
     !membershipHistory.identityChanged ||
     membershipHistory.removedTask.membership !== "not_member" ||
@@ -591,6 +598,7 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
     checkpoints,
     checks,
     membershipHistory,
+    membershipPlanChanges,
     timelineInspection,
     finalTasks: final.tasks.map((basis) => ({
       title: basis.entry.title,

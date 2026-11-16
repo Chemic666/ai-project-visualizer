@@ -1,5 +1,6 @@
 import { createEditableWalkthrough } from "../../packages/core/examples/walkthrough.js";
 import type { Checkpoint } from "../../packages/core/examples/checkpoint.js";
+import type { PlanChangeView } from "../../packages/core/examples/plan-inspection.js";
 import { presentTask } from "../../packages/core/examples/preview-presentation.js";
 
 declare const APV_RECOVERED_CHECKPOINT: Checkpoint | undefined;
@@ -148,6 +149,14 @@ function start(recovered?: Checkpoint) {
       `${removedTask.planVersionCount} 个版本 · ${removedTask.correctionCount} 条纠正`;
     element("new-history").textContent =
       `${reenteredTask.planVersionCount} 个版本 · ${reenteredTask.correctionCount} 条旧纠正`;
+    for (const change of walkthrough.report.membershipPlanChanges) {
+      const details = node("details", "event-evidence");
+      details.append(
+        node("summary", "", change.title),
+        renderPlanChange(change),
+      );
+      element("membership-plan-history").append(details);
+    }
     element("open-review").addEventListener("click", () => {
       if (checkpoints.length === checkpointCount) return;
       index = checkpointCount;
@@ -401,8 +410,94 @@ function start(recovered?: Checkpoint) {
     target.append(list);
   }
 
-  function events(target: HTMLElement, checkpoint: Checkpoint, limit?: number) {
-    const values = [...checkpoint.timeline].reverse();
+  function renderPlanChange(change: PlanChangeView) {
+    const root = node("div", "plan-change");
+    const snapshots = node("div", "plan-snapshots");
+    for (const [heading, snapshot] of [
+      ["变更前", change.before],
+      ["变更后", change.after],
+    ] as const) {
+      const section = node("section", "plan-snapshot");
+      section.append(node("h4", "", heading));
+      if (!snapshot) {
+        section.append(node("p", "small-note", "此前没有已保存的计划。"));
+      } else {
+        const list = node("ol", "plan-snapshot-tasks");
+        for (const task of snapshot.tasks) {
+          const item = node("li");
+          item.append(
+            node("span", "", task.title),
+            node("span", "small-note", task.certainty),
+          );
+          list.append(item);
+        }
+        const scope =
+          snapshot.completeness === "complete"
+            ? "完整计划输入"
+            : "部分计划输入";
+        section.append(node("p", "small-note", scope));
+        section.append(
+          list.childElementCount
+            ? list
+            : node("p", "small-note", "此版本没有任务。"),
+        );
+      }
+      snapshots.append(section);
+    }
+    root.append(snapshots);
+
+    const labels: Record<PlanChangeView["changes"][number]["kind"], string> = {
+      "task.added": "新增任务",
+      "task.removed": "移出任务",
+      "task.changed": "调整任务",
+      "tasks.reordered": "调整顺序",
+      "phase.added": "新增分组",
+      "phase.changed": "调整分组",
+    };
+    const diff = node("ul", "plan-diff");
+    for (const changeRow of change.changes) {
+      const item = node("li");
+      item.append(
+        node("strong", "", labels[changeRow.kind]),
+        node("span", "", changeRow.description),
+      );
+      diff.append(item);
+    }
+    root.append(diff);
+    if (change.progress) {
+      const { before, after, reasons, issueCodes } = change.progress;
+      const impact = node("div", "plan-progress-effect");
+      impact.append(
+        node(
+          "h4",
+          "",
+          recovered ? "包含此次计划更新的提交进度" : "变更发生时的进度",
+        ),
+        node("p", "evidence-transition", `${before} → ${after}`),
+        node("p", "small-note", describe([...reasons, ...issueCodes])),
+      );
+      root.append(impact);
+    }
+    const source = change.source;
+    root.append(
+      node(
+        "p",
+        "small-note",
+        source
+          ? `计划来源 · ${originText[source.provenance] ?? "未知来源"} · ${time.format(new Date(source.at))}`
+          : "计划来源暂不可用。",
+      ),
+      node("p", "small-note", "来源未提供调整原因。"),
+    );
+    return root;
+  }
+
+  function events(
+    target: HTMLElement,
+    entries: Checkpoint["timeline"],
+    limit?: number,
+  ) {
+    const values = [...entries].reverse();
     target.replaceChildren();
     for (const event of limit === undefined ? values : values.slice(0, limit)) {
       const item = node("li", "event");
@@ -419,13 +514,17 @@ function start(recovered?: Checkpoint) {
         const summary = node(
           "summary",
           "",
-          `查看依据 · ${event.evidence.length} 项`,
+          event.planChange
+            ? "查看计划变更"
+            : `查看依据 · ${event.evidence.length} 项`,
         );
         summary.setAttribute(
           "aria-label",
-          `${time.format(new Date(event.at))} ${event.title}：查看依据`,
+          `${time.format(new Date(event.at))} ${event.title} · ${event.planChange ? "查看计划变更" : "查看依据"}`,
         );
         details.append(summary);
+        if (event.planChange)
+          details.append(renderPlanChange(event.planChange));
         if (event.transition !== undefined)
           details.append(
             node(
@@ -637,8 +736,13 @@ function start(recovered?: Checkpoint) {
     );
     taskList(element("overview-tasks"), checkpoint, true);
     taskList(element("plan-tasks"), checkpoint, false);
-    events(element("recent-events"), checkpoint, 5);
-    events(element("all-events"), checkpoint);
+    events(element("recent-events"), checkpoint.timeline, 5);
+    events(element("all-events"), checkpoint.timeline);
+    const planChanges = checkpoint.timeline.filter(
+      (event) => event.kind === "plan.changed",
+    );
+    events(element("plan-history-events"), planChanges);
+    element("plan-history-empty").hidden = planChanges.length > 0;
     element("task-count").textContent = `${checkpoint.tasks.length} 项`;
     element("timeline-count").textContent =
       `${checkpoint.timeline.length} 条意义事件`;

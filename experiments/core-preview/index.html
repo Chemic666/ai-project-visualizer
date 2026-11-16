@@ -205,6 +205,18 @@
               </p>
               <div id="plan-tasks"></div>
             </article>
+            <article
+              class="card plan-history"
+              aria-labelledby="plan-history-title"
+            >
+              <div class="card-heading">
+                <h2 id="plan-history-title">计划变更记录</h2>
+              </div>
+              <p id="plan-history-empty" class="small-note" hidden>
+                当前检查点尚无计划变更记录。
+              </p>
+              <ol id="plan-history-events" class="event-list"></ol>
+            </article>
             <details id="independent-history" class="card history-card">
               <summary>
                 额外案例：移除任务与重新纳入
@@ -225,6 +237,7 @@
                   <p>没有继承旧纠正；新权重仍未知。</p>
                 </div>
               </div>
+              <div id="membership-plan-history"></div>
             </details>
           </section>
           <section
