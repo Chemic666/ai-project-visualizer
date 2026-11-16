@@ -141,8 +141,13 @@
                   —
                 </div>
                 <div class="progress-footer">
-                  <span id="progress-change"></span
-                  ><button type="button" class="text-button" id="why-button">
+                  <div id="latest-progress" class="overview-change"></div>
+                  <button
+                    type="button"
+                    class="text-button"
+                    id="why-button"
+                    aria-haspopup="dialog"
+                  >
                     查看计算依据 ↗
                   </button>
                 </div>
@@ -181,6 +186,7 @@
                     查看全部 →
                   </button>
                 </div>
+                <div id="latest-plan" class="overview-change" hidden></div>
                 <div id="overview-tasks"></div>
               </article>
               <article class="card">
@@ -272,6 +278,7 @@
         <button type="button" id="close-why" aria-label="关闭依据">×</button>
       </div>
       <div id="why-summary"></div>
+      <section id="why-history" hidden></section>
       <div id="why-tasks"></div>
       <p class="small-note">
         COMPLETED 保留声明来源；只有 Core 已绑定独立验证依据时才显示

@@ -696,3 +696,81 @@ test("the independent plan history shows a removal, rename, and reentry without 
   expect(reentry!.progress?.after).toBe("不可用");
   expect(JSON.stringify(report.checkpoints)).not.toContain("Login API");
 });
+
+test("Why keeps the exact expansion and recovery cuts as distinct progress changes", () => {
+  const { checkpoints } = runCoreWalkthrough();
+  const early = checkpoints.find(({ key }) => key === "completed-report")!;
+  const later = checkpoints.find(({ key }) => key === "expansion-weighted")!;
+  expect(
+    early.timeline.some(({ transition }) => transition === "71.1% → 不可用"),
+  ).toBe(false);
+  const expansion = later.timeline.find(
+    ({ transition }) => transition === "71.1% → 不可用",
+  );
+  expect(expansion?.progressChange).toMatchObject({
+    before: { completedWeight: 32, totalWeight: 45, percentage: "71.1%" },
+    after: { status: "unavailable", issueCodes: ["weight_unknown"] },
+    reasons: expect.arrayContaining(["plan_expanded"]),
+  });
+  const restored = later.timeline.find(
+    ({ transition }) => transition === "不可用 → 64%",
+  );
+  expect(restored?.progressChange).toMatchObject({
+    before: { status: "unavailable", issueCodes: ["weight_unknown"] },
+    after: { completedWeight: 32, totalWeight: 50, percentage: "64%" },
+    reasons: expect.arrayContaining(["progress_available"]),
+  });
+});
+
+test("Why links the Login completion, effective weight, and relevant plan to distinct timeline records", () => {
+  const { review } = createEditableWalkthrough();
+  const baseline = review.checkpoint;
+  const login = baseline.tasks.find(({ title }) => title === "Login")!;
+  expect(login).toMatchObject({
+    completion: "completed",
+    statusProvenance: "agent_reported",
+    statusObservedAt: "2026-11-08T10:04:00.000Z",
+    weightObservedAt: "2026-11-08T10:02:00.000Z",
+    weightProvenance: "user_confirmed",
+  });
+  const { status, weight, plan } = login.evidencePositions!;
+  expect(baseline.timeline[status!]).toMatchObject({
+    kind: "task.status_reported",
+    title: "Login · 明确报告完成",
+  });
+  expect(baseline.timeline[weight!]).toMatchObject({
+    kind: "correction.applied",
+    evidence: expect.arrayContaining([
+      expect.objectContaining({ label: "Login · 任务权重声明", value: 32 }),
+    ]),
+  });
+  expect(baseline.timeline[plan!]?.planChange?.changes).toEqual(
+    expect.arrayContaining([
+      { kind: "task.added", description: "Refresh Token" },
+    ]),
+  );
+
+  const pos = baseline.tasks.findIndex(
+    ({ title }) => title === "Refresh Token",
+  );
+  const edited = review.setWeight(pos, 4);
+  const weightPosition = edited.tasks[pos]?.evidencePositions?.weight;
+  expect(edited.timeline[weightPosition!]).toMatchObject({
+    kind: "correction.applied",
+    evidence: expect.arrayContaining([
+      expect.objectContaining({
+        label: "Refresh Token · 任务权重声明",
+        value: 4,
+      }),
+    ]),
+  });
+  expect(
+    edited.timeline.find(({ transition }) => transition === "64% → 62.7%")
+      ?.progressChange,
+  ).toMatchObject({
+    before: { completedWeight: 32, totalWeight: 50 },
+    after: { completedWeight: 32, totalWeight: 51 },
+    reasons: ["weight_corrected"],
+  });
+  expect(baseline.tasks[pos]?.weight).toBe(3);
+});

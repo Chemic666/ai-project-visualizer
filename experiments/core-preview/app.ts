@@ -5,8 +5,23 @@ import { presentTask } from "../../packages/core/examples/preview-presentation.j
 
 declare const APV_RECOVERED_CHECKPOINT: Checkpoint | undefined;
 type Tab = "overview" | "plan" | "timeline";
+type ProgressChange = NonNullable<
+  Checkpoint["timeline"][number]["progressChange"]
+>;
 const reasons: Record<string, string> = {
   plan_unknown: "没有可用的正式计划",
+  plan_ambiguous: "正式计划的来源存在歧义",
+  plan_incomplete: "正式计划尚不完整",
+  plan_inconsistent: "正式计划的记录不一致",
+  certainty_unknown: "部分任务的确定性未知",
+  invalid_reference: "缺少可用的依据引用",
+  invalid_weight: "正式任务的权重无效",
+  weight_conflict: "任务权重存在冲突",
+  status_conflict: "任务状态存在冲突",
+  correction_conflict: "人工纠正存在冲突",
+  invalid_correction: "无法使用这条人工纠正",
+  evidence_history_missing: "历史依据缺失",
+  evidence_identity_conflict: "历史依据存在冲突",
   weight_unknown: "正式任务的权重尚未补齐",
   zero_denominator: "尚无有效总权重",
   initial_calculation: "首次计算",
@@ -16,6 +31,8 @@ const reasons: Record<string, string> = {
   plan_expanded: "正式计划新增任务",
   progress_available: "计算依据已补齐",
   weight_corrected: "用户确认或调整权重",
+  weight_changed: "任务权重变化",
+  task_reopened: "已完成任务重新打开",
   numeric_range: "权重超出当前可安全计算的数值范围",
   evidence_changed: "依据发生变化",
   plan_reduced: "正式计划成员减少",
@@ -58,6 +75,41 @@ function badge(text: string, origin: string) {
 }
 function describe(codes: readonly string[]) {
   return codes.map((code) => reasons[code] ?? code).join("；");
+}
+
+function progressFormula(progress: Checkpoint["progress"] | undefined) {
+  if (progress === undefined) return "尚无计算";
+  return progress.status === "available"
+    ? `${progress.completedWeight} / ${progress.totalWeight} = ${progress.percentage}`
+    : "不可用";
+}
+
+function progressComparison({ before, after }: ProgressChange) {
+  return `${progressFormula(before)} → ${progressFormula(after)}`;
+}
+
+function progressReasons({ after, reasons }: ProgressChange) {
+  return describe([
+    ...reasons,
+    ...(after.status === "unavailable" ? after.issueCodes : []),
+  ]);
+}
+
+function recentProgress(checkpoint: Checkpoint) {
+  return checkpoint.timeline
+    .flatMap(({ progressChange, transition, at }, position) => {
+      if (progressChange === undefined || transition === undefined) return [];
+      const { before, after } = progressChange;
+      // Skip evidence-only entries here. They are still available in Timeline.
+      const changed =
+        after.status === "available"
+          ? before?.status !== "available" ||
+            before.completedWeight !== after.completedWeight ||
+            before.totalWeight !== after.totalWeight
+          : before?.status === "available";
+      return changed ? [{ at, position, progressChange, transition }] : [];
+    })
+    .reverse();
 }
 
 function start(recovered?: Checkpoint) {
@@ -136,13 +188,34 @@ function start(recovered?: Checkpoint) {
       render();
     }
   });
+  const whyDialog = element<HTMLDialogElement>("why-dialog");
   element("why-button").addEventListener("click", () => {
     renderWhy(checkpoints[index]!);
-    element<HTMLDialogElement>("why-dialog").showModal();
+    whyDialog.showModal();
+    whyDialog.scrollTop = 0;
   });
-  element("close-why").addEventListener("click", () =>
-    element<HTMLDialogElement>("why-dialog").close(),
-  );
+  element("close-why").addEventListener("click", () => whyDialog.close());
+
+  function timelineLink(
+    position: number,
+    label: string,
+    accessibleName = label,
+  ) {
+    const button = node("button", "text-button evidence-link", label);
+    button.type = "button";
+    button.setAttribute("aria-label", accessibleName);
+    button.addEventListener("click", () => {
+      const details = document
+        .getElementById(`timeline-event-${position}`)
+        ?.querySelector<HTMLDetailsElement>("details");
+      if (!details) return;
+      if (whyDialog.open) whyDialog.close();
+      selectTab("timeline");
+      details.open = true;
+      details.querySelector("summary")?.focus();
+    });
+    return button;
+  }
   if (walkthrough) {
     const { removedTask, reenteredTask } = walkthrough.report.membershipHistory;
     element("old-history").textContent =
@@ -495,12 +568,15 @@ function start(recovered?: Checkpoint) {
   function events(
     target: HTMLElement,
     entries: Checkpoint["timeline"],
-    limit?: number,
+    mode?: "recent" | "timeline",
   ) {
-    const values = [...entries].reverse();
+    const values = [...entries.entries()].reverse();
     target.replaceChildren();
-    for (const event of limit === undefined ? values : values.slice(0, limit)) {
+    for (const [position, event] of mode === "recent"
+      ? values.slice(0, 5)
+      : values) {
       const item = node("li", "event");
+      if (mode === "timeline") item.id = `timeline-event-${position}`;
       const stamp = node("time", "", time.format(new Date(event.at)));
       stamp.dateTime = event.at;
       stamp.title = "合成时间（北京时间）";
@@ -509,7 +585,7 @@ function start(recovered?: Checkpoint) {
         node("p", "event-title", event.title),
         badge(originText[event.provenance] ?? "未知来源", event.provenance),
       );
-      if (limit === undefined) {
+      if (mode !== "recent") {
         const details = node("details", "event-evidence");
         const summary = node(
           "summary",
@@ -525,12 +601,19 @@ function start(recovered?: Checkpoint) {
         details.append(summary);
         if (event.planChange)
           details.append(renderPlanChange(event.planChange));
-        if (event.transition !== undefined)
+        const comparison = event.progressChange
+          ? progressComparison(event.progressChange)
+          : event.transition;
+        if (comparison !== undefined)
+          details.append(
+            node("p", "evidence-transition", `当时保存的变化：${comparison}`),
+          );
+        if (event.progressChange)
           details.append(
             node(
               "p",
-              "evidence-transition",
-              `当时保存的变化：${event.transition}`,
+              "small-note progress-evidence-reasons",
+              progressReasons(event.progressChange),
             ),
           );
         const list = node("ul", "evidence-list");
@@ -598,16 +681,100 @@ function start(recovered?: Checkpoint) {
     }
   }
 
+  function renderRecentChanges(checkpoint: Checkpoint) {
+    const progress = element("latest-progress");
+    progress.replaceChildren(node("span", "context-label", "最近进度变化"));
+    const last = recentProgress(checkpoint)[0];
+    if (last) {
+      const { before, after } = last.progressChange;
+      const label =
+        before?.status === "available" &&
+        after.status === "available" &&
+        before.percentage === after.percentage
+          ? `仍显示 ${after.percentage} · 权重合计变化`
+          : last.transition;
+      progress.append(
+        timelineLink(
+          last.position,
+          label,
+          `${label}。查看计算依据：${progressComparison(last.progressChange)}`,
+        ),
+        node("p", "", progressReasons(last.progressChange)),
+      );
+    } else {
+      progress.append(node("p", "", "暂无可比较的进度变化"));
+    }
+
+    const plan = element("latest-plan");
+    const position = checkpoint.timeline.findLastIndex(
+      ({ planChange }) => planChange !== undefined,
+    );
+    const change = checkpoint.timeline[position]?.planChange;
+    plan.hidden = change === undefined;
+    plan.replaceChildren();
+    if (!change) return;
+    const descriptions = [
+      ["task.added", "新增"],
+      ["task.removed", "移出"],
+      ["task.changed", "调整"],
+    ].flatMap(([kind, label]) => {
+      const names = change.changes
+        .filter((item) => item.kind === kind)
+        .map((item) => item.description);
+      return names.length ? [`${label} ${names.join("、")}`] : [];
+    });
+    plan.append(
+      node("span", "context-label", "最近计划变更"),
+      node("p", "", descriptions.join("；") || change.title),
+      timelineLink(position, "查看计划变更依据"),
+    );
+  }
+
+  function whyTask(task: Checkpoint["tasks"][number]) {
+    const view = presentTask(task);
+    const row = node("div", "why-task");
+    row.append(
+      node("h4", "", `${task.title} · 权重 ${view.weightLabel}`),
+      node("p", "", view.detail),
+    );
+    const stamp = (at: string | undefined) =>
+      at === undefined ? "" : ` · ${time.format(new Date(at))}`;
+    const fields = [
+      [
+        "状态",
+        `${view.statusLabel} · ${view.statusSource}${stamp(task.statusObservedAt)}`,
+        task.evidencePositions?.status,
+      ],
+      [
+        "权重",
+        `${view.weightSource}${stamp(task.weightObservedAt)}`,
+        task.evidencePositions?.weight,
+      ],
+      [
+        "计划",
+        task.plan
+          ? `${view.certaintyLabel} · ${originText[task.plan.provenance ?? ""] ?? "未知来源"} · 第 ${task.plan.revision} 个关联版本${stamp(task.plan.observedAt)}`
+          : view.certaintyLabel,
+        task.evidencePositions?.plan,
+      ],
+    ] as const;
+    for (const [label, value, position] of fields) {
+      const fact = node("p", "why-fact", `${label}：${value}`);
+      if (position !== undefined)
+        fact.append(
+          timelineLink(position, "看依据", `查看 ${task.title} 的${label}依据`),
+        );
+      row.append(fact);
+    }
+    return row;
+  }
+
   function renderWhy(checkpoint: Checkpoint) {
     const summary = element("why-summary");
     summary.replaceChildren();
     if (checkpoint.progress.status === "available") {
       summary.append(
-        node(
-          "div",
-          "why-number",
-          `${checkpoint.progress.completedWeight} / ${checkpoint.progress.totalWeight} = ${checkpoint.progress.percentage}`,
-        ),
+        node("div", "why-number", progressFormula(checkpoint.progress)),
       );
       summary.append(
         node(
@@ -622,32 +789,57 @@ function start(recovered?: Checkpoint) {
         node("p", "why-description", describe(checkpoint.progress.issueCodes)),
       );
     }
+    const history = element("why-history");
+    const changes = recentProgress(checkpoint).slice(0, 3);
+    history.hidden = changes.length === 0;
+    history.replaceChildren(node("h3", "", "最近的进度变化"));
+    const list = node("ol", "why-change-list");
+    for (const {
+      at,
+      position,
+      progressChange: change,
+      transition,
+    } of changes) {
+      const row = node("li", "why-change");
+      const stamp = node("time", "", time.format(new Date(at)));
+      stamp.dateTime = at;
+      row.append(
+        stamp,
+        timelineLink(
+          position,
+          transition,
+          `${transition}。查看 ${stamp.textContent} 的计算依据：${progressComparison(change)}`,
+        ),
+        node("p", "why-transition", progressComparison(change)),
+        node("p", "", progressReasons(change)),
+      );
+      list.append(row);
+    }
+    history.append(list);
+
     const tasks = element("why-tasks");
     tasks.replaceChildren();
-    if (!checkpoint.tasks.length)
-      tasks.append(
-        node(
-          "p",
-          "why-description",
-          "还没有可用的正式计划，因此不能建立分母。",
+    const complete = checkpoint.tasks.filter(
+      (task) =>
+        task.included &&
+        (task.completion === "completed" || task.completion === "verified"),
+    );
+    const available = checkpoint.progress.status === "available";
+    const groups = [
+      [available ? "计入已完成权重" : "有明确完成依据的正式任务", complete],
+      [
+        available ? "只计入总权重" : "其余正式任务",
+        checkpoint.tasks.filter(
+          (task) => task.included && !complete.includes(task),
         ),
-      );
-    for (const task of checkpoint.tasks) {
-      const view = presentTask(task);
-      const row = node("section", "why-task");
-      row.append(
-        node("h3", "", `${task.title} · 权重 ${view.weightLabel}`),
-        badge(view.statusSource, task.statusProvenance),
-      );
-      row.append(
-        node("p", "", `${view.statusLabel}；${view.detail}`),
-        node(
-          "p",
-          "",
-          `权重来源：${view.weightSource} · ${view.certaintyLabel}`,
-        ),
-      );
-      tasks.append(row);
+      ],
+      ["未纳入正式进度", checkpoint.tasks.filter((task) => !task.included)],
+    ] as const;
+    for (const [label, members] of groups) {
+      if (!members.length) continue;
+      const group = node("section", "why-group");
+      group.append(node("h3", "", label), ...members.map(whyTask));
+      tasks.append(group);
     }
   }
 
@@ -710,8 +902,7 @@ function start(recovered?: Checkpoint) {
       bar.value = checkpoint.progress.ratio;
     else bar.removeAttribute("value");
     element("unknown-progress").hidden = available;
-    element("progress-change").textContent =
-      describe(checkpoint.progressReasons) || "保留上一条有依据的计算结果";
+    renderRecentChanges(checkpoint);
     pickerTrigger.hidden =
       checkpoint !== walkthrough?.review.checkpoint ||
       checkpoint.sessionState !== "started" ||
@@ -736,8 +927,8 @@ function start(recovered?: Checkpoint) {
     );
     taskList(element("overview-tasks"), checkpoint, true);
     taskList(element("plan-tasks"), checkpoint, false);
-    events(element("recent-events"), checkpoint.timeline, 5);
-    events(element("all-events"), checkpoint.timeline);
+    events(element("recent-events"), checkpoint.timeline, "recent");
+    events(element("all-events"), checkpoint.timeline, "timeline");
     const planChanges = checkpoint.timeline.filter(
       (event) => event.kind === "plan.changed",
     );

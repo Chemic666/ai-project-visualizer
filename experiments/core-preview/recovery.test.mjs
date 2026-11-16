@@ -33,6 +33,11 @@ test(
       (entry) => entry.transition === "60% → 50%",
     );
     assert.equal(change?.kind, "progress.changed");
+    assert.equal(change.progressChange.before.completedWeight, 3);
+    assert.equal(change.progressChange.before.totalWeight, 5);
+    assert.equal(change.progressChange.after.completedWeight, 3);
+    assert.equal(change.progressChange.after.totalWeight, 6);
+    assert.ok(change.progressChange.reasons.includes("weight_corrected"));
     assert.ok(
       change.evidence.some(
         (entry) =>
@@ -47,10 +52,18 @@ test(
         entry.title.includes("报告已验证"),
     );
     assert.equal(report?.provenance, "agent_reported");
-    assert.equal(
-      checkpoint.tasks.find((task) => task.title === "Session review")
-        .completionReason,
-      "verification_evidence_missing",
+    const review = checkpoint.tasks.find(
+      (task) => task.title === "Session review",
+    );
+    assert.equal(review.completionReason, "verification_evidence_missing");
+    assert.equal(checkpoint.timeline[review.evidencePositions.status], report);
+    assert.ok(
+      checkpoint.timeline[review.evidencePositions.weight].evidence.some(
+        ({ label, value, provenance }) =>
+          label === "Session review · 任务权重声明" &&
+          value === 3 &&
+          provenance === "user_confirmed",
+      ),
     );
     const expired = checkpoint.timeline.find(
       (entry) => entry.kind === "correction.expired",
