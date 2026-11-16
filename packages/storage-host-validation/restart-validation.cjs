@@ -7,6 +7,7 @@ const {
   validateHandoff,
   validateRuntime,
   profileForRoot,
+  restartFixture,
 } = require("./restart-contract.cjs");
 const driverPin =
   "e21e5efd71fba66578e95b62554d9028064a80dafd7221bf8a8ef155de8d240a";
@@ -28,6 +29,8 @@ exports.run = async function ({
   assert.match(spec.runId, /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/);
   assert.equal(path.basename(evidence), "apv-b1-host-" + spec.runId);
   const validationRuntime = profileForRoot(spec.rootMode);
+  const fixture = restartFixture(spec);
+  const timeline = spec.storeModel === "timeline-v5";
   assert.equal(["write", "recover"].includes(spec.phase), true);
   const recover = spec.phase === "recover";
   const bound = { ...resources, driverBinarySha256: driverPin };
@@ -93,13 +96,21 @@ exports.run = async function ({
   );
   const { seed, input, cursor } = await load("fixtures.mjs");
   const core = await load("core.mjs");
-  const expected = core.applyNormalizedEvent(seed(), input());
-  assert.equal(expected.status, "applied");
+  const expected = timeline
+    ? undefined
+    : core.applyNormalizedEvent(seed(), input());
+  if (timeline) assert.equal(core.scope.projectId, fixture.projectId);
+  else assert.equal(expected.status, "applied");
   const options = {
     ...bound,
-    projectId: "PA",
+    projectId: fixture.projectId,
     generation: "G1",
-    bootstrap: seed(),
+    ...(timeline
+      ? {
+          planScope: core.scope,
+          ...(!recover ? { bootstrap: core.createBootstrap() } : {}),
+        }
+      : { bootstrap: seed() }),
     validationRuntime,
   };
   delete options.base;
@@ -107,7 +118,7 @@ exports.run = async function ({
   try {
     host = launchSyntheticHost(cap, options);
     const ready = await host.ready;
-    assert.equal(ready.head, recover ? 2 : 1);
+    assert.equal(ready.head, recover ? fixture.head : 1);
     assert.equal(ready.writer.epoch, recover ? 2 : 1);
     assert.equal(ready.productionWriteEnabled, false);
     assert.equal(
@@ -119,17 +130,25 @@ exports.run = async function ({
     const actualStoreKey = path.basename(path.dirname(ready.paths.owner));
     if (spec.rootMode === "local-validation" || recover)
       assert.equal(actualStoreKey, spec.storeKey);
-    const request = {
-      operationId: "op:E1",
-      operationNonce: "nonce:E1",
-      expectedHead: 1,
-      writer: ready.writer,
-      events: [input()],
-      cursor: cursor(["E1"]),
-    };
+    const request = timeline
+      ? core.scenarioFinalRequest(ready.writer, fixture.head - 1)
+      : {
+          operationId: fixture.operationId,
+          operationNonce: fixture.operationNonce,
+          expectedHead: fixture.head - 1,
+          writer: ready.writer,
+          events: [input()],
+          cursor: cursor(["E1"]),
+        };
     let cut, committed;
     if (!recover) {
-      committed = await host.commit(request);
+      committed = timeline
+        ? await core.writeScenario({
+            read: host.read,
+            commit: host.commit,
+            writer: () => ready.writer,
+          })
+        : await host.commit(request);
       assert.equal(committed.status, "committed");
       noPublication(committed);
       cut = committed;
@@ -143,23 +162,54 @@ exports.run = async function ({
         previous.resourceBinding.nativeAttestation.expected,
       );
       cut = await host.read();
-      assert.equal(cut.head, 2);
-      assert.deepEqual(cut.state, expected.state);
-      assert.deepEqual(cut.cursor, [cursor(["E1"])]);
+      assert.equal(cut.head, fixture.head);
       assert.equal(cut.stateDigest, handoff.receipt.stateDigest);
       committed = await host.commit(request);
       assert.equal(committed.status, "already_committed");
-      assert.equal(committed.head, 2);
+      assert.equal(committed.head, fixture.head);
       assert.deepEqual(committed.receipt, handoff.receipt);
       assert.deepEqual(committed.state, cut.state);
       assert.deepEqual(committed.cursor, cut.cursor);
+      if (timeline)
+        for (const key of ["plan", "progress", "timeline"])
+          assert.deepEqual(committed[key], cut[key]);
       noPublication(committed);
     }
-    assert.equal(cut.head, 2);
-    assert.deepEqual(cut.state, expected.state);
-    assert.deepEqual(cut.cursor, [cursor(["E1"])]);
+    assert.equal(cut.head, fixture.head);
+    assert.deepEqual(cut.cursor, [request.cursor]);
+    if (timeline) {
+      const view = core.projectRecoveredCheckpoint(cut);
+      assert.equal(view.progress.status, "available");
+      assert.equal(view.progress.ratio, 0.5);
+      assert.deepEqual(
+        [view.progress.completedWeight, view.progress.totalWeight],
+        [3, 6],
+      );
+      assert.ok(
+        view.timeline.some(({ transition }) => transition === "60% → 50%"),
+      );
+      assert.ok(
+        view.timeline.some(
+          ({ kind, evidence }) =>
+            kind === "correction.expired" &&
+            evidence.some(({ lifecycle }) => lifecycle === "expired"),
+        ),
+      );
+      assert.ok(
+        view.timeline.some(
+          ({ kind, title, provenance }) =>
+            kind === "task.status_reported" &&
+            title.includes("报告已验证") &&
+            provenance === "agent_reported",
+        ),
+      );
+      save("checkpoint-view.json", view);
+    } else assert.deepEqual(cut.state, expected.state);
     save("cut.json", {
       state: cut.state,
+      ...(timeline
+        ? { plan: cut.plan, progress: cut.progress, timeline: cut.timeline }
+        : {}),
       cursor: cut.cursor,
       head: cut.head,
       stateDigest: cut.stateDigest,
@@ -182,7 +232,7 @@ exports.run = async function ({
     save("worker-exit.json", settled);
     if (!recover) {
       handoff = {
-        kind: "apv-whole-host-restart-v1",
+        kind: fixture.kind,
         rootMode: spec.rootMode,
         validationRuntime,
         runId: spec.runId,
@@ -208,7 +258,7 @@ exports.run = async function ({
       runId: spec.runId,
       hostPid: environment.pid,
       workerPid: ready.pid,
-      head: 2,
+      head: fixture.head,
       epoch: ready.writer.epoch,
       receipt: committed.receipt,
       productionEnabled: false,

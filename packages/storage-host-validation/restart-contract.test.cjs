@@ -202,3 +202,39 @@ test("handoff root mode and validation profile cannot be substituted", () => {
     { message: "restart_handoff_rejected" },
   );
 });
+
+test("a v5 restart handoff is bound to the TEMP model and its exact final receipt", () => {
+  const scope = { ...spec, rootMode: "temp", storeModel: "timeline-v5" };
+  const legacy = handoff();
+  const value = {
+    ...legacy,
+    kind: "apv-whole-host-timeline-restart-v1",
+    rootMode: "temp",
+    validationRuntime: "extension-host-temp-restart-1.144.0",
+    receipt: {
+      ...legacy.receipt,
+      operationId: "apv-recovery-op-7",
+      operationNonce: "apv-recovery-nonce-7",
+      projectId: "apv-recovery-project",
+      head: 8,
+    },
+  };
+  assert.equal(contract.validateHandoff(value, scope, resources), true);
+  for (const attempt of [
+    { ...scope, storeModel: undefined },
+    { ...scope, rootMode: "local-validation" },
+    { ...scope, storeModel: "unknown" },
+  ])
+    assert.throws(() => contract.validateHandoff(value, attempt, resources));
+  assert.throws(
+    () =>
+      contract.validateHandoff(
+        { ...value, receipt: legacy.receipt },
+        scope,
+        resources,
+      ),
+    {
+      message: "restart_handoff_rejected",
+    },
+  );
+});

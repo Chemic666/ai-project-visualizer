@@ -33,8 +33,30 @@ function profileForRoot(mode) {
   if (mode === "temp") return "extension-host-temp-restart-1.144.0";
   throw Error("restart_root_mode_rejected");
 }
+const legacyFixture = Object.freeze({
+  kind: "apv-whole-host-restart-v1",
+  projectId: "PA",
+  head: 2,
+  operationId: "op:E1",
+  operationNonce: "nonce:E1",
+});
+const timelineFixture = Object.freeze({
+  kind: "apv-whole-host-timeline-restart-v1",
+  projectId: "apv-recovery-project",
+  head: 8,
+  operationId: "apv-recovery-op-7",
+  operationNonce: "apv-recovery-nonce-7",
+});
+function restartFixture(spec) {
+  if (spec.storeModel === undefined) return legacyFixture;
+  if (spec.storeModel === "timeline-v5" && spec.rootMode === "temp")
+    return timelineFixture;
+  throw Error("restart_model_rejected");
+}
+
 function validateHandoff(handoff, spec, resources) {
-  const h = handoff;
+  const h = handoff,
+    fixture = restartFixture(spec);
   const ok =
     exactKeys(h, [
       "kind",
@@ -51,7 +73,7 @@ function validateHandoff(handoff, spec, resources) {
       "firstWorkerPid",
       "receipt",
     ]) &&
-    h.kind === "apv-whole-host-restart-v1" &&
+    h.kind === fixture.kind &&
     h.rootMode === spec.rootMode &&
     h.validationRuntime === profileForRoot(spec.rootMode) &&
     uuid.test(h.runId) &&
@@ -82,12 +104,12 @@ function validateHandoff(handoff, spec, resources) {
       "resultDigest",
       "stateDigest",
     ]) &&
-    h.receipt.operationId === "op:E1" &&
-    h.receipt.operationNonce === "nonce:E1" &&
-    h.receipt.projectId === "PA" &&
+    h.receipt.operationId === fixture.operationId &&
+    h.receipt.operationNonce === fixture.operationNonce &&
+    h.receipt.projectId === fixture.projectId &&
     h.receipt.generation === "G1" &&
     h.receipt.epoch === 1 &&
-    h.receipt.head === 2 &&
+    h.receipt.head === fixture.head &&
     [
       h.receipt.intentDigest,
       h.receipt.resultDigest,
@@ -102,4 +124,5 @@ module.exports = {
   validateRuntime,
   validateHandoff,
   profileForRoot,
+  restartFixture,
 };

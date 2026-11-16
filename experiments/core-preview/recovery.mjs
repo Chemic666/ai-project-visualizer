@@ -82,7 +82,7 @@ export async function writeFixture(runtime) {
   const store = openFixture(runtime, spec, core);
   let cut, epoch;
   try {
-    cut = core.writeScenario(store);
+    cut = await core.writeScenario(store);
     epoch = store.writer().epoch;
   } finally {
     closeFixture(store);

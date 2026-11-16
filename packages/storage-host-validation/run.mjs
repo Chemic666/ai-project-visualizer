@@ -13,7 +13,7 @@ import { readNativePackage } from "../storage/src/native-attestor.mjs";
 const args = process.argv.slice(2);
 if (!args.length) {
   console.log(
-    "Installed VSIX validation disabled. --execute | --execute-local-validation | --execute-local-restart | --execute-temp-restart; --code-root ABS --driver-root ABS --native-manifest ABS",
+    "Installed VSIX validation disabled. Choose --execute, --execute-local-validation, --execute-local-restart, --execute-temp-restart or --execute-temp-timeline-restart with --code-root ABS --driver-root ABS --native-manifest ABS.",
   );
 } else {
   if (
@@ -23,6 +23,7 @@ if (!args.length) {
       "--execute-local-validation",
       "--execute-local-restart",
       "--execute-temp-restart",
+      "--execute-temp-timeline-restart",
     ].includes(args[0]) ||
     args[1] !== "--code-root" ||
     args[3] !== "--driver-root" ||
@@ -31,10 +32,10 @@ if (!args.length) {
     process.arch !== "x64"
   )
     throw Error("ARGUMENTS_REJECTED");
-  const restarting = [
-    "--execute-local-restart",
-    "--execute-temp-restart",
-  ].includes(args[0]);
+  const timeline = args[0] === "--execute-temp-timeline-restart";
+  const restarting =
+    timeline ||
+    ["--execute-local-restart", "--execute-temp-restart"].includes(args[0]);
   const localMode = [
     "--execute-local-validation",
     "--execute-local-restart",
@@ -104,6 +105,21 @@ if (!args.length) {
   let status = "FAIL";
   try {
     const stage = path.join(evidence, "stage");
+    const timelineInputs = timeline
+      ? [
+          ...inventory(path.join(repo, "packages/core/src")),
+          ...inventory(path.join(repo, "packages/core/examples")),
+          ...inventory(path.join(repo, "packages/storage/src")),
+          ...["recovery-case.ts", "recovery-driver.mjs"].map((name) => {
+            const pathName = path.join(repo, "experiments/core-preview", name);
+            return {
+              path: pathName,
+              bytes: fs.statSync(pathName).size,
+              sha256: hash(pathName),
+            };
+          }),
+        ]
+      : [];
     fs.mkdirSync(stage);
     for (const f of ["package.json", "extension.cjs", "host-tests.cjs"])
       fs.copyFileSync(
@@ -146,26 +162,43 @@ if (!args.length) {
       }),
       { flag: "wx" },
     );
-    fs.mkdirSync(path.join(runtime, "driver"));
-    fs.copyFileSync(
-      path.join(driverRoot, "package.json"),
-      path.join(runtime, "driver/package.json"),
-      fs.constants.COPYFILE_EXCL,
-    );
-    fs.cpSync(path.join(driverRoot, "lib"), path.join(runtime, "driver/lib"), {
-      recursive: true,
-      errorOnExist: true,
-      force: false,
-    });
-    fs.mkdirSync(path.join(runtime, "driver/prebuilds"));
-    fs.copyFileSync(
-      path.join(driverRoot, "prebuilds/win32-x64.node"),
-      path.join(runtime, "driver/prebuilds/win32-x64.node"),
-      fs.constants.COPYFILE_EXCL,
-    );
+    if (timeline) {
+      const { prepareDriver, stageDriver } =
+        await import("../../experiments/core-preview/recovery-driver.mjs");
+      stageDriver(runtime, prepareDriver(driverRoot));
+    } else {
+      fs.mkdirSync(path.join(runtime, "driver"));
+      fs.copyFileSync(
+        path.join(driverRoot, "package.json"),
+        path.join(runtime, "driver/package.json"),
+        fs.constants.COPYFILE_EXCL,
+      );
+      fs.cpSync(
+        path.join(driverRoot, "lib"),
+        path.join(runtime, "driver/lib"),
+        {
+          recursive: true,
+          errorOnExist: true,
+          force: false,
+        },
+      );
+      fs.mkdirSync(path.join(runtime, "driver/prebuilds"));
+      fs.copyFileSync(
+        path.join(driverRoot, "prebuilds/win32-x64.node"),
+        path.join(runtime, "driver/prebuilds/win32-x64.node"),
+        fs.constants.COPYFILE_EXCL,
+      );
+    }
     const require = createRequire(path.join(repo, "package.json"));
     const core = require("esbuild").buildSync({
-      entryPoints: [path.join(repo, "packages/core/src/index.ts")],
+      entryPoints: [
+        path.join(
+          repo,
+          timeline
+            ? "experiments/core-preview/recovery-case.ts"
+            : "packages/core/src/index.ts",
+        ),
+      ],
       bundle: true,
       platform: "node",
       format: "esm",
@@ -202,6 +235,12 @@ if (!args.length) {
         path.join(runtime, name),
         fs.constants.COPYFILE_EXCL,
       );
+    if (timeline)
+      fs.copyFileSync(
+        path.join(source, "timeline-sql-reader.mjs"),
+        path.join(runtime, "timeline-sql-reader.mjs"),
+        fs.constants.COPYFILE_EXCL,
+      );
     const files = inventory(runtime).map((f) => ({
       path: path.relative(runtime, f.path).split(path.sep).join("/"),
       sha256: f.sha256,
@@ -214,6 +253,7 @@ if (!args.length) {
     const spec = {
       runId,
       rootMode: localMode ? "local-validation" : "temp",
+      ...(timeline ? { storeModel: "timeline-v5", timelineInputs } : {}),
       storeKey: localMode ? randomUUID() : undefined,
       ...(restarting
         ? {
@@ -413,6 +453,7 @@ if (!args.length) {
       const read = (name) =>
         JSON.parse(fs.readFileSync(path.join(evidence, name), "utf8"));
       const phases = {};
+      const fixture = restartContract.restartFixture(spec);
       for (const phase of ["write", "recover"]) {
         const phaseSpec = { ...spec, phase };
         if (phase === "recover" && !localMode)
@@ -470,6 +511,11 @@ if (!args.length) {
       );
       assert.deepEqual(a.cut, b.cut);
       assert.deepEqual(a.result.receipt, b.result.receipt);
+      if (timeline)
+        assert.deepEqual(
+          read("write-checkpoint-view.json"),
+          read("recover-checkpoint-view.json"),
+        );
       assert.equal(a.ready.writer.epoch, 1);
       assert.equal(b.ready.writer.epoch, 2);
       save("reader.spec.json", {
@@ -477,7 +523,13 @@ if (!args.length) {
         driverRoot: path.join(installedRoot, "runtime/driver"),
         processorFingerprint: read("write-handoff.json").processorFingerprint,
         databaseFile: b.ready.paths.project,
-        expectedState: b.cut.state,
+        ...(timeline
+          ? {
+              storeKey: path.basename(path.dirname(b.ready.paths.owner)),
+              expectedCut: b.cut,
+              expectedReceipt: b.result.receipt,
+            }
+          : { expectedState: b.cut.state }),
         expectedWriterEpoch: 2,
         writerSettlement: { pid: a.ready.pid, status: 0, closed: true },
         recoverySettlement: { pid: b.ready.pid, status: 0, closed: true },
@@ -490,34 +542,41 @@ if (!args.length) {
         "restart-sql-reader",
         codeExe,
         [
-          path.join(installedRoot, "runtime/sql-reader.mjs"),
+          path.join(
+            installedRoot,
+            "runtime",
+            timeline ? "timeline-sql-reader.mjs" : "sql-reader.mjs",
+          ),
           path.join(evidence, "reader.spec.json"),
         ],
         { env, timeout: 20000 },
       );
       const reader = read("reader.result.json");
-      assert.equal(reader.tableCount, 9);
-      assert.equal(reader.head, 2);
+      assert.equal(reader.tableCount, timeline ? 12 : 9);
+      assert.equal(reader.head, fixture.head);
       assert.equal(reader.fullStateMatch, true);
       assert.equal(reader.stateDigest, b.cut.stateDigest);
       assert.equal(
         reader.cutSha256,
         hash(path.join(evidence, "reader.cut.json")),
       );
+      for (const row of timelineInputs)
+        assert.equal(hash(row.path), row.sha256);
       save("host-result.json", {
         status: "PASS WITH LIMITATION",
         runId,
         validationMode: "whole-host-restart",
+        ...(timeline ? { storeModel: "timeline-v5" } : {}),
         rootMode: spec.rootMode,
         installationRootAdmitted: localMode,
         installed: true,
         wholeExtensionHostRestart: true,
         targetRuntime: restartContract.runtimeTuple,
-        originalHead: 2,
-        recoveredHead: 2,
+        originalHead: fixture.head,
+        recoveredHead: fixture.head,
         epochs: [1, 2],
         matchingIntent: "already_committed",
-        readerTableCount: 9,
+        readerTableCount: reader.tableCount,
         productionEnabled: false,
         shmDirectHandle: "unverified",
         replay: false,

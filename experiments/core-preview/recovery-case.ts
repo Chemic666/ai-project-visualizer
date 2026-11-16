@@ -17,6 +17,7 @@ import type {
   CorrectionCommitRequest,
   SyntheticTimelineStore,
   TimelineStorageCut,
+  WriterCapability,
 } from "../../packages/storage/src/development.mjs";
 
 export {
@@ -109,18 +110,57 @@ type Operation =
     >
   | Pick<CorrectionCommitRequest, "correction">;
 
-// This fixture only generates fixed synthetic inputs. The store assigns the
-// task IDs; the fixture writer never prepares a browser view.
-export function writeScenario(store: SyntheticTimelineStore) {
-  let head = store.read().head;
-  function commit(work: Operation) {
-    const cut = store.commit({
-      operationId: "apv-recovery-op-" + head,
-      operationNonce: "apv-recovery-nonce-" + head,
-      expectedHead: head,
-      writer: store.writer(),
-      ...work,
-    });
+type CommitResult = ReturnType<SyntheticTimelineStore["commit"]>;
+interface ScenarioStore {
+  read(): { head: number } | Promise<{ head: number }>;
+  writer(): WriterCapability;
+  commit(
+    request: CommitRequest | CorrectionCommitRequest,
+  ): CommitResult | Promise<CommitResult>;
+}
+
+function request(
+  writer: WriterCapability,
+  expectedHead: number,
+  work: Operation,
+) {
+  return {
+    operationId: "apv-recovery-op-" + expectedHead,
+    operationNonce: "apv-recovery-nonce-" + expectedHead,
+    expectedHead,
+    writer,
+    ...work,
+  };
+}
+
+function lastOperation(): Operation {
+  const end = observation("session.ended", "end", 8, { sessionId });
+  return {
+    events: [end],
+    cursor: {
+      sourceId,
+      streamId: "apv-recovery-stream",
+      codec: "synthetic.v1",
+      position: "apv-recovery-final",
+      expectedPrevious: null,
+      coveredEventIds: [end.id],
+    },
+  };
+}
+
+export function scenarioFinalRequest(
+  writer: WriterCapability,
+  expectedHead: number,
+) {
+  return request(writer, expectedHead, lastOperation());
+}
+
+// Both the local store and its asynchronous Worker Host run this fixed scenario.
+export async function writeScenario(store: ScenarioStore) {
+  let head = (await store.read()).head;
+  if (head !== 1) throw new Error("synthetic_fixture_not_fresh");
+  async function commit(work: Operation) {
+    const cut = await store.commit(request(store.writer(), head, work));
     if (cut.status !== "committed")
       throw new Error("synthetic_fixture_commit_failed");
     head = cut.head;
@@ -141,13 +181,13 @@ export function writeScenario(store: SyntheticTimelineStore) {
       },
     ],
   });
-  const initial = commit({ events: [start, plan] });
+  const initial = await commit({ events: [start, plan] });
   const login = initial.plan.heads[0]?.entries[0]?.taskId;
   const review = initial.plan.heads[0]?.entries[1]?.taskId;
   if (login === undefined || review === undefined)
     throw new Error("synthetic_fixture_plan_missing");
 
-  commit({
+  await commit({
     correction: {
       id: "apv-recovery-current" as CorrectionId,
       scope: { kind: "current_task", projectId, sessionId },
@@ -163,10 +203,10 @@ export function writeScenario(store: SyntheticTimelineStore) {
       },
     },
   });
-  commit({ correction: weight(login, "login", 3, 3) });
+  await commit({ correction: weight(login, "login", 3, 3) });
   const firstReviewWeight = weight(review, "review", 4, 2);
-  commit({ correction: firstReviewWeight });
-  commit({
+  await commit({ correction: firstReviewWeight });
+  await commit({
     events: [
       observation("task.status_reported", "login-complete", 5, {
         taskId: login,
@@ -178,25 +218,14 @@ export function writeScenario(store: SyntheticTimelineStore) {
       }),
     ],
   });
-  commit({
+  await commit({
     correction: {
       ...weight(review, "review-updated", 7, 3),
       supersedes: firstReviewWeight.id,
       originalAssertionId: firstReviewWeight.assertion.id,
     },
   });
-  const end = observation("session.ended", "end", 8, { sessionId });
-  return commit({
-    events: [end],
-    cursor: {
-      sourceId,
-      streamId: "apv-recovery-stream",
-      codec: "synthetic.v1",
-      position: "apv-recovery-final",
-      expectedPrevious: null,
-      coveredEventIds: [end.id],
-    },
-  });
+  return commit(lastOperation());
 }
 
 export function projectRecoveredCheckpoint(cut: TimelineStorageCut) {

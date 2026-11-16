@@ -17,7 +17,10 @@ exports.activate = function (context) {
       const spec = JSON.parse(fs.readFileSync(specPath, "utf8")),
         vscode = require("vscode");
       const restarting = spec.validationMode === "whole-host-restart";
-      if (spec.validationMode !== undefined && !restarting)
+      if (
+        (spec.validationMode !== undefined || spec.storeModel !== undefined) &&
+        !restarting
+      )
         throw Error("validation_mode_rejected");
       if (restarting && !["write", "recover"].includes(spec.phase))
         throw Error("restart_phase_rejected");

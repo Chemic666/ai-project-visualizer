@@ -9,7 +9,11 @@ import {
   admitSyntheticRoot,
   admitLocalValidationRoot,
 } from "./host-admission.mjs";
-import { openSyntheticStore } from "./development.mjs";
+import {
+  openSyntheticStore,
+  openSyntheticTimelineStore,
+} from "./development.mjs";
+import { validatePlanScope } from "./plan-records.mjs";
 import { WriterLifecycle } from "./lifecycle.mjs";
 import { plain, closed } from "./codec.mjs";
 import { demand, safeFailure } from "./errors.mjs";
@@ -96,7 +100,7 @@ function open() {
   }
   opening = true;
   try {
-    store = openSyntheticStore(cap, {
+    const options = {
       Database,
       applyNormalizedEvent: core.applyNormalizedEvent,
       processorFingerprint: spec.processorFingerprint,
@@ -104,7 +108,20 @@ function open() {
       generation: spec.generation,
       ...(spec.nativePackage ? { nativePackage: spec.nativePackage } : {}),
       ...(spec.bootstrap !== undefined ? { bootstrap: spec.bootstrap } : {}),
-    });
+    };
+    store = spec.planScope
+      ? openSyntheticTimelineStore(cap, {
+          ...options,
+          planScope: spec.planScope,
+          applyPlanEvent: core.applyPlanEvent,
+          validatePlan: core.validatePlan,
+          prepareUserCorrection: core.prepareUserCorrection,
+          prepareCorrectionExpiry: core.prepareCorrectionExpiry,
+          updateProgress: core.updateProgress,
+          appendTimelineEvents: core.appendTimelineEvents,
+          describeCorrectionRecord: core.describeCorrectionRecord,
+        })
+      : openSyntheticStore(cap, options);
     const binaries = Object.keys(loadRequire.cache).filter((file) =>
       file.endsWith(".node"),
     );
@@ -163,6 +180,10 @@ async function init(value) {
   try {
     demand(!spec, "unavailable");
     spec = value;
+    if (Object.hasOwn(spec, "planScope")) {
+      demand(!spec.localAdmission, "unavailable");
+      spec.planScope = validatePlanScope(spec.planScope, spec.projectId);
+    }
     const installed =
       spec.corePath ===
       fileURLToPath(new URL("../../core.mjs", import.meta.url));

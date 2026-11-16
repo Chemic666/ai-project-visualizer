@@ -8,6 +8,7 @@ import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { digest, encode } from "../src/codec.mjs";
 import * as storage from "../src/development.mjs";
+import { launchSyntheticHost } from "../src/host-development.mjs";
 import { cursor, seed } from "./fixtures.mjs";
 
 const spec = JSON.parse(
@@ -656,5 +657,95 @@ test("a late status keeps its original time without moving confirmed progress be
     assert.deepEqual(f.store.read().timeline, cut.timeline);
   } finally {
     f.store.close();
+  }
+});
+
+test("the Worker Host restores a v5 cut and matches an old receipt in a new epoch", async () => {
+  const { cap } = makeRoot();
+  const hostOptions = {
+    driverRoot: spec.driverRoot,
+    driverBinarySha256: spec.driverBinarySha256,
+    corePath: spec.corePath,
+    processorFingerprint: spec.processorFingerprint,
+    projectId: scope.projectId,
+    generation: "G1",
+    planScope: scope,
+    ...(spec.nativePackage ? { nativePackage: spec.nativePackage } : {}),
+  };
+  const firstHost = launchSyntheticHost(cap, { ...hostOptions, bootstrap });
+  let original, originalRequest, firstReady;
+  try {
+    firstReady = await firstHost.ready;
+    const init = await firstHost.commit({
+      operationId: "host-plan",
+      operationNonce: "host-nonce-plan",
+      expectedHead: 1,
+      writer: firstReady.writer,
+      events: [start, first],
+      cursor: cursor(["S", "P1"]),
+    });
+    const [entry] = init.plan.heads[0].entries;
+    originalRequest = {
+      operationId: "host-weight",
+      operationNonce: "host-nonce-weight",
+      expectedHead: 2,
+      writer: firstReady.writer,
+      correction: correction("HW", entry.taskId, 4, 3),
+    };
+    const sendCount = firstHost
+      .evidence()
+      .filter(({ kind }) => kind === "request-envelope").length;
+    await assert.rejects(
+      firstHost.commit({ ...originalRequest, cursor: cursor(["S", "P1"]) }),
+      {
+        code: "admission_rejected",
+      },
+    );
+    assert.equal(
+      firstHost.evidence().filter(({ kind }) => kind === "request-envelope")
+        .length,
+      sendCount,
+    );
+    original = await firstHost.commit(originalRequest);
+    assert.equal(original.status, "committed");
+    assert.ok(
+      original.timeline.entries.some(
+        ({ kind }) => kind === "correction.applied",
+      ),
+    );
+    assert.deepEqual(original.cursor, init.cursor);
+  } finally {
+    const closed = await firstHost.close();
+    assert.equal(closed.status, "closed");
+    assert.equal(closed.processExited, true);
+  }
+  const nextHost = launchSyntheticHost(cap, hostOptions);
+  try {
+    const ready = await nextHost.ready;
+    assert.notEqual(nextHost.status().nonce, firstHost.status().nonce);
+    assert.equal(ready.writer.epoch, 2);
+    assert.deepEqual(ready.paths, firstReady.paths);
+    const cut = await nextHost.read();
+    for (const field of [
+      "state",
+      "plan",
+      "progress",
+      "timeline",
+      "cursor",
+      "head",
+      "stateDigest",
+    ])
+      assert.deepEqual(cut[field], original[field]);
+    const match = await nextHost.commit({
+      ...originalRequest,
+      writer: ready.writer,
+    });
+    assert.equal(match.status, "already_committed");
+    assert.deepEqual(match.receipt, original.receipt);
+    assert.deepEqual(await nextHost.read(), cut);
+  } finally {
+    const closed = await nextHost.close();
+    assert.equal(closed.status, "closed");
+    assert.equal(closed.processExited, true);
   }
 });

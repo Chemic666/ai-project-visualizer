@@ -79,6 +79,8 @@ S09 synthetic canonical-reference checkpoint-only now has ordinary17 + Native17 
 
 2026-11-15 完成合成活动时间线持久化。计划变化、来源声明、人工修正和进度解释会随同一次提交保存，重启后可以接着旧位置翻页。两种存储模式各 9 项通过。真实项目接入、生产存储和 VS Code 端到端验收仍待完成。[范围和实测记录](docs/storage/phase-2-first-slice.md#durable-synthetic-timeline--2026-11-15)
 
+2026-11-16 已在隔离安装的 VS Code 验证扩展中完成 v5 合成宿主重启。第二次启动读回同一份计划、人工修正、进度、16 条时间线、读取位置及原回执。独立只读进程核对了全部 12 张项目表。正式扩展接入和生产验收仍待完成。[限定范围和实测记录](docs/storage/phase-2-first-slice.md#installed-temp-v5-timeline-restart--2026-11-16)
+
 2026-11-15 在独立浏览预览中接通合成恢复。写入进程退出后，从同一份库恢复出总览、计划与活动依据。Edge 已验证 50% 的计算明细、原先 60% 到 50% 的变化和窄屏展开。[运行与测试记录](docs/phase-6-timeline.md#合成存储恢复预览2026-11-15)
 
 First-slice local checkpoint: `d98aa1f4a9e4c83b26fd6c898c750fdcfa2d0810` (35 reviewed files, no push). The separately authorized [synthetic Host follow-up](docs/storage/phase-2-first-slice.md#host-composition-follow-up--2026-10-19) adds joint Owner/Project process lifetime, concurrent catalog admission and normal handoff tests; actual Driver handle binding remains unavailable. No real-project enablement or Codex Session integration is approved.

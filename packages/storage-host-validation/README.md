@@ -69,3 +69,15 @@ Catalog-checkpoint installed TEMP Run **8a11f22a-ecac-45b7-bb31-2f4320681b8b** p
 The next staged runtime also separates optional Snapshot cache faults from fully verified authority: cache headers are bounded before body inspection, open/read/matching retry rebuild from authoritative records without rewriting damaged caches, and only a genuinely new successful transaction replaces known-bad caches. Per-authority-table FK/integrity/history/receipt/Cursor checks remain decisive. The separate source/Native cache tests cover controlled closed-fixture content faults; installed normal restart is not an installed corruption, physical disk-fault or unknown-COMMIT test. See [bounded S11 work](../../docs/storage/phase-2-first-slice.md#s11-authority-fallback-for-optional-cache-corruption--2026-11-09).
 
 Final S11-runtime healthy TEMP restart **1de9e45b-2c5d-468b-8172-52e22a41f4fa** passed with limitation: independent 307/307 inventory, 16 frozen validation inputs, 54 runtime files and 60 VSIX file entries matched; both Host/Worker pairs exited, and the nine-table Reader retained exact state/Cursor/head2/epoch2/original receipt. The separate ordinary and Native corruption suites each passed 11/11. The installed run exercises healthy restart only; Local and production remain blocked.
+
+## Installed TEMP restart with v5 history
+
+Run the same isolated Windows x64 host verification with the reviewed VS Code, SQLite Driver and Native manifest already available.
+
+```cmd
+node packages\storage-host-validation\run.mjs --execute-temp-timeline-restart --code-root "%APV_CODE_ROOT%" --driver-root "%APV_DRIVER_ROOT%" --native-manifest "%APV_NATIVE_MANIFEST%"
+```
+
+The explicit mode loads a temporary validation extension and uses a fresh synthetic database. The first Extension Host and Worker run the fixed Plan, Correction, Progress and Timeline case. The second Host and Worker reopen that database after normal exit and reuse the last operation's original receipt. A separate read-only process queries all twelve Project tables, reconstructs the final saved history and checks the checkpoint and receipt.
+
+The v5 run uses the installed TEMP profile. Production, the LocalAppData qualification and live source intake keep their own acceptance gates. [Verified v5 result](../../docs/storage/phase-2-first-slice.md#installed-temp-v5-timeline-restart--2026-11-16)

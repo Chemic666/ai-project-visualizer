@@ -18,6 +18,8 @@ import {
   validateState,
 } from "./codec.mjs";
 import { WriterLifecycle } from "./lifecycle.mjs";
+import { validatePlanScope } from "./plan-records.mjs";
+import { validateCorrectionCommand } from "./correction-records.mjs";
 
 const requestFrameLimit = 8 * 1024 * 1024;
 // Complete CoreState contains the retained Event Ledger, excluded from the
@@ -36,6 +38,7 @@ const hash = (file) =>
   createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 export function launchSyntheticHost(capability, options) {
   const admission = inspectCapability(capability);
+  let planScope;
   try {
     plain(options);
     demand(
@@ -51,8 +54,20 @@ export function launchSyntheticHost(capability, options) {
         "projectId",
         "generation",
       ],
-      ["bootstrap", "holdAtAdmission", "nativePackage", "validationRuntime"],
+      [
+        "bootstrap",
+        "holdAtAdmission",
+        "nativePackage",
+        "validationRuntime",
+        "planScope",
+      ],
     );
+    options = structuredClone(options);
+    if (Object.hasOwn(options, "planScope")) {
+      demand(!admission.local, "unavailable");
+      planScope = validatePlanScope(options.planScope, options.projectId);
+      options.planScope = planScope;
+    }
     const installed =
       options.corePath ===
       fileURLToPath(new URL("../../core.mjs", import.meta.url));
@@ -352,10 +367,18 @@ export function launchSyntheticHost(capability, options) {
       life.assertActive();
       if (action === "commit") {
         plain(request);
+        const manual =
+          planScope !== undefined && Object.hasOwn(request, "correction");
         closed(
           request,
-          ["operationId", "operationNonce", "expectedHead", "writer", "events"],
-          ["cursor", "createSnapshot"],
+          [
+            "operationId",
+            "operationNonce",
+            "expectedHead",
+            "writer",
+            manual ? "correction" : "events",
+          ],
+          manual ? [] : ["cursor", "createSnapshot"],
         );
         id(request.operationId);
         id(request.operationNonce);
@@ -368,14 +391,20 @@ export function launchSyntheticHost(capability, options) {
             Number.isSafeInteger(request.expectedHead) &&
             request.expectedHead >= 1,
         );
-        demand(Array.isArray(request.events));
-        demand(request.events.length > 0 || request.cursor !== undefined);
-        request.events.forEach((e) => validateEvent(e, options.projectId));
-        if (request.cursor !== undefined) validateCursor(request.cursor);
-        demand(
-          request.createSnapshot === undefined ||
-            typeof request.createSnapshot === "boolean",
-        );
+        if (manual) validateCorrectionCommand(request.correction);
+        else {
+          demand(Array.isArray(request.events));
+          demand(request.events.length > 0 || request.cursor !== undefined);
+          request.events.forEach((e) =>
+            validateEvent(e, options.projectId, planScope),
+          );
+          if (request.cursor !== undefined) validateCursor(request.cursor);
+          demand(
+            request.createSnapshot === undefined ||
+              (typeof request.createSnapshot === "boolean" &&
+                (!planScope || !request.createSnapshot)),
+          );
+        }
         demand(
           Buffer.byteLength(JSON.stringify(request)) <=
             requestFrameLimit - 4096,

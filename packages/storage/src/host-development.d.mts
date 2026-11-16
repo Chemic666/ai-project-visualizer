@@ -1,4 +1,4 @@
-import type { CoreState } from "../../core/src/index.js";
+import type { CoreState, PlanScope } from "../../core/src/index.js";
 import type { SyntheticCapability } from "./host-admission.mjs";
 import type {
   NativePackage,
@@ -7,6 +7,9 @@ import type {
   ResourceBinding,
   StorageCut,
   CommitRequest,
+  CorrectionCommitRequest,
+  TimelineStorageCut,
+  SyntheticTimelineStore,
 } from "./development.mjs";
 export type WriterPhase =
   | "ADMITTED"
@@ -56,19 +59,35 @@ export interface SyntheticHost {
   };
   evidence(): Array<{ seq: number; kind: string; data: unknown }>;
 }
+interface SyntheticHostOptions {
+  driverRoot: string;
+  driverBinarySha256: string;
+  corePath: string;
+  processorFingerprint: string;
+  projectId: string;
+  generation: string;
+  bootstrap?: CoreState;
+  nativePackage?: NativePackage;
+  holdAtAdmission?: boolean;
+  validationRuntime?:
+    "extension-host-restart-1.144.0" | "extension-host-temp-restart-1.144.0";
+}
+
+export interface SyntheticTimelineHost extends Omit<
+  SyntheticHost,
+  "read" | "commit"
+> {
+  read(): Promise<TimelineStorageCut>;
+  commit(
+    request: CommitRequest | CorrectionCommitRequest,
+  ): Promise<ReturnType<SyntheticTimelineStore["commit"]>>;
+}
+
 export function launchSyntheticHost(
   capability: SyntheticCapability,
-  options: {
-    driverRoot: string;
-    driverBinarySha256: string;
-    corePath: string;
-    processorFingerprint: string;
-    projectId: string;
-    generation: string;
-    bootstrap?: CoreState;
-    nativePackage?: NativePackage;
-    holdAtAdmission?: boolean;
-    validationRuntime?:
-      "extension-host-restart-1.144.0" | "extension-host-temp-restart-1.144.0";
-  },
+  options: SyntheticHostOptions & { planScope: PlanScope },
+): SyntheticTimelineHost;
+export function launchSyntheticHost(
+  capability: SyntheticCapability,
+  options: SyntheticHostOptions & { planScope?: never },
 ): SyntheticHost;

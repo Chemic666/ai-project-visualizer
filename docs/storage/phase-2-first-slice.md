@@ -497,3 +497,15 @@ Both runs matched all 58 Storage source inputs, the compiled Core and the pinned
 V4 progress **9/9**, v3 corrections **7/7**, v2 Plan **24/24** and v1 first-slice **9/9** passed. A read-only copy of the sealed v4 fixture from `529b8b90-aef4-4b81-baa5-b11b00cbcc84` recovered the same cut using its original Core bundle. All five original files retained their hashes and the v5 schema check refused that v4 file. The standard suite **298/298**, storage boundary and validation **40/40**, typecheck, lint and formatting passed.
 
 This milestone covers the existing supported Core event categories. Migration, installed v5 Host validation, large-history performance, real source intake, production binding and full privacy acceptance remain pending.
+
+## Installed TEMP v5 timeline restart — 2026-11-16
+
+An explicit plan scope selects the v5 synthetic store through the existing Host and Worker. The Worker uses the real Plan, Correction, Progress and Timeline functions from the pinned bundle. The Host checks source and correction requests before dispatch. A manual correction cannot carry a source checkpoint. The explicit `--execute-temp-timeline-restart` runner stages the reviewed Driver files and uses the existing required installed TEMP runtime and Native checks.
+
+Installed run **519251f5-934e-4a75-a377-c16aa3f1f949** was **PASS WITH LIMITATION** on Windows x64, VS Code 1.144.0, Node 24.22.1 and Electron 43.8.3. The first Host wrote through commit 8 and exited with its Worker. The next pair recovered the same 16 Timeline entries, Plan revisions, original assertions, correction lifecycle, confirmed Progress and source checkpoint. Both pairs had recorded normal process exits. Writer epoch advanced from 1 to 2. Retrying the final operation returned `already_committed` with the epoch-1 receipt. The recovered view contained 3 / 6 = 50%, the earlier 60% → 50% change and the original Agent Reported verification claim. Process exit checks bind the saved records and handle normal Windows PID reuse.
+
+A separate read-only SQL process checked all twelve Project tables. It compared the complete final saved cut, source checkpoint and original receipt against both Host runs. Cut SHA256 `efb7b1479252f54f1783c3f2d75ffd890dde8c0cbfe723a87a6cb97b74bda4ca`. The audit matched **311/311** evidence files, **17** validation inputs, **64** v5 build inputs and **51** staged, archived and installed runtime files. The VSIX contained **57** file entries. These counts describe the recorded build before the documentation update.
+
+Final ordinary v5 **10/10** (`8cb5ead7-e533-4b80-8986-ca2d3826f7c5`) and Native v5 **10/10** (`7181ef8d-dd23-4d90-9686-a16fd7b92c1e`) passed. The existing ordinary Worker suite passed **8/8**. Standard tests **303/303**, recovery preview **3/3**, storage boundary and protocol checks **41/41**, typecheck, lint and formatting also passed.
+
+This result covers a healthy restart in the temporary validation extension. Live Codex intake, recovery in the product extension, the private LocalAppData qualification, direct SHM handle identity, physical fault recovery and full production privacy and storage acceptance remain pending.
