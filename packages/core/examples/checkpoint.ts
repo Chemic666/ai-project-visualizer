@@ -38,6 +38,7 @@ export interface WalkthroughTask {
   readonly title: string;
   readonly certainty: core.PlanCertainty | "unknown";
   readonly included: boolean;
+  readonly planOnly?: true;
   readonly status: core.WorkStatus | "unknown";
   readonly statusProvenance: core.Provenance | "unknown";
   readonly weight?: number;
@@ -80,12 +81,38 @@ interface WalkthroughTimeline {
   readonly title: string;
   readonly provenance: core.Provenance | "core_derived";
 }
+interface WalkthroughPhase {
+  readonly title: string;
+  readonly provenance: core.Provenance;
+  readonly taskPositions: readonly number[];
+  readonly current: boolean;
+  readonly totals?: {
+    readonly completedWeight: number;
+    readonly totalWeight: number;
+  };
+}
+
+type WalkthroughCurrentPhase =
+  | Exclude<core.CurrentPhaseResult, { status: "available" }>
+  | {
+      readonly status: "available";
+      readonly title: string;
+      readonly taskTitle: string;
+      readonly groupProvenance: core.Provenance;
+      readonly confirmedAt: string;
+      readonly planObservedAt: string;
+      readonly planPosition?: number;
+      readonly correctionPosition?: number;
+    };
+
 export interface Checkpoint {
   readonly key: string;
   readonly label: string;
   readonly progress: DemoProgress;
   readonly progressReasons: readonly string[];
   readonly tasks: readonly WalkthroughTask[];
+  readonly phases: readonly WalkthroughPhase[];
+  readonly currentPhase: WalkthroughCurrentPhase;
   readonly timeline: readonly WalkthroughTimeline[];
   readonly sessionState: "started" | "ended";
   readonly currentTask:
@@ -158,21 +185,84 @@ export function describeCheckpoint(
   const planChangesBySource = new Map(
     state.plan.changes.map((change) => [change.causedBy, change.id]),
   );
+  const derived = core.getCurrentPhaseFromCorrection(state.plan, scope);
+  let currentPhase: WalkthroughCurrentPhase;
+  if (derived.status === "available") {
+    const { correctionId, planRevisionEventId, confirmedAt, planObservedAt } =
+      derived.evidence;
+    const planChangeId = planChangesBySource.get(planRevisionEventId);
+    const planPosition = timeline.findIndex(
+      (entry) =>
+        entry.kind === "plan.changed" && entry.eventId === planChangeId,
+    );
+    const correctionPosition = timeline.findIndex(
+      (entry) =>
+        entry.kind === "correction.applied" &&
+        entry.detail.correctionId === correctionId,
+    );
+    currentPhase = {
+      status: "available",
+      title: derived.phase.title,
+      taskTitle: derived.taskTitle,
+      groupProvenance: derived.phase.provenance,
+      confirmedAt,
+      planObservedAt,
+      ...(planPosition < 0 ? {} : { planPosition }),
+      ...(correctionPosition < 0 ? {} : { correctionPosition }),
+    };
+  } else {
+    currentPhase = derived;
+  }
+  const currentPlan = core.getPlanSnapshot(state.plan, scope);
+  const snapshot =
+    currentPlan.status === "available" ? currentPlan.snapshot : undefined;
+  const matchesPlan =
+    snapshot !== undefined && result.planRevisionEventId === snapshot.eventId;
+  // A partial plan establishes these memberships without allowing a progress total.
+  const projected =
+    matchesPlan && snapshot.completeness === "partial"
+      ? snapshot.entries.map((entry) => ({ entry, basis: undefined }))
+      : result.tasks.map((basis) => ({ entry: basis.entry, basis }));
+  const phases =
+    matchesPlan && projected.length === snapshot.entries.length
+      ? snapshot.phases.map((phase): WalkthroughPhase => {
+          const totals = result.phases.find(
+            ({ phaseId }) => phaseId === phase.phaseId,
+          );
+          return {
+            title: phase.title,
+            provenance: phase.provenance,
+            taskPositions: projected.flatMap(({ entry }, position) =>
+              entry.phaseId === phase.phaseId ? [position] : [],
+            ),
+            current:
+              derived.status === "available" &&
+              derived.phase.phaseId === phase.phaseId,
+            ...(totals && totals.totalWeight > 0
+              ? {
+                  totals: {
+                    completedWeight: totals.completedWeight,
+                    totalWeight: totals.totalWeight,
+                  },
+                }
+              : {}),
+          };
+        })
+      : [];
+
   return {
     key,
     label,
-    tasks: result.tasks.map((basis) => {
-      const status = basis.statusAssertions.find(
+    phases,
+    currentPhase,
+    tasks: projected.map(({ entry: task, basis }) => {
+      const status = basis?.statusAssertions.find(
         (claim) => claim.id === basis.selectedStatusAssertionId,
       );
-      const weight = basis.weightAssertions.find(
+      const weight = basis?.weightAssertions.find(
         (claim) => claim.id === basis.selectedWeightAssertionId,
       );
-      const history = core.getTaskHistory(
-        state.plan,
-        scope,
-        basis.entry.taskId,
-      );
+      const history = core.getTaskHistory(state.plan, scope, task.taskId);
       const member =
         history.status === "available" && history.current.status === "member"
           ? history.current
@@ -222,9 +312,9 @@ export function describeCheckpoint(
               (entry) =>
                 entry.kind === "task.status_reported" &&
                 entry.eventId === status.eventId &&
-                entry.detail.taskId === basis.entry.taskId,
+                entry.detail.taskId === task.taskId,
             );
-      const activeWeight = basis.corrections.find(
+      const activeWeight = basis?.corrections.find(
         (record) =>
           record.lifecycle.status === "active" &&
           record.correctedAssertionId === basis.selectedWeightAssertionId,
@@ -247,7 +337,7 @@ export function describeCheckpoint(
                 entry.kind === "plan.changed" && entry.eventId === planChangeId,
             );
       return {
-        title: basis.entry.title,
+        title: task.title,
         ...(status === undefined
           ? {}
           : { statusObservedAt: status.observedAt }),
@@ -265,16 +355,17 @@ export function describeCheckpoint(
             }),
         ...(plan === undefined ? {} : { plan }),
         weightHistory,
-        certainty: basis.entry.certainty ?? "unknown",
-        included: basis.included,
+        certainty: task.certainty ?? "unknown",
+        included: basis?.included ?? false,
+        ...(basis === undefined ? { planOnly: true as const } : {}),
         status: status?.value ?? "unknown",
         statusProvenance: status?.provenance ?? "unknown",
-        ...(basis.effectiveWeight === undefined
+        ...(basis?.effectiveWeight === undefined
           ? {}
           : { weight: basis.effectiveWeight }),
         weightProvenance: weight?.provenance ?? "unknown",
-        completion: basis.completion,
-        completionReason: basis.completionReason,
+        completion: basis?.completion ?? "unknown",
+        completionReason: basis?.completionReason ?? "status_unknown",
         planVersionCount:
           history.status === "available" ? history.revisions.length : 0,
         correctionCount:

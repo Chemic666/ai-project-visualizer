@@ -120,6 +120,9 @@ export type {
   UserCorrectedCurrentTask,
 } from "./correction-engine.js";
 
+export { getCurrentPhaseFromCorrection } from "./current-phase.js";
+export type { CurrentPhaseResult } from "./current-phase.js";
+
 export {
   createTimelineState,
   appendTimelineEvents,

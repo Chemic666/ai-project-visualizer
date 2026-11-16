@@ -29,6 +29,19 @@ test(
     });
     assert.equal(checkpoint.sessionState, "ended");
     assert.deepEqual(checkpoint.currentTask, { status: "unknown" });
+    assert.deepEqual(checkpoint.currentPhase, {
+      status: "unknown",
+      reason: "session_ended",
+    });
+    assert.deepEqual(checkpoint.phases, [
+      {
+        title: "Plan tasks",
+        provenance: "visualizer_inferred",
+        taskPositions: [0, 1],
+        current: false,
+        totals: { completedWeight: 3, totalWeight: 6 },
+      },
+    ]);
     const change = checkpoint.timeline.find(
       (entry) => entry.transition === "60% → 50%",
     );

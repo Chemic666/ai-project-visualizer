@@ -20,8 +20,9 @@ const explanations: Record<string, string> = {
 
 // Presentation for the fixed synthetic fixture, never an authority resolver.
 export function presentTask(task: WalkthroughTask) {
-  const state =
-    task.completion === "verified"
+  const state = task.planOnly
+    ? { symbol: "?", statusLabel: "状态尚未汇总", tone: "muted" }
+    : task.completion === "verified"
       ? { symbol: "✓", statusLabel: "已独立验证", tone: "verified" }
       : task.completion === "completed"
         ? { symbol: "◐", statusLabel: "已声明完成", tone: "reported" }
@@ -41,7 +42,9 @@ export function presentTask(task: WalkthroughTask) {
     statusSource: origins[task.statusProvenance] ?? "未知来源",
     weightSource: origins[task.weightProvenance] ?? "未知来源",
     weightLabel: task.weight === undefined ? "未知" : String(task.weight),
-    detail: explanations[task.completionReason] ?? "依据尚不可用。",
+    detail: task.planOnly
+      ? "计划尚不完整，暂不汇总状态和权重。"
+      : (explanations[task.completionReason] ?? "依据尚不可用。"),
     certaintyLabel:
       task.certainty === "confirmed"
         ? "正式任务"

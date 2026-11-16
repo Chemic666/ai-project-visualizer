@@ -311,6 +311,8 @@ Confidence
 
 2026-11-16 标准扩展的总览已能分别展示最近的计划与进度变化。计算说明列出任务分别计入哪些权重，并可跳到原时间线记录。已在隔离安装和重启恢复后验证合成记录。[总览与进度解释](docs/phase-10-surface.md#explainable-overview-and-progress-in-the-standard-extension--2026-11-16)
 
+2026-11-16 标准扩展总览已能从确认任务及当前计划定位阶段、查看依据，计划页按阶段列出任务及 Core 可计算的权重。隔离安装实测了跨阶段切换及重启恢复，真实会话和计划输入仍待验收。[当前阶段与计划分组](docs/phase-10-surface.md#current-phase-and-grouped-plan-in-the-standard-extension--2026-11-16)
+
 经 host/runtime/package smoke 验证后实现 Overview、Plan、Timeline、Task Detail/Correction、Why Progress 和必要 Settings。Host 负责组合和生命周期，Surface 不计算业务状态。
 
 Baseline UX 必须包含无 Session/无 Plan/未知/歧义/断连、来源与关联 Confidence、进度解释、计划变化、有效/失效纠正和 Task Weight 编辑。Activity 为 advanced/P1，只展示实际支持的观察；未来 Semantic/Export/多 Session 控件不进入初版设置。

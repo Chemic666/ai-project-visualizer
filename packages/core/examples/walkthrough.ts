@@ -166,9 +166,23 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
       },
     };
   }
+  const phaseGroups: readonly core.PlanPhaseInput[] = [
+    { sourcePhaseId: "auth", title: "Authentication basics" },
+    { sourcePhaseId: "token", title: "Token lifecycle" },
+  ];
   const steps: readonly PlanStepInput[] = [
-    { sourceItemId: "login", title: "Login", certainty: "confirmed" },
-    { sourceItemId: "jwt", title: "JWT", certainty: "confirmed" },
+    {
+      sourceItemId: "login",
+      sourcePhaseId: "auth",
+      title: "Login",
+      certainty: "confirmed",
+    },
+    {
+      sourceItemId: "jwt",
+      sourcePhaseId: "auth",
+      title: "JWT",
+      certainty: "confirmed",
+    },
   ];
   function plan(
     tag: string,
@@ -188,6 +202,9 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
         planId: scope.planId,
         provenance: "agent_reported",
         completeness: "complete",
+        phases: phaseGroups.filter((phase) =>
+          entries.some((entry) => entry.sourcePhaseId === phase.sourcePhaseId),
+        ),
         steps: entries,
         ...(previousEventId === undefined ? {} : { previousEventId }),
       },
@@ -279,11 +296,13 @@ function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
       ...steps,
       {
         sourceItemId: "refresh",
+        sourcePhaseId: "token",
         title: "Refresh Token",
         certainty: "confirmed",
       },
       {
         sourceItemId: "revoke",
+        sourcePhaseId: "token",
         title: "Token Revocation",
         certainty: "confirmed",
       },

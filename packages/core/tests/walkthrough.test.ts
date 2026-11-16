@@ -774,3 +774,57 @@ test("Why links the Login completion, effective weight, and relevant plan to dis
   });
   expect(baseline.tasks[pos]?.weight).toBe(3);
 });
+
+test("the walkthrough has two plan groups with exact task memberships, totals, and current phase evidence", () => {
+  const { review, report } = createEditableWalkthrough();
+  const baseline = review.checkpoint;
+  expect(baseline.phases).toMatchObject([
+    {
+      title: "Authentication basics",
+      current: true,
+      taskPositions: [0, 1],
+      totals: { completedWeight: 32, totalWeight: 45 },
+    },
+    {
+      title: "Token lifecycle",
+      current: false,
+      taskPositions: [2, 3],
+      totals: { completedWeight: 0, totalWeight: 5 },
+    },
+  ]);
+  expect(baseline.currentPhase).toMatchObject({
+    status: "available",
+    title: "Authentication basics",
+    taskTitle: "JWT",
+    groupProvenance: "agent_reported",
+  });
+  if (baseline.currentPhase.status !== "available")
+    throw Error("expected current phase");
+  expect(
+    baseline.timeline[baseline.currentPhase.correctionPosition!]?.title,
+  ).toBe("当前任务设为 JWT");
+  expect(baseline.timeline[baseline.currentPhase.planPosition!]?.kind).toBe(
+    "plan.changed",
+  );
+  const edited = review.selectCurrentTask(2);
+  expect(edited.phases.map((row) => row.current)).toEqual([false, true]);
+  expect(edited.currentPhase).toMatchObject({
+    status: "available",
+    title: "Token lifecycle",
+    taskTitle: "Refresh Token",
+  });
+  expect(edited.progress).toEqual(baseline.progress);
+  expect(report.checkpoints[0]?.phases).toEqual([]);
+  expect(
+    report.checkpoints
+      .find(({ key }) => key === "plan-expanded")
+      ?.phases.every((phase) => phase.totals === undefined),
+  ).toBe(true);
+  expect(report.checkpoints.at(-1)?.currentPhase).toEqual({
+    status: "unknown",
+    reason: "session_ended",
+  });
+  expect(report.checkpoints.at(-1)?.phases.some((phase) => phase.current)).toBe(
+    false,
+  );
+});

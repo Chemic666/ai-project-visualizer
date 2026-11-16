@@ -51,6 +51,7 @@ test("imports Core without host, storage or network initialization", async () =>
       "formatProgressPercentage",
       "getAssertion",
       "getAssertionsForTarget",
+      "getCurrentPhaseFromCorrection",
       "getPhase",
       "getPlanSnapshot",
       "getProject",

@@ -319,7 +319,11 @@ function start(recovered?: Checkpoint) {
     if (!selectedTask) return;
     const { position, opener } = selectedTask;
     selectedTask = undefined;
-    opener.querySelectorAll<HTMLButtonElement>(".task-link")[position]?.focus();
+    opener
+      .querySelector<HTMLButtonElement>(
+        `.task-link[data-position="${position}"]`,
+      )
+      ?.focus();
   });
 
   function renderTaskDetail(checkpoint: Checkpoint, position: number) {
@@ -424,24 +428,38 @@ function start(recovered?: Checkpoint) {
         : `已调整权重，项目进度 ${before} → ${after}。`;
   });
 
+  function partialPlan(checkpoint: Checkpoint) {
+    return (
+      checkpoint.progress.status === "unavailable" &&
+      checkpoint.progress.issueCodes.includes("plan_incomplete")
+    );
+  }
+
+  function emptyPlan(checkpoint: Checkpoint) {
+    const empty = node("div", "empty-state");
+    const reason =
+      checkpoint.progress.status === "unavailable"
+        ? checkpoint.progress.issueCodes.find((code) =>
+            code.startsWith("plan_"),
+          )
+        : undefined;
+    empty.append(
+      node("strong", "", reason ? describe([reason]) : "没有可展示的任务"),
+      node("span", "", "任务及依据会随计划记录更新。"),
+    );
+    return empty;
+  }
+
   function taskList(
-    target: HTMLElement,
     checkpoint: Checkpoint,
+    opener: HTMLElement,
+    positions: readonly number[],
     compact: boolean,
   ) {
-    target.replaceChildren();
-    if (checkpoint.tasks.length === 0) {
-      const empty = node("div", "empty-state");
-      empty.append(
-        node("strong", "", "还没有可用的计划"),
-        node("span", "", "收到明确计划后，这里会显示任务与依据。"),
-      );
-      target.append(empty);
-      return;
-    }
     const list = node("ul", "task-list");
-    list.setAttribute("aria-label", compact ? "计划摘要" : "正式任务及依据");
-    for (const [position, task] of checkpoint.tasks.entries()) {
+    list.setAttribute("aria-label", compact ? "计划摘要" : "任务及依据");
+    for (const position of positions) {
+      const task = checkpoint.tasks[position]!;
       const view = presentTask(task);
       const row = node("li", "task-row");
       const symbol = node("span", `task-symbol ${view.tone}`, view.symbol);
@@ -449,9 +467,10 @@ function start(recovered?: Checkpoint) {
       const body = node("div");
       const title = node("button", "task-title task-link", task.title);
       title.type = "button";
+      title.dataset.position = String(position);
       title.setAttribute("aria-haspopup", "dialog");
       title.addEventListener("click", () => {
-        selectedTask = { position, opener: target };
+        selectedTask = { position, opener };
         editResult.textContent = "";
         renderTaskDetail(checkpoint, position);
         taskDialog.showModal();
@@ -480,7 +499,66 @@ function start(recovered?: Checkpoint) {
       row.append(symbol, body, weight);
       list.append(row);
     }
-    target.append(list);
+    return list;
+  }
+
+  function renderTasks(checkpoint: Checkpoint) {
+    const overview = element("overview-tasks");
+    const plan = element("plan-tasks");
+    const positions = checkpoint.tasks.map((_, position) => position);
+    overview.replaceChildren(
+      positions.length
+        ? taskList(checkpoint, overview, positions, true)
+        : emptyPlan(checkpoint),
+    );
+    plan.replaceChildren();
+    if (partialPlan(checkpoint) && positions.length) {
+      const notice = "计划尚不完整。这里显示已记录的分组和任务。";
+      overview.prepend(node("p", "plan-phase-facts", notice));
+      plan.append(node("p", "plan-phase-facts", notice));
+    }
+    if (!checkpoint.phases.length) {
+      plan.append(
+        positions.length
+          ? taskList(checkpoint, plan, positions, false)
+          : emptyPlan(checkpoint),
+      );
+      return;
+    }
+    for (const [index, phase] of checkpoint.phases.entries()) {
+      const heading = node("div", "plan-phase-heading");
+      const title = node("h3", "", phase.title);
+      title.id = `plan-phase-${index}`;
+      heading.append(title);
+      if (phase.current) heading.append(node("span", "tag user", "当前阶段"));
+      const group = node(
+        "section",
+        `plan-phase${phase.current ? " current" : ""}`,
+      );
+      group.setAttribute("aria-labelledby", title.id);
+      const source =
+        phase.provenance === "visualizer_inferred"
+          ? "自动分组 · Visualizer Inferred"
+          : `计划分组 · ${originText[phase.provenance] ?? "未知来源"}`;
+      const weights = phase.totals
+        ? `已完成权重 ${phase.totals.completedWeight} / 正式总权重 ${phase.totals.totalWeight}`
+        : phase.taskPositions.some(
+              (position) =>
+                checkpoint.tasks[position]?.certainty === "confirmed",
+            )
+          ? "阶段权重合计暂不可用"
+          : "没有正式任务";
+      group.append(
+        heading,
+        node("p", "plan-phase-facts", `${source} · ${weights}`),
+      );
+      group.append(
+        phase.taskPositions.length
+          ? taskList(checkpoint, plan, phase.taskPositions, false)
+          : node("p", "plan-phase-empty", "当前计划没有这个阶段的任务。"),
+      );
+      plan.append(group);
+    }
   }
 
   function renderPlanChange(change: PlanChangeView) {
@@ -500,7 +578,7 @@ function start(recovered?: Checkpoint) {
           const item = node("li");
           item.append(
             node("span", "", task.title),
-            node("span", "small-note", task.certainty),
+            node("span", "small-note", `${task.certainty} · ${task.phase}`),
           );
           list.append(item);
         }
@@ -819,6 +897,12 @@ function start(recovered?: Checkpoint) {
 
     const tasks = element("why-tasks");
     tasks.replaceChildren();
+    if (partialPlan(checkpoint)) {
+      tasks.append(
+        node("p", "why-description", "已记录的分组和任务可在计划页查看。"),
+      );
+      return;
+    }
     const complete = checkpoint.tasks.filter(
       (task) =>
         task.included &&
@@ -840,6 +924,52 @@ function start(recovered?: Checkpoint) {
       const group = node("section", "why-group");
       group.append(node("h3", "", label), ...members.map(whyTask));
       tasks.append(group);
+    }
+  }
+
+  function renderCurrentPhase(phase: Checkpoint["currentPhase"]) {
+    const title = element("current-phase");
+    const source = element("current-phase-source");
+    const links = element("current-phase-links");
+    links.replaceChildren();
+    if (phase.status !== "available") {
+      const explanations = {
+        session_unknown: "尚无可用的会话记录",
+        session_ended: "会话已明确结束",
+        current_task_unknown: "尚未确认当前任务",
+        current_task_conflict: "当前任务的依据存在冲突",
+        plan_unavailable: "当前计划暂不可用",
+        plan_ambiguous: "当前计划存在歧义",
+        membership_unavailable: "当前任务没有可用的阶段归属",
+      } as const;
+      title.textContent = phase.status === "ambiguous" ? "无法确定" : "未知";
+      source.textContent = explanations[phase.reason];
+      return;
+    }
+    title.textContent = phase.title;
+    source.textContent =
+      phase.groupProvenance === "visualizer_inferred"
+        ? `依据 ${phase.taskTitle} 的归属 · 自动分组 · Visualizer Inferred`
+        : `依据 ${phase.taskTitle} 所属的计划分组 · ${originText[phase.groupProvenance] ?? "未知来源"}`;
+    if (phase.correctionPosition !== undefined) {
+      const confirmed = time.format(new Date(phase.confirmedAt));
+      links.append(
+        timelineLink(
+          phase.correctionPosition,
+          "查看任务确认",
+          `查看 ${confirmed} 的任务确认：${phase.taskTitle}`,
+        ),
+      );
+    }
+    if (phase.planPosition !== undefined) {
+      const observed = time.format(new Date(phase.planObservedAt));
+      links.append(
+        timelineLink(
+          phase.planPosition,
+          "查看计划归属",
+          `查看 ${observed} 的计划：${phase.taskTitle} 所属阶段`,
+        ),
+      );
     }
   }
 
@@ -921,12 +1051,12 @@ function start(recovered?: Checkpoint) {
             "span",
             "small-note",
             checkpoint.sessionState === "ended"
-              ? "当前任务人工确认已失效"
+              ? "会话已明确结束，当前任务不再有效"
               : "尚无有效的当前任务人工确认",
           ),
     );
-    taskList(element("overview-tasks"), checkpoint, true);
-    taskList(element("plan-tasks"), checkpoint, false);
+    renderCurrentPhase(checkpoint.currentPhase);
+    renderTasks(checkpoint);
     events(element("recent-events"), checkpoint.timeline, "recent");
     events(element("all-events"), checkpoint.timeline, "timeline");
     const planChanges = checkpoint.timeline.filter(

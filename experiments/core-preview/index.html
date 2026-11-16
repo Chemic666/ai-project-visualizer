@@ -154,6 +154,13 @@
               </article>
               <article class="card context-card">
                 <div class="card-heading"><h2>当前工作上下文</h2></div>
+                <div class="context-label">当前阶段</div>
+                <div aria-live="polite" aria-atomic="true">
+                  <div id="current-phase" class="phase-title"></div>
+                  <div id="current-phase-source" class="phase-source"></div>
+                </div>
+                <div id="current-phase-links" class="phase-links"></div>
+                <div class="context-divider"></div>
                 <div class="current-task-controls">
                   <div class="context-label">当前任务</div>
                   <button
@@ -170,12 +177,7 @@
                   <div id="current-task" class="current-task"></div>
                   <div id="current-task-source"></div>
                 </div>
-                <div class="context-divider"></div>
-                <div class="context-label">当前阶段</div>
-                <div class="phase-unknown">
-                  未知 <span>没有可用的阶段声明</span>
-                </div>
-                <p class="small-note">任务关联与完成进度分别呈现。</p>
+                <p class="small-note">当前阶段随任务关联更新。</p>
               </article>
             </div>
             <div class="lower-grid">
@@ -207,7 +209,7 @@
                 <span id="task-count" class="tiny-label"></span>
               </div>
               <p class="section-description">
-                完整完成声明才增加分子；权重、状态和来源保留各自依据。
+                按计划阶段查看任务。阶段的权重来自该阶段的正式任务。
               </p>
               <div id="plan-tasks"></div>
             </article>

@@ -12,9 +12,11 @@ function encodeCheckpoint(checkpoint) {
   // The synthetic host supplies the display projection, so storage cuts never
   // enter the document. As with other script data blocks, escape HTML delimiters.
   const keys = [
+    "currentPhase",
     "currentTask",
     "key",
     "label",
+    "phases",
     "progress",
     "progressReasons",
     "sessionState",

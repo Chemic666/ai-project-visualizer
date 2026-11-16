@@ -103,6 +103,8 @@ const runtimeCheckpoint = {
     ratio: 0.5,
   },
   progressReasons: [],
+  phases: [],
+  currentPhase: { status: "unknown", reason: "session_ended" },
   tasks: [],
   timeline: [],
   sessionState: "ended",

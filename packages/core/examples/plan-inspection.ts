@@ -23,6 +23,7 @@ function snapshot(head: PlanHead) {
     tasks: head.entries.map((entry) => ({
       title: entry.title,
       certainty: certainty(entry.certainty),
+      phase: phaseTitle(head, entry.phaseId),
     })),
   };
 }
