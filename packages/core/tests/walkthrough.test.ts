@@ -1,5 +1,8 @@
 import { expect, test } from "vitest";
-import { runCoreWalkthrough } from "../examples/walkthrough.js";
+import {
+  createTaskWeightWalkthrough,
+  runCoreWalkthrough,
+} from "../examples/walkthrough.js";
 
 test("runnable walkthrough reports actual weighted progress and distinct change reasons", () => {
   const report = runCoreWalkthrough();
@@ -475,4 +478,86 @@ test("checkpoint progress evidence identifies the task behind each weight and co
     }),
   ]);
   expect(JSON.stringify(progress.evidence)).not.toContain("core:assertion:");
+});
+
+test("task weight review keeps task-specific evidence and consecutive edits", () => {
+  const { report, weightReview } = createTaskWeightWalkthrough();
+  const original = weightReview.checkpoint;
+  const refresh = original.tasks.findIndex(
+    ({ title }) => title === "Refresh Token",
+  );
+  const login = original.tasks.findIndex(({ title }) => title === "Login");
+  expect(original.tasks[refresh]?.plan).toMatchObject({
+    revision: 1,
+    provenance: "agent_reported",
+  });
+  expect(original.tasks[login]?.statusObservedAt).not.toBeUndefined();
+
+  const first = weightReview.edit(refresh, 4);
+  expect(first.progress).toMatchObject({
+    completedWeight: 32,
+    totalWeight: 51,
+    percentage: "62.7%",
+  });
+  expect(
+    first.timeline.some(({ transition }) => transition === "64% → 62.7%"),
+  ).toBe(true);
+  expect(first.tasks[login]).toEqual(original.tasks[login]);
+
+  const second = weightReview.edit(refresh, 6);
+  expect(second.progress).toMatchObject({ percentage: "60.4%" });
+  expect(
+    second.timeline
+      .filter(
+        ({ transition }) =>
+          transition === "64% → 62.7%" || transition === "62.7% → 60.4%",
+      )
+      .map(({ transition }) => transition),
+  ).toEqual(["64% → 62.7%", "62.7% → 60.4%"]);
+  expect(second.tasks[refresh]?.weightHistory).toMatchObject([
+    { value: 3, lifecycle: "superseded" },
+    { previousWeight: 3, value: 4, lifecycle: "superseded" },
+    {
+      previousWeight: 4,
+      value: 6,
+      lifecycle: "active",
+      provenance: "user_confirmed",
+    },
+  ]);
+  expect(original.tasks[refresh]?.weight).toBe(3);
+  expect(report.checkpoints[weightReview.baselineIndex]).toBe(original);
+  expect(report.checkpoints).toHaveLength(8);
+  expect(
+    report.checkpoints[6]?.tasks
+      .find(({ title }) => title === "JWT")
+      ?.weightHistory.at(-1),
+  ).toMatchObject({
+    previousWeight: 13,
+    value: 17,
+    lifecycle: "active",
+  });
+});
+
+test("task weight review rejects unknown targets and invalid values without advancing history", () => {
+  const { weightReview } = createTaskWeightWalkthrough();
+  const before = weightReview.checkpoint;
+  const login = before.tasks.findIndex(({ title }) => title === "Login");
+  expect(weightReview.edit(login, before.tasks[login]!.weight!)).toBe(before);
+  expect(() => weightReview.edit(99, 6)).toThrow("synthetic_task_not_editable");
+  for (const value of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    expect(() => weightReview.edit(login, value)).toThrow(
+      "synthetic_weight_invalid",
+    );
+    expect(weightReview.checkpoint).toBe(before);
+  }
+  const after = weightReview.edit(login, 34);
+  expect(after.progress).toMatchObject({
+    completedWeight: 34,
+    totalWeight: 52,
+    percentage: "65.4%",
+  });
+  expect(after.tasks[login]).toMatchObject({
+    statusProvenance: "agent_reported",
+    weightProvenance: "user_confirmed",
+  });
 });

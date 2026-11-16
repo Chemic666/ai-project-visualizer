@@ -303,6 +303,8 @@ Confidence
 
 2026-11-16 临时安装验证已打通扩展宿主重启到恢复页的链路。第二次启动复用原 SQLite 数据库及提交回执，实际 Webview 显示恢复后的 50%、历史进度及原有证据，返回未连接概览。常规扩展恢复真实项目、Codex 接入和生产隐私验收仍待完成。[安装宿主实测](docs/phase-10-surface.md#recovered-history-after-an-installed-vs-code-host-restart--2026-11-16)
 
+2026-11-16 标准扩展的内置案例已支持点开任务查看状态依据、计划版本及权重历史。可编辑检查点支持逐项调整权重，并保留每次调整的进度和来源。已在安装版实际验证，真实项目上的纠正及持久化仍待接入。[任务详情与权重编辑](docs/phase-10-surface.md#task-details-and-weight-editing-in-the-standard-extension--2026-11-16)
+
 经 host/runtime/package smoke 验证后实现 Overview、Plan、Timeline、Task Detail/Correction、Why Progress 和必要 Settings。Host 负责组合和生命周期，Surface 不计算业务状态。
 
 Baseline UX 必须包含无 Session/无 Plan/未知/歧义/断连、来源与关联 Confidence、进度解释、计划变化、有效/失效纠正和 Task Weight 编辑。Activity 为 advanced/P1，只展示实际支持的观察；未来 Semantic/Export/多 Session 控件不进入初版设置。

@@ -25,6 +25,19 @@ export interface WalkthroughTask {
   readonly completionReason: core.ProgressTaskBasis["completionReason"];
   readonly planVersionCount: number;
   readonly correctionCount: number;
+  readonly statusObservedAt?: string;
+  readonly plan?: {
+    readonly revision: number;
+    readonly provenance?: core.Provenance;
+    readonly observedAt: string;
+  };
+  readonly weightHistory: readonly {
+    readonly value: number;
+    readonly previousWeight?: number;
+    readonly provenance: core.Provenance;
+    readonly at: string;
+    readonly lifecycle: core.CorrectionLifecycle["status"];
+  }[];
 }
 interface WalkthroughTimeline {
   readonly transition?: string;
@@ -92,8 +105,53 @@ export function describeCheckpoint(
         scope,
         basis.entry.taskId,
       );
+      const member =
+        history.status === "available" && history.current.status === "member"
+          ? history.current
+          : undefined;
+      const source =
+        member &&
+        state.plan.core.acceptedEvents.find(
+          (event) => event.id === member.eventId,
+        );
+      const plan =
+        history.status === "available" &&
+        source &&
+        (source.type === "plan.detected" || source.type === "plan.updated")
+          ? {
+              revision: history.revisions.length,
+              observedAt: source.receivedAt,
+              ...(source.payload.provenance === undefined
+                ? {}
+                : { provenance: source.payload.provenance }),
+            }
+          : undefined;
+      const weightHistory =
+        history.status === "available"
+          ? history.corrections.flatMap(
+              ({ record, assertion, originalAssertion }) =>
+                assertion.target === "task.weight"
+                  ? [
+                      {
+                        value: assertion.value,
+                        ...(originalAssertion?.target === "task.weight"
+                          ? { previousWeight: originalAssertion.value }
+                          : {}),
+                        provenance: assertion.provenance,
+                        at: record.effectiveAt,
+                        lifecycle: record.lifecycle.status,
+                      },
+                    ]
+                  : [],
+            )
+          : [];
       return {
         title: basis.entry.title,
+        ...(status === undefined
+          ? {}
+          : { statusObservedAt: status.observedAt }),
+        ...(plan === undefined ? {} : { plan }),
+        weightHistory,
         certainty: basis.entry.certainty ?? "unknown",
         included: basis.included,
         status: status?.value ?? "unknown",

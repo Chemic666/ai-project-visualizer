@@ -16,8 +16,16 @@ import type {
   TaskWeight,
 } from "../src/index.js";
 
-// Deliberately synthetic inputs only: no paths, runtime discovery or Agent calls.
 export function runCoreWalkthrough(jwtWeight = 17, inspectPosition?: number) {
+  return buildWalkthrough(jwtWeight, inspectPosition).report;
+}
+
+export function createTaskWeightWalkthrough() {
+  return buildWalkthrough(17);
+}
+
+// Deliberately synthetic inputs only: no paths, runtime discovery or Agent calls.
+function buildWalkthrough(jwtWeight: number, inspectPosition?: number) {
   if (
     inspectPosition !== undefined &&
     (!Number.isSafeInteger(inspectPosition) || inspectPosition < 1)
@@ -34,7 +42,7 @@ export function runCoreWalkthrough(jwtWeight = 17, inspectPosition?: number) {
     planId: "synthetic-auth-plan",
   };
   const at = (minute: number) =>
-    `2026-11-08T10:${String(minute).padStart(2, "0")}:00.000Z`;
+    new Date(Date.UTC(2026, 10, 8, 10, minute)).toISOString();
   const eventId = (tag: string) => `synthetic-event-${tag}` as EventId;
   let state = core.createProjectEngineState(
     core.createPlanEngineState(
@@ -55,6 +63,31 @@ export function runCoreWalkthrough(jwtWeight = 17, inspectPosition?: number) {
   );
   const checkpoints: Checkpoint[] = [];
 
+  function progressFor(updated: core.ProjectEngineState) {
+    return core.calculateProgress(
+      updated.plan,
+      scope,
+      updated.verificationSupports,
+    );
+  }
+
+  function checkpoint(
+    updated: core.ProjectEngineState,
+    key: string,
+    label: string,
+    previousChanges: number,
+  ) {
+    return describeCheckpoint(updated, {
+      key,
+      label,
+      result: progressFor(updated),
+      progressReasons:
+        updated.progress.changes.length > previousChanges
+          ? updated.progress.changes.at(-1)!.reasons
+          : [],
+    });
+  }
+
   function apply(
     key: string,
     label: string,
@@ -68,22 +101,7 @@ export function runCoreWalkthrough(jwtWeight = 17, inspectPosition?: number) {
       throw new Error(`synthetic_update_failed:${applied.status}`);
     state = applied.state;
     if (!capture) return;
-    const result = core.calculateProgress(
-      state.plan,
-      scope,
-      state.verificationSupports,
-    );
-    checkpoints.push(
-      describeCheckpoint(state, {
-        key,
-        label,
-        result,
-        progressReasons:
-          state.progress.changes.length > previousChanges
-            ? state.progress.changes.at(-1)!.reasons
-            : [],
-      }),
-    );
+    checkpoints.push(checkpoint(state, key, label, previousChanges));
   }
   function task(sourceItemId: string): TaskId {
     const view = core.getPlanSnapshot(state.plan, scope);
@@ -100,6 +118,7 @@ export function runCoreWalkthrough(jwtWeight = 17, inspectPosition?: number) {
     target: TaskId,
     value: number,
     minute: number,
+    originalAssertionId?: AssertionId,
   ): ProjectUpdate {
     return {
       kind: "correction",
@@ -107,6 +126,7 @@ export function runCoreWalkthrough(jwtWeight = 17, inspectPosition?: number) {
         id: id as CorrectionId,
         scope: { kind: "task_weight", projectId, sessionId, taskId: target },
         effectiveAt: at(minute),
+        ...(originalAssertionId === undefined ? {} : { originalAssertionId }),
         assertion: {
           id: `${id}-assertion` as AssertionId,
           target: "task.weight",
@@ -279,12 +299,65 @@ export function runCoreWalkthrough(jwtWeight = 17, inspectPosition?: number) {
     weight("revoke-weight", task("revoke"), 2, 9),
     9,
   );
+  // Work on the baseline as it was at this checkpoint. The replay below
+  // can continue through its original ending independently of user edits.
+  let reviewState = state;
+  let reviewCheckpoint = checkpoints.at(-1)!;
+  let nextEdit = 10;
+  const weightReview = {
+    baselineIndex: checkpoints.length - 1,
+    get checkpoint() {
+      return reviewCheckpoint;
+    },
+    edit(position: number, value: number) {
+      if (!Number.isFinite(value) || value <= 0)
+        throw new Error("synthetic_weight_invalid");
+      const basis = progressFor(reviewState).tasks[position];
+      if (!basis?.included) throw new Error("synthetic_task_not_editable");
+      if (basis.effectiveWeight === value) return reviewCheckpoint;
+
+      const update = weight(
+        `review-weight-${nextEdit}`,
+        basis.entry.taskId,
+        value,
+        nextEdit,
+        basis.selectedWeightAssertionId,
+      );
+      const applied = core.applyProjectUpdate(
+        reviewState,
+        update,
+        at(nextEdit),
+      );
+      if (applied.status !== "applied")
+        throw new Error("synthetic_weight_edit_rejected");
+      const next = checkpoint(
+        applied.state,
+        "weight-review",
+        "从第六个检查点开始的权重调整",
+        reviewState.progress.changes.length,
+      );
+      nextEdit++;
+      reviewState = applied.state;
+      reviewCheckpoint = next;
+      return next;
+    },
+  };
+  const originalJwt = task("jwt");
+  const originalJwtWeight = progressFor(state).tasks.find(
+    ({ entry }) => entry.taskId === originalJwt,
+  )?.selectedWeightAssertionId;
   apply(
     "weight-corrected",
     jwtWeight === 13
       ? "用户再次确认 JWT 权重为 13"
       : `用户将 JWT 权重从 13 调整为 ${jwtWeight}`,
-    weight("jwt-weight-replacement", task("jwt"), jwtWeight, 10),
+    weight(
+      "jwt-weight-replacement",
+      originalJwt,
+      jwtWeight,
+      10,
+      originalJwtWeight,
+    ),
     10,
   );
   // Independent branch before Session end; does not alter the main progress story.
@@ -463,12 +536,8 @@ export function runCoreWalkthrough(jwtWeight = 17, inspectPosition?: number) {
   };
   if (timelineInspection.unavailableReferenceCount !== 0)
     throw new Error("synthetic_timeline_reference_missing");
-  const final = core.calculateProgress(
-    state.plan,
-    scope,
-    state.verificationSupports,
-  );
-  return {
+  const final = progressFor(state);
+  const report = {
     mode: "synthetic_core_only" as const,
     realSessionObserved: false,
     storageUsed: false,
@@ -497,4 +566,5 @@ export function runCoreWalkthrough(jwtWeight = 17, inspectPosition?: number) {
       .map((entry) => entry.kind),
     timelineEntryCount: state.timeline.entries.length,
   };
+  return { report, weightReview };
 }

@@ -78,3 +78,11 @@ The unattended run verifies both pages are ready and exits. Add `--review` to in
 - The earlier automated review `9c82cd47-f7b5-42f8-8ddf-6109403a7f5b` reached the recovered page but timed out before returning after its check used the wrong selector for the provenance label. Its failure record is retained.
 
 The standard suite passed **305/305**, the opt-in recovered preview passed **3/3**, and the storage boundary and validation suites passed **42/42**. Typecheck, lint and formatting checks passed. This run covers normal restart of the isolated Windows validation host. Regular extension startup with real project state, live Codex intake, production storage and privacy acceptance, and human usability acceptance remain open.
+
+## Task details and weight editing in the standard extension — 2026-11-16
+
+Task titles in the overview and plan open a detail dialog with the status claim and its source, completion evidence, plan revision, current weight and the task’s correction history. The sixth built-in checkpoint accepts weight changes for any formal task through Core. Repeated edits retain their previous weights and effective or superseded states. Each change updates the project percentage and Timeline. The eight original checkpoints remain available, and **查看本次调整** returns to the current edited view. The recovered view and historical checkpoints offer read-only details.
+
+The standard Windows x64 VSIX passed installed validation in Run `9e9dd244-0210-4ff5-8bce-953e454f0cdc` on VS Code 1.144.0. Automated interaction with that package’s Webview confirmed that changing Refresh Token from 3 to 4 and then 6 moved the project from **64% → 62.7% → 60.4%**. The review verified both Timeline changes, historical JWT **13 → 17**, the original Session end, unchanged completion provenance, invalid and duplicate input handling, focus return, reset, and navigation to the disconnected overview.
+
+The standard test suite passed **307/307**, and the opt-in recovery preview passed **3/3**. Typecheck, lint and formatting passed. Edits belong to the current synthetic preview. Real-session correction, persistent user edits and human usability acceptance remain pending.

@@ -2,7 +2,7 @@
 
 VS Code1.144.0 / Windows x64 local development artifact. This is a user-facing surface with a disconnected overview and an explicitly selected synthetic walkthrough. Real Session/Plan capture and production Storage remain unavailable; this is not complete Phase10/11 acceptance.
 
-Open the Command Palette and choose **AI Project Visualizer: 打开项目概览**. The default page shows unavailable/unknown project information. Choose **体验合成项目示例** to inspect the eight built-in checkpoints, Plan, Why, Timeline and synthetic Task Weight editing. **回到项目概览** returns to the disconnected page. Commands reuse one panel; closing the panel discards this preview. Nothing is saved as real project state.
+Open the Command Palette and choose **AI Project Visualizer: 打开项目概览**. The default page shows unavailable/unknown project information. Choose **体验合成项目示例** to open the walkthrough. Select a task in the overview or plan to see its status evidence, plan source, current weight and prior corrections. At the editable checkpoint, apply a weight to see the project percentage change and track subsequent edits in the task history and timeline. **恢复默认案例** restores the original eight checkpoints. **回到项目概览** returns to the disconnected page. Commands reuse one panel; closing the panel discards this preview. Nothing is saved as real project state.
 
 No workspace/private Session reads, source watching, Hook/permission changes, server/model/SQLite startup or telemetry are implemented. The Webview reads only packaged media under a nonce CSP with network and command URIs disabled. Bridge messages permit own-page navigation and fixed health metadata only. An exported inspectSurface API reports just mode/health for installed-artifact smoke checks; it does not expose or accept Project state.
 
@@ -25,7 +25,7 @@ set "APV_DRIVER_ROOT=%CD%\experiments\phase-2-sqlite-driver-spike\node_modules\b
 pnpm.cmd build:surface --recovered-demo-driver "%APV_DRIVER_ROOT%"
 ```
 
-The build restores a fixed synthetic database after the writer exits and packages the verified display data as its own asset. The extension opens it from **查看已恢复的合成历史** in the overview or Command Palette. The view labels the data as a sample restored during the build. It shows the recovered progress and the earlier changes with their evidence. **回到项目概览** returns to the disconnected page.
+The build restores a fixed synthetic database after the writer exits and packages the verified display data as its own asset. The extension opens it from **查看已恢复的合成历史** in the overview or Command Palette. The view labels the data as a sample restored during the build. It shows the recovered progress, earlier changes and read-only task details. **回到项目概览** returns to the disconnected page.
 
 To review the variant in a development window, set `APV_STAGE` to the absolute `outDir` printed by the build and `APV_CODE_EXE` to the existing VS Code executable. Launch it in a fresh temporary profile.
 

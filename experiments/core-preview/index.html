@@ -82,7 +82,7 @@
             <div class="replay-heading">
               <div>
                 <span class="section-kicker">查看一次开发过程</span>
-                <h2 id="checkpoint-label"></h2>
+                <h2 id="checkpoint-label" tabindex="-1"></h2>
               </div>
               <div class="replay-controls">
                 <button
@@ -97,19 +97,26 @@
                 </button>
               </div>
             </div>
-            <div class="trial-toolbar">
-              <button type="button" class="text-button" id="open-trial">
-                JWT 权重试算</button
-              ><button
+            <div class="weight-review-tools">
+              <button
                 type="button"
                 class="text-button"
-                id="reset-trial"
+                id="open-weight-review"
                 hidden
               >
-                恢复默认案例</button
-              ><span id="trial-notice" class="small-note" role="status" hidden
-                >独立合成案例已重新计算，不累积操作历史。</span
+                查看本次调整
+              </button>
+              <span id="weight-review-hint" class="small-note"
+                >点开任务可查看依据和调整合成权重。</span
               >
+              <button
+                type="button"
+                class="text-button"
+                id="reset-weight-review"
+                hidden
+              >
+                恢复默认案例
+              </button>
             </div>
             <nav
               id="checkpoint-nav"
@@ -250,29 +257,45 @@
         VERIFIED。当前任务关联不是完成比例。
       </p>
     </dialog>
-    <dialog id="trial-dialog" aria-labelledby="trial-title">
+    <dialog id="task-detail" aria-labelledby="task-detail-title">
       <div class="dialog-heading">
-        <div>
-          <span class="section-kicker">SYNTHETIC TRIAL</span>
-          <h2 id="trial-title">JWT 权重试算</h2>
-        </div>
-        <button type="button" id="close-trial" aria-label="关闭试算">×</button>
+        <h2 id="task-detail-title"></h2>
+        <button
+          type="button"
+          id="close-task-detail"
+          aria-label="关闭任务详情"
+          autofocus
+        >
+          ×
+        </button>
       </div>
-      <p class="why-description">
-        从固定合成基线重新运行一次人工纠正。只改变本页案例，不累积操作历史，也不写入真实项目。
-      </p>
-      <form id="trial-form" novalidate>
-        <label for="trial-weight">JWT 合成权重</label
-        ><input
-          id="trial-weight"
-          type="number"
-          inputmode="decimal"
-          step="any"
-          value="17"
-        />
-        <p id="trial-error" class="trial-error" role="alert" hidden></p>
-        <button type="submit" class="primary-button">重新计算合成案例</button>
+      <dl id="task-detail-facts" class="task-detail-facts"></dl>
+      <form id="task-weight-form" novalidate hidden>
+        <label for="task-weight-input">合成任务权重</label>
+        <div class="task-weight-controls">
+          <input
+            id="task-weight-input"
+            type="number"
+            inputmode="decimal"
+            step="any"
+            aria-describedby="task-weight-error"
+          />
+          <button type="submit" class="primary-button">应用权重</button>
+        </div>
+        <p
+          id="task-weight-error"
+          class="task-weight-error"
+          role="alert"
+          hidden
+        ></p>
       </form>
+      <p id="task-detail-read-only" class="small-note" hidden></p>
+      <p id="task-edit-result" class="task-edit-result" role="status"></p>
+      <section class="task-weight-log" aria-labelledby="task-weight-log-title">
+        <h3 id="task-weight-log-title">权重调整记录</h3>
+        <p id="task-weight-empty" class="small-note">暂无人工权重调整。</p>
+        <ol id="task-weight-history"></ol>
+      </section>
     </dialog>
     <noscript
       >这个合成预览需要 JavaScript 执行现有 Core

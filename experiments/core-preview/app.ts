@@ -1,8 +1,7 @@
-import { runCoreWalkthrough } from "../../packages/core/examples/walkthrough.js";
+import { createTaskWeightWalkthrough } from "../../packages/core/examples/walkthrough.js";
 import type { Checkpoint } from "../../packages/core/examples/checkpoint.js";
 import { presentTask } from "../../packages/core/examples/preview-presentation.js";
 
-type Report = ReturnType<typeof runCoreWalkthrough>;
 declare const APV_RECOVERED_CHECKPOINT: Checkpoint | undefined;
 type Tab = "overview" | "plan" | "timeline";
 const reasons: Record<string, string> = {
@@ -61,28 +60,26 @@ function describe(codes: readonly string[]) {
 }
 
 function start(recovered?: Checkpoint) {
-  let report: Report | { checkpoints: Checkpoint[] } = recovered
-    ? { checkpoints: [recovered] }
-    : runCoreWalkthrough();
-  let trialWeight = 17;
-  let index = recovered
-    ? 0
-    : report.checkpoints.findIndex((row) => row.key === "expansion-weighted");
+  let walkthrough = recovered ? undefined : createTaskWeightWalkthrough();
+  let checkpoints: readonly Checkpoint[] = recovered
+    ? [recovered]
+    : walkthrough!.report.checkpoints;
+  const checkpointCount = checkpoints.length;
+  let index = walkthrough?.weightReview.baselineIndex ?? 0;
   let selectedTab: Tab = "overview";
   const tabs: readonly Tab[] = ["overview", "plan", "timeline"];
   const nav = element("checkpoint-nav");
-  report.checkpoints.forEach((row, rowIndex) => {
+  checkpoints.forEach((_, rowIndex) => {
     const button = node("button");
     button.type = "button";
     button.textContent = String(rowIndex + 1);
-    button.setAttribute("aria-label", `检查点 ${rowIndex + 1}：${row.label}`);
-    button.title = row.label;
     button.addEventListener("click", () => {
       index = rowIndex;
       render();
     });
     nav.append(button);
   });
+
   function selectTab(tab: Tab, focus = false) {
     selectedTab = tab;
     for (const key of tabs) {
@@ -125,78 +122,44 @@ function start(recovered?: Checkpoint) {
   );
   element("previous-step").addEventListener("click", () => {
     if (index > 0) {
-      index--;
+      index =
+        index === checkpointCount
+          ? walkthrough!.weightReview.baselineIndex
+          : index - 1;
       render();
     }
   });
   element("next-step").addEventListener("click", () => {
-    if (index < report.checkpoints.length - 1) {
+    if (index < checkpointCount - 1) {
       index++;
       render();
     }
   });
   element("why-button").addEventListener("click", () => {
-    renderWhy(report.checkpoints[index]!);
+    renderWhy(checkpoints[index]!);
     element<HTMLDialogElement>("why-dialog").showModal();
   });
   element("close-why").addEventListener("click", () =>
     element<HTMLDialogElement>("why-dialog").close(),
   );
-  if ("membershipHistory" in report) {
+  if (walkthrough) {
+    const { removedTask, reenteredTask } = walkthrough.report.membershipHistory;
     element("old-history").textContent =
-      `${report.membershipHistory.removedTask.planVersionCount} 个版本 · ${report.membershipHistory.removedTask.correctionCount} 条纠正`;
+      `${removedTask.planVersionCount} 个版本 · ${removedTask.correctionCount} 条纠正`;
     element("new-history").textContent =
-      `${report.membershipHistory.reenteredTask.planVersionCount} 个版本 · ${report.membershipHistory.reenteredTask.correctionCount} 条旧纠正`;
-
-    element("open-trial").addEventListener("click", () => {
-      element<HTMLInputElement>("trial-weight").value = String(trialWeight);
-      element("trial-error").hidden = true;
-      element<HTMLDialogElement>("trial-dialog").showModal();
-    });
-    element("close-trial").addEventListener("click", () =>
-      element<HTMLDialogElement>("trial-dialog").close(),
-    );
-    element("trial-form").addEventListener("submit", (event) => {
-      event.preventDefault();
-      const input = element<HTMLInputElement>("trial-weight");
-      const value = input.valueAsNumber;
-      const error = element("trial-error");
-      if (!Number.isFinite(value) || value <= 0) {
-        error.textContent = "权重需要是大于 0 的有限数；原案例没有改变。";
-        error.hidden = false;
-        input.focus();
-        return;
-      }
-      let next: Report;
-      try {
-        next = runCoreWalkthrough(value);
-      } catch {
-        error.textContent = "Core 未接受本次试算；原案例没有改变。";
-        error.hidden = false;
-        return;
-      }
-      report = next;
-      trialWeight = value;
-      index = report.checkpoints.findIndex(
-        (row) => row.key === "weight-corrected",
-      );
-      selectedTab = "overview";
+      `${reenteredTask.planVersionCount} 个版本 · ${reenteredTask.correctionCount} 条旧纠正`;
+    element("open-weight-review").addEventListener("click", () => {
+      if (checkpoints.length === checkpointCount) return;
+      index = checkpointCount;
       render();
-      element("reset-trial").hidden = false;
-      element("trial-notice").hidden = false;
-      element<HTMLDialogElement>("trial-dialog").close();
+      element("checkpoint-label").focus();
     });
-    element("reset-trial").addEventListener("click", () => {
-      report = runCoreWalkthrough();
-      trialWeight = 17;
-      index = report.checkpoints.findIndex(
-        (row) => row.key === "expansion-weighted",
-      );
-      selectedTab = "overview";
-      element("reset-trial").hidden = true;
-      element("trial-notice").hidden = true;
+    element("reset-weight-review").addEventListener("click", () => {
+      walkthrough = createTaskWeightWalkthrough();
+      checkpoints = walkthrough.report.checkpoints;
+      index = walkthrough.weightReview.baselineIndex;
       render();
-      element("open-trial").focus();
+      nav.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
     });
   } else {
     document.title = "APV · 已恢复的合成历史";
@@ -206,6 +169,126 @@ function start(recovered?: Checkpoint) {
     element("timeline-intro").textContent =
       "来自同一份恢复记录。展开活动可查看原始声明、人工修正和当时的进度变化。";
   }
+
+  const taskDialog = element<HTMLDialogElement>("task-detail");
+  const weightForm = element<HTMLFormElement>("task-weight-form");
+  const weightInput = element<HTMLInputElement>("task-weight-input");
+  const weightError = element("task-weight-error");
+  const editResult = element("task-edit-result");
+  let selectedTask: { position: number; opener: HTMLElement } | undefined;
+  element("close-task-detail").addEventListener("click", () =>
+    taskDialog.close(),
+  );
+  taskDialog.addEventListener("close", () => {
+    if (!selectedTask) return;
+    const { position, opener } = selectedTask;
+    selectedTask = undefined;
+    opener.querySelectorAll<HTMLButtonElement>(".task-link")[position]?.focus();
+  });
+
+  function renderTaskDetail(checkpoint: Checkpoint, position: number) {
+    const task = checkpoint.tasks[position]!;
+    const view = presentTask(task);
+    element("task-detail-title").textContent = task.title;
+    const statusTime = task.statusObservedAt
+      ? ` · ${time.format(new Date(task.statusObservedAt))}`
+      : "";
+    const planText = task.plan
+      ? `${view.certaintyLabel} · 第 ${task.plan.revision} 个关联版本 · ${originText[task.plan.provenance ?? ""] ?? "未知来源"} · ${time.format(new Date(task.plan.observedAt))}`
+      : view.certaintyLabel;
+    const facts = [
+      ["状态", `${view.statusLabel} · ${view.statusSource}${statusTime}`],
+      ["完成依据", view.detail],
+      ["计划", planText],
+      ["当前权重", `${view.weightLabel} · ${view.weightSource}`],
+    ] as const;
+    element("task-detail-facts").replaceChildren(
+      ...facts.flatMap(([label, value]) => [
+        node("dt", "", label),
+        node("dd", "", value),
+      ]),
+    );
+
+    const editable =
+      checkpoint === walkthrough?.weightReview.checkpoint && task.included;
+    weightForm.hidden = !editable;
+    weightInput.value = task.weight === undefined ? "" : String(task.weight);
+    weightError.hidden = true;
+    weightInput.removeAttribute("aria-invalid");
+    const readOnly = element("task-detail-read-only");
+    readOnly.hidden = editable;
+    readOnly.textContent = recovered
+      ? "恢复记录为只读。"
+      : "可在当前合成计划的检查点调整正式任务的权重。";
+
+    const lifecycle = {
+      active: "当前有效",
+      superseded: "已替代",
+      expired: "已失效",
+    };
+    const history = [...task.weightHistory].reverse().map((entry) => {
+      const recordedTime = node("time", "", time.format(new Date(entry.at)));
+      recordedTime.dateTime = entry.at;
+      const change =
+        entry.previousWeight === undefined
+          ? `权重 ${entry.value}`
+          : `${entry.previousWeight} → ${entry.value}`;
+      const row = node("li");
+      row.append(
+        node("strong", "", change),
+        node("span", "", lifecycle[entry.lifecycle]),
+        badge(originText[entry.provenance] ?? "未知来源", entry.provenance),
+        recordedTime,
+      );
+      return row;
+    });
+    element("task-weight-history").replaceChildren(...history);
+    element("task-weight-empty").hidden = history.length > 0;
+  }
+
+  weightForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!selectedTask || !walkthrough || weightForm.hidden) return;
+    const { weightReview } = walkthrough;
+    const previous = checkpoints[index]!;
+    if (previous !== weightReview.checkpoint) return;
+    const value = weightInput.valueAsNumber;
+    if (!Number.isFinite(value) || value <= 0) {
+      weightError.textContent = "输入一个大于 0 的有限数。";
+      weightError.hidden = false;
+      weightInput.setAttribute("aria-invalid", "true");
+      weightInput.focus();
+      return;
+    }
+    let next: Checkpoint;
+    try {
+      next = weightReview.edit(selectedTask.position, value);
+    } catch {
+      weightError.textContent = "这次调整未能应用，原权重已保留。";
+      weightError.hidden = false;
+      weightInput.setAttribute("aria-invalid", "true");
+      weightInput.focus();
+      return;
+    }
+    weightError.hidden = true;
+    weightInput.removeAttribute("aria-invalid");
+    if (next === previous) {
+      editResult.textContent = "输入与当前权重相同。";
+      return;
+    }
+    checkpoints = [...walkthrough.report.checkpoints, next];
+    index = checkpointCount;
+    render();
+    renderTaskDetail(next, selectedTask.position);
+    const percentage = (row: Checkpoint) =>
+      row.progress.status === "available" ? row.progress.percentage : "不可用";
+    const before = percentage(previous);
+    const after = percentage(next);
+    editResult.textContent =
+      before === after
+        ? `已调整权重，显示进度仍为 ${after}。`
+        : `已调整权重，项目进度 ${before} → ${after}。`;
+  });
 
   function taskList(
     target: HTMLElement,
@@ -224,13 +307,22 @@ function start(recovered?: Checkpoint) {
     }
     const list = node("ul", "task-list");
     list.setAttribute("aria-label", compact ? "计划摘要" : "正式任务及依据");
-    for (const task of checkpoint.tasks) {
+    for (const [position, task] of checkpoint.tasks.entries()) {
       const view = presentTask(task);
       const row = node("li", "task-row");
       const symbol = node("span", `task-symbol ${view.tone}`, view.symbol);
       symbol.setAttribute("aria-hidden", "true");
       const body = node("div");
-      body.append(node("div", "task-title", task.title));
+      const title = node("button", "task-title task-link", task.title);
+      title.type = "button";
+      title.setAttribute("aria-haspopup", "dialog");
+      title.addEventListener("click", () => {
+        selectedTask = { position, opener: target };
+        editResult.textContent = "";
+        renderTaskDetail(checkpoint, position);
+        taskDialog.showModal();
+      });
+      body.append(title);
       const meta = node("div", "task-meta");
       meta.append(node("span", "", view.statusLabel));
       if (task.statusProvenance !== "unknown")
@@ -409,20 +501,34 @@ function start(recovered?: Checkpoint) {
   }
 
   function render() {
-    const checkpoint = report.checkpoints[index]!;
+    const checkpoint = checkpoints[index]!;
+    const reviewingWeights = index === checkpointCount;
+    if (walkthrough) {
+      const edited = checkpoints.length > checkpointCount;
+      element("weight-review-hint").hidden =
+        checkpoint !== walkthrough.weightReview.checkpoint;
+      element("open-weight-review").hidden = !edited || reviewingWeights;
+      element("reset-weight-review").hidden = !edited;
+    }
     [...nav.children].forEach((button, rowIndex) => {
       button.setAttribute(
         "aria-label",
-        `检查点 ${rowIndex + 1}：${report.checkpoints[rowIndex]!.label}`,
+        `检查点 ${rowIndex + 1}：${checkpoints[rowIndex]!.label}`,
       );
-      (button as HTMLButtonElement).title = report.checkpoints[rowIndex]!.label;
+      (button as HTMLButtonElement).title = checkpoints[rowIndex]!.label;
     });
     element("checkpoint-label").textContent = checkpoint.label;
-    element("step-counter").textContent =
-      `${index + 1} / ${report.checkpoints.length}`;
-    element<HTMLButtonElement>("previous-step").disabled = index === 0;
+    element("step-counter").textContent = reviewingWeights
+      ? "权重调整"
+      : `${index + 1} / ${checkpointCount}`;
+    const previousStep = element<HTMLButtonElement>("previous-step");
+    previousStep.disabled = index === 0;
+    previousStep.setAttribute(
+      "aria-label",
+      reviewingWeights ? "返回调整前的检查点" : "上一个检查点",
+    );
     element<HTMLButtonElement>("next-step").disabled =
-      index === report.checkpoints.length - 1;
+      index >= checkpointCount - 1;
     [...nav.children].forEach((button, rowIndex) =>
       button.setAttribute("aria-pressed", String(rowIndex === index)),
     );
