@@ -14,8 +14,6 @@ function invoke(mode, runId, root, reopen = false, diagnostics = false) {
     const args = [
       "-NoProfile",
       "-NonInteractive",
-      "-ExecutionPolicy",
-      "Bypass",
       "-File",
       fileURLToPath(new URL("./windows-private-root.ps1", import.meta.url)),
       "-Mode",
